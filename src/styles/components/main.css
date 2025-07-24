@@ -1,0 +1,28 @@
+.app-main {
+  flex: 1;
+  overflow-y: auto;
+  background-color: var(--background-secondary);
+}
+
+.main-container {
+  height: 100%;
+  padding: 0;
+}
+
+/* Custom scrollbar */
+.app-main::-webkit-scrollbar {
+  width: 6px;
+}
+
+.app-main::-webkit-scrollbar-track {
+  background: var(--background-secondary);
+}
+
+.app-main::-webkit-scrollbar-thumb {
+  background: var(--border-medium);
+  border-radius: 3px;
+}
+
+.app-main::-webkit-scrollbar-thumb:hover {
+  background: var(--border-dark);
+}
