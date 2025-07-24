@@ -1,8 +1,10 @@
+// src/router/index.ts
 import { createRouter, createWebHistory, RouteRecordRaw } from 'vue-router'
 import MainLayout from '@/layouts/MainLayout.vue'
 import Dashboard from '@/views/Dashboard.vue'
 import Users from '@/views/Users.vue'
 import Products from '@/views/Products.vue'
+import SalesOrders from '@/views/SalesOrders.vue'
 import Settings from '@/views/Settings.vue'
 
 const routes: Array<RouteRecordRaw> = [
@@ -24,6 +26,11 @@ const routes: Array<RouteRecordRaw> = [
         path: '/products',
         name: 'Products',
         component: Products
+      },
+      {
+        path: '/sales-orders',
+        name: 'SalesOrders',
+        component: SalesOrders
       },
       {
         path: '/settings',

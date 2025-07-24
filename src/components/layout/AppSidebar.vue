@@ -1,3 +1,4 @@
+<!-- src/components/layout/AppSidebar.vue -->
 <template>
   <aside class="app-sidebar">
     <nav class="sidebar-nav">
@@ -24,6 +25,7 @@ import type { MenuItem } from '@/types'
 
 const menuItems = ref<MenuItem[]>([
   { id: 'Dashboard', label: 'Dashboard', icon: '📊', route: '/' },
+  { id: 'SalesOrders', label: 'Sales Orders', icon: '📋', route: '/sales-orders' },
   { id: 'Users', label: 'Users', icon: '👥', route: '/users' },
   { id: 'Products', label: 'Products', icon: '📦', route: '/products' },
   { id: 'Settings', label: 'Settings', icon: '⚙️', route: '/settings' }
