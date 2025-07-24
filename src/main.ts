@@ -1,4 +1,4 @@
-// src/main.ts - Updated main application file with environment-aware initialization
+// src/main.ts - Updated main application file without mock data
 
 import { createApp } from 'vue'
 import App from './App.vue'
@@ -7,7 +7,7 @@ import { env, isDevelopment, isFeatureEnabled } from '@/config/env'
 import { checkApiHealth } from '@/services/apiClient'
 import './styles/main.css'
 
-// Initialize application with environment-specific configuration
+// Initialize application with real API connection
 async function initializeApp() {
   // Show loading indicator
   const loadingElement = document.getElementById('loading')
@@ -24,7 +24,7 @@ async function initializeApp() {
         <div style="font-size: 24px; margin-bottom: 16px;">🚀</div>
         <div>Loading ${env.APP_NAME}...</div>
         <div style="font-size: 12px; color: #666; margin-top: 8px;">
-          Environment: ${env.MODE}
+          Environment: ${env.MODE} | Mock Data: DISABLED
         </div>
       </div>
     `
@@ -40,12 +40,12 @@ async function initializeApp() {
       await initializeProductionMode()
     }
 
-    // Check API health if not in mock mode
-    if (!isFeatureEnabled('MOCK_DATA')) {
-      const apiHealthy = await checkApiHealth()
-      if (!apiHealthy && env.IS_PRODUCTION) {
-        throw new Error('API health check failed in production')
-      }
+    // Always check API health - no mock data fallback
+    console.log('🔍 Checking API health...')
+    const apiHealthy = await checkApiHealth()
+    if (!apiHealthy) {
+      console.warn('⚠️ API health check failed - but continuing startup')
+      // Don't throw error here as users might not have credentials yet
     }
 
     // Initialize analytics if enabled
@@ -82,6 +82,8 @@ async function initializeApp() {
     if (isFeatureEnabled('DEBUG_MODE')) {
       console.log(`✅ ${env.APP_NAME} v${env.APP_VERSION} initialized successfully`)
       console.log('Environment:', env.MODE)
+      console.log('Mock Data:', env.FEATURES.MOCK_DATA) // Should be false
+      console.log('API Base URL:', env.API.BASE_URL)
       console.log('Features enabled:', Object.entries(env.FEATURES)
         .filter(([_, enabled]) => enabled)
         .map(([feature]) => feature)
@@ -107,6 +109,9 @@ async function initializeApp() {
           <div>Failed to load application</div>
           <div style="font-size: 14px; margin-top: 8px;">
             ${error instanceof Error ? error.message : 'Unknown error occurred'}
+          </div>
+          <div style="font-size: 12px; margin-top: 8px; color: #666;">
+            Check console for more details
           </div>
           <button onclick="location.reload()" style="
             margin-top: 16px;
@@ -153,8 +158,9 @@ async function initializeDevelopmentMode() {
     'App Version': env.APP_VERSION,
     'API Base URL': env.API.BASE_URL,
     'Items Per Page': env.UI.ITEMS_PER_PAGE,
-    'Mock Data': isFeatureEnabled('MOCK_DATA'),
-    'Debug Mode': isFeatureEnabled('DEBUG_MODE'),
+    'Mock Data': env.FEATURES.MOCK_DATA, // Should be false
+    'Debug Mode': env.FEATURES.DEBUG_MODE,
+    'SAP Connection': env.FEATURES.SAP_CONNECTION,
   })
 
   console.groupEnd()
@@ -208,9 +214,6 @@ async function initializeAnalytics() {
 
       console.log('✅ Google Analytics initialized')
     }
-
-    // Initialize other analytics services as needed
-    // if (env.ANALYTICS?.MIXPANEL_TOKEN) { ... }
 
   } catch (error) {
     console.error('Failed to initialize analytics:', error)

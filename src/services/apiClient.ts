@@ -1,7 +1,7 @@
-// src/services/apiClient.ts - Updated with environment configuration
+// src/services/apiClient.ts - Updated without mock data fallbacks
 
 import { env, validateEnvironment, isDevelopment, isFeatureEnabled } from '@/config/env'
-import type { SalesOrderDto, ApiResponse, ApiError } from '@/types/api'
+import type { ApiError } from '@/types/api'
 
 // Validate environment on startup
 validateEnvironment()
@@ -35,7 +35,7 @@ class ApiClient {
       console.log('Base URL:', this.baseURL)
       console.log('Timeout:', this.timeout)
       console.log('Retry Attempts:', this.retryAttempts)
-      console.log('Default Headers:', this.defaultHeaders)
+      console.log('Mock Data Enabled:', false) // Always false now
       console.groupEnd()
     }
   }
@@ -135,83 +135,9 @@ class ApiClient {
         return this.request<T>(endpoint, options, attempt + 1)
       }
 
-      // If we're in development and mock data is enabled, try to return mock data
-      if (isDevelopment() && isFeatureEnabled('MOCK_DATA')) {
-        const mockData = this.getMockData<T>(endpoint)
-        if (mockData) {
-          console.warn('🎭 Using mock data due to API failure:', mockData)
-          return mockData
-        }
-      }
-
+      // NO MOCK DATA FALLBACK - Always throw the error
       throw error
     }
-  }
-
-  // Mock data helper for development
-  private getMockData<T>(endpoint: string): T | null {
-    if (!isDevelopment() || !isFeatureEnabled('MOCK_DATA')) {
-      return null
-    }
-
-    // Mock data for sales orders endpoint
-    if (endpoint.includes('/sales-orders')) {
-      if (endpoint.includes('/stats')) {
-        return {
-          totalOrders: 1234,
-          completedOrders: 890,
-          pendingOrders: 344,
-          totalValue: 2500000.00
-        } as T
-      }
-      
-      if (endpoint === '/sales-orders' || endpoint.startsWith('/sales-orders?')) {
-        return {
-          content: [
-            {
-              salesOrderNumber: "SO-2025-001",
-              soldToParty: "Customer ABC",
-              requestedDeliveryDate: "2025-02-15T00:00:00",
-              requestedDeliveryWeek: "2025-W07",
-              completeDelivery: true,
-              toItem: [
-                {
-                  itemNumber: "10",
-                  materialNumber: "MAT-001",
-                  materialDescription: "Sample Material",
-                  quantity: 100,
-                  unitOfMeasure: "PC"
-                }
-              ]
-            },
-            {
-              salesOrderNumber: "SO-2025-002",
-              soldToParty: "Customer XYZ",
-              requestedDeliveryDate: "2025-02-20T00:00:00",
-              requestedDeliveryWeek: "2025-W08",
-              completeDelivery: false,
-              toItem: [
-                {
-                  itemNumber: "10",
-                  materialNumber: "MAT-002",
-                  materialDescription: "Another Material",
-                  quantity: 50,
-                  unitOfMeasure: "KG"
-                }
-              ]
-            }
-          ],
-          totalElements: 2,
-          totalPages: 1,
-          size: 20,
-          number: 0,
-          first: true,
-          last: true
-        } as T
-      }
-    }
-
-    return null
   }
 
   // Generic GET method
@@ -316,15 +242,14 @@ export default ApiClient
 
 // Utility function to check API health on app startup
 export const checkApiHealth = async (): Promise<boolean> => {
-  if (!env.IS_PRODUCTION && isFeatureEnabled('DEBUG_MODE')) {
-    try {
-      await apiClient.healthCheck()
+  try {
+    await apiClient.healthCheck()
+    if (isFeatureEnabled('DEBUG_MODE')) {
       console.log('✅ API health check passed')
-      return true
-    } catch (error) {
-      console.warn('⚠️ API health check failed:', error)
-      return false
     }
+    return true
+  } catch (error) {
+    console.warn('⚠️ API health check failed:', error)
+    return false
   }
-  return true
 }

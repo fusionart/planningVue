@@ -1,11 +1,11 @@
 import { apiClient } from './apiClient'
-import type { SalesOrderDto, SalesOrdersResponse, SalesOrderRequest } from '@/types/api'
+import type { SalesOrderDto } from '@/types/api'
 import { env, isFeatureEnabled } from '@/config/env'
 
 export interface SalesOrderFilters {
   reqDelDateBegin?: string; // ISO DateTime string
   reqDelDateEnd?: string;   // ISO DateTime string
-  // Add other filters if your backend supports them
+  // Additional filters for client-side filtering
   salesOrderNumber?: string;
   soldToParty?: string;
 }
@@ -15,12 +15,6 @@ export interface PaginationParams {
   size?: number
   sort?: string
   direction?: 'asc' | 'desc'
-}
-
-// Mock credentials for development/testing
-const DEFAULT_CREDENTIALS = {
-  username: btoa('niliev'), // base64 encoded
-  password: btoa('21Zaq12wsx!!!')  // base64 encoded
 }
 
 class SalesOrderService {
@@ -42,7 +36,7 @@ class SalesOrderService {
       const reqDelDateBegin = filters.reqDelDateBegin || startOfMonth.toISOString()
       const reqDelDateEnd = filters.reqDelDateEnd || endOfMonth.toISOString()
 
-      // Get credentials (in production, these should come from auth system)
+      // Get credentials - this will throw error if not available
       const credentials = this.getCredentials()
 
       const params = {
@@ -87,20 +81,27 @@ class SalesOrderService {
       const endIndex = startIndex + size
       const paginatedOrders = filteredOrders.slice(startIndex, endIndex)
 
+      if (isFeatureEnabled('DEBUG_MODE')) {
+        console.log('📊 Sales orders fetched successfully:', {
+          total: salesOrders.length,
+          filtered: filteredOrders.length,
+          paginated: paginatedOrders.length
+        })
+      }
+
       return {
         content: paginatedOrders,
         total: filteredOrders.length
       }
 
     } catch (error) {
-      console.error('Failed to fetch sales orders:', error)
+      console.error('❌ Failed to fetch sales orders:', error)
       
-      // Return mock data in development if enabled
-      if (isFeatureEnabled('MOCK_DATA')) {
-        return this.getMockSalesOrders(pagination)
+      // Re-throw the error without mock data fallback
+      if (error instanceof Error) {
+        throw new Error(`Failed to fetch sales orders: ${error.message}`)
       }
-      
-      throw error
+      throw new Error('Failed to fetch sales orders: Unknown error')
     }
   }
 
@@ -172,6 +173,15 @@ class SalesOrderService {
       // Since we don't have order values, we'll calculate a mock total
       const totalValue = totalOrders * 15000 // Mock average order value
 
+      if (isFeatureEnabled('DEBUG_MODE')) {
+        console.log('📈 Sales orders statistics calculated:', {
+          totalOrders,
+          completedOrders,
+          pendingOrders,
+          totalValue
+        })
+      }
+
       return {
         totalOrders,
         completedOrders,
@@ -179,15 +189,8 @@ class SalesOrderService {
         totalValue
       }
     } catch (error) {
-      console.error('Failed to get sales orders stats:', error)
-      
-      // Return mock stats if there's an error
-      return {
-        totalOrders: 0,
-        completedOrders: 0,
-        pendingOrders: 0,
-        totalValue: 0
-      }
+      console.error('❌ Failed to get sales orders stats:', error)
+      throw new Error('Failed to calculate sales orders statistics')
     }
   }
 
@@ -208,7 +211,7 @@ class SalesOrderService {
 
   /**
    * Get credentials for API calls
-   * In production, this should integrate with your authentication system
+   * Throws error if credentials are not available
    */
   private getCredentials() {
     // Check if credentials are stored (from login form)
@@ -217,19 +220,18 @@ class SalesOrderService {
       return storedCredentials
     }
 
-    // Fall back to default credentials for development
-    if (isFeatureEnabled('MOCK_DATA')) {
-      console.warn('🔐 Using default credentials for development')
-      return DEFAULT_CREDENTIALS
-    }
-
-    throw new Error('No credentials available. Please provide username and password.')
+    // No fallback to default credentials - always require proper credentials
+    throw new Error('SAP credentials not found. Please provide username and password via the credentials modal.')
   }
 
   /**
    * Store credentials (base64 encoded)
    */
   setCredentials(username: string, password: string) {
+    if (!username || !password) {
+      throw new Error('Username and password are required')
+    }
+
     const credentials = {
       username: btoa(username),
       password: btoa(password)
@@ -260,6 +262,14 @@ class SalesOrderService {
   }
 
   /**
+   * Check if credentials are available
+   */
+  hasCredentials(): boolean {
+    const stored = this.getStoredCredentials()
+    return !!(stored.username && stored.password)
+  }
+
+  /**
    * Clear stored credentials
    */
   clearCredentials() {
@@ -270,59 +280,33 @@ class SalesOrderService {
   }
 
   /**
-   * Mock data for development
+   * Test credentials by making a small API call
    */
-  private getMockSalesOrders(pagination: PaginationParams = {}): { content: SalesOrderDto[], total: number } {
-    const mockOrders: SalesOrderDto[] = [
-      {
-        salesOrderNumber: "SO-2025-001",
-        soldToParty: "ABC Corporation",
-        requestedDeliveryDate: "2025-02-15T00:00:00Z",
-        requestedDeliveryWeek: "2025-W07",
-        completeDelivery: true,
-        toItem: [
-          {
-            itemNumber: "10",
-            materialNumber: "MAT-001",
-            materialDescription: "Premium Widget",
-            quantity: 100,
-            unitOfMeasure: "PC"
-          }
-        ]
-      },
-      {
-        salesOrderNumber: "SO-2025-002",
-        soldToParty: "XYZ Industries",
-        requestedDeliveryDate: "2025-02-20T00:00:00Z",
-        requestedDeliveryWeek: "2025-W08",
-        completeDelivery: false,
-        toItem: [
-          {
-            itemNumber: "10",
-            materialNumber: "MAT-002",
-            materialDescription: "Standard Component",
-            quantity: 50,
-            unitOfMeasure: "KG"
-          },
-          {
-            itemNumber: "20",
-            materialNumber: "MAT-003",
-            materialDescription: "Additional Part",
-            quantity: 25,
-            unitOfMeasure: "PC"
-          }
-        ]
+  async testCredentials(username: string, password: string): Promise<boolean> {
+    try {
+      const tempCredentials = {
+        username: btoa(username),
+        password: btoa(password)
       }
-    ]
 
-    const page = pagination.page || 0
-    const size = pagination.size || 20
-    const startIndex = page * size
-    const endIndex = startIndex + size
+      // Try to fetch a small amount of data
+      const now = new Date()
+      const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000)
 
-    return {
-      content: mockOrders.slice(startIndex, endIndex),
-      total: mockOrders.length
+      const params = {
+        username: tempCredentials.username,
+        password: tempCredentials.password,
+        reqDelDateBegin: yesterday.toISOString(),
+        reqDelDateEnd: now.toISOString()
+      }
+
+      await apiClient.get<SalesOrderDto[]>(`${this.endpoint}/getSalesOrders`, params)
+      return true
+    } catch (error) {
+      if (isFeatureEnabled('DEBUG_MODE')) {
+        console.error('🔐 Credentials test failed:', error)
+      }
+      return false
     }
   }
 }

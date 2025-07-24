@@ -1,14 +1,36 @@
-<!-- src/views/SalesOrders.vue -->
+<!-- src/views/SalesOrders.vue - Fixed for direct API connection -->
 <template>
   <div class="sales-orders">
     <div class="page-header">
       <h2 class="page-title">Sales Orders</h2>
       <div class="header-actions">
+        <div class="credentials-status">
+          <span 
+            class="status-indicator" 
+            :class="hasCredentials ? 'status-connected' : 'status-disconnected'"
+          >
+            {{ hasCredentials ? '🔐 Connected' : '🔓 No Credentials' }}
+          </span>
+        </div>
         <button class="btn btn-secondary" @click="showCredentialsModal = true">
           🔐 Credentials
         </button>
         <button class="btn btn-primary" @click="refresh" :disabled="loading">
           {{ loading ? 'Loading...' : 'Refresh' }}
+        </button>
+      </div>
+    </div>
+
+    <!-- Credentials Required Notice -->
+    <div v-if="!hasCredentials && !showCredentialsModal" class="credentials-notice">
+      <div class="notice-content">
+        <div class="notice-icon">🔐</div>
+        <div class="notice-text">
+          <h3>SAP Credentials Required</h3>
+          <p>Please provide your SAP username and password to access sales orders data.</p>
+        </div>
+        <button class="btn btn-primary" @click="showCredentialsModal = true">
+          Enter Credentials
         </button>
       </div>
     </div>
@@ -22,6 +44,10 @@
         </div>
         
         <div class="modal-body">
+          <div class="credentials-info">
+            <p>Enter your SAP system credentials to connect to the API.</p>
+          </div>
+
           <div class="form-group">
             <label for="username">Username:</label>
             <input
@@ -30,6 +56,7 @@
               type="text"
               placeholder="Enter SAP username"
               class="form-input"
+              :disabled="testingCredentials"
             />
           </div>
           
@@ -41,23 +68,36 @@
               type="password"
               placeholder="Enter SAP password"
               class="form-input"
+              :disabled="testingCredentials"
             />
+          </div>
+
+          <div v-if="credentialsError" class="credentials-error">
+            {{ credentialsError }}
           </div>
           
           <div class="form-actions">
-            <button class="btn btn-secondary" @click="closeCredentialsModal">
+            <button 
+              class="btn btn-secondary" 
+              @click="closeCredentialsModal"
+              :disabled="testingCredentials"
+            >
               Cancel
             </button>
-            <button class="btn btn-primary" @click="saveCredentials">
-              Save & Apply
+            <button 
+              class="btn btn-primary" 
+              @click="saveCredentials"
+              :disabled="!credentialsForm.username || !credentialsForm.password || testingCredentials"
+            >
+              {{ testingCredentials ? 'Testing...' : 'Save & Connect' }}
             </button>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Filters Section -->
-    <div class="filters-section">
+    <!-- Filters Section - Only show if credentials are available -->
+    <div v-if="hasCredentials" class="filters-section">
       <div class="filters-grid">
         <div class="filter-group">
           <label for="dateFrom">Date From</label>
@@ -109,7 +149,7 @@
         <button class="btn btn-secondary" @click="clearFilters" :disabled="loading">
           Clear Filters
         </button>
-        <button class="btn btn-secondary" @click="setCurrentMonthRange">
+        <button class="btn btn-secondary" @click="setCurrentMonthRangeAndRefresh">
           Current Month
         </button>
       </div>
@@ -119,6 +159,7 @@
     <div v-if="loading" class="loading-state">
       <div class="loading-spinner"></div>
       <p>Loading sales orders from SAP...</p>
+      <p class="loading-sub">This may take a moment...</p>
     </div>
 
     <!-- Error State -->
@@ -132,11 +173,14 @@
         <button class="btn btn-secondary" @click="showCredentialsModal = true">
           Check Credentials
         </button>
+        <button class="btn btn-secondary" @click="clearCredentialsAndReload">
+          Clear Credentials
+        </button>
       </div>
     </div>
 
     <!-- Empty State -->
-    <div v-else-if="isEmpty" class="empty-state">
+    <div v-else-if="isEmpty && hasCredentials" class="empty-state">
       <div class="empty-icon">📋</div>
       <p>No sales orders found for the selected criteria.</p>
       <button class="btn btn-primary" @click="clearFilters">
@@ -145,7 +189,10 @@
     </div>
 
     <!-- Sales Orders Table -->
-    <div v-else class="table-container">
+    <div v-else-if="hasData" class="table-container">
+      <div class="table-header">
+        <h3>Sales Orders ({{ pagination.totalElements }})</h3>
+      </div>
       <table class="sales-orders-table">
         <thead>
           <tr>
@@ -309,6 +356,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useSalesOrders } from '@/composables/useSalesOrders'
+import { salesOrderService } from '@/services/salesOrderService'
 import type { SalesOrderDto } from '@/types/api'
 
 const {
@@ -327,15 +375,23 @@ const {
   nextPage,
   prevPage,
   setCurrentMonthRange,
-  setCredentials
+  setCredentials,
+  clearCredentials
 } = useSalesOrders()
 
 // Component state
 const selectedOrder = ref<SalesOrderDto | null>(null)
 const showCredentialsModal = ref(false)
+const testingCredentials = ref(false)
+const credentialsError = ref('')
 const credentialsForm = ref({
   username: '',
   password: ''
+})
+
+// Check if credentials are available
+const hasCredentials = computed(() => {
+  return salesOrderService.hasCredentials()
 })
 
 // Date inputs for the filter form
@@ -402,13 +458,37 @@ const closeModal = () => {
   selectedOrder.value = null
 }
 
-// Save credentials
-const saveCredentials = () => {
-  if (credentialsForm.value.username && credentialsForm.value.password) {
-    setCredentials(credentialsForm.value.username, credentialsForm.value.password)
-    closeCredentialsModal()
-    // Refresh data with new credentials
-    refresh()
+// Save and test credentials
+const saveCredentials = async () => {
+  if (!credentialsForm.value.username || !credentialsForm.value.password) {
+    credentialsError.value = 'Both username and password are required'
+    return
+  }
+
+  testingCredentials.value = true
+  credentialsError.value = ''
+
+  try {
+    // Test credentials first
+    const isValid = await salesOrderService.testCredentials(
+      credentialsForm.value.username,
+      credentialsForm.value.password
+    )
+
+    if (isValid) {
+      // Save credentials
+      setCredentials(credentialsForm.value.username, credentialsForm.value.password)
+      closeCredentialsModal()
+      // Initialize data with new credentials
+      initializeDateInputs()
+      await refresh()
+    } else {
+      credentialsError.value = 'Invalid credentials. Please check your username and password.'
+    }
+  } catch (error) {
+    credentialsError.value = error instanceof Error ? error.message : 'Connection failed. Please try again.'
+  } finally {
+    testingCredentials.value = false
   }
 }
 
@@ -416,6 +496,15 @@ const saveCredentials = () => {
 const closeCredentialsModal = () => {
   showCredentialsModal.value = false
   credentialsForm.value = { username: '', password: '' }
+  credentialsError.value = ''
+  testingCredentials.value = false
+}
+
+// Clear credentials and reload
+const clearCredentialsAndReload = () => {
+  clearCredentials()
+  clearError()
+  showCredentialsModal.value = true
 }
 
 // Set current month range and refresh
@@ -428,155 +517,17 @@ const setCurrentMonthRangeAndRefresh = () => {
 // Initialize component
 onMounted(() => {
   initializeDateInputs()
-  refresh()
+  
+  // Only refresh if we have credentials
+  if (hasCredentials.value) {
+    refresh()
+  } else {
+    // Show credentials modal immediately if no credentials
+    showCredentialsModal.value = true
+  }
 })
 </script>
 
 <style scoped>
 @import '@/styles/views/SalesOrder.css';
-
-/* Additional styles for credentials modal and improved UI */
-.header-actions {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-}
-
-.credentials-modal {
-  max-width: 400px;
-}
-
-.form-group {
-  margin-bottom: 16px;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 4px;
-  font-weight: 500;
-  color: var(--text-secondary);
-}
-
-.form-input {
-  width: 100%;
-  padding: 8px 12px;
-  border: 1px solid var(--border-medium);
-  border-radius: var(--border-radius-md);
-  font-size: 14px;
-}
-
-.form-input:focus {
-  outline: none;
-  border-color: var(--color-primary);
-}
-
-.form-actions {
-  display: flex;
-  gap: 12px;
-  justify-content: flex-end;
-  margin-top: 20px;
-}
-
-.loading-spinner {
-  width: 40px;
-  height: 40px;
-  border: 4px solid var(--border-light);
-  border-top: 4px solid var(--color-primary);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin: 0 auto 16px;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-.error-icon,
-.empty-icon {
-  font-size: 48px;
-  margin-bottom: 16px;
-}
-
-.error-actions {
-  display: flex;
-  gap: 12px;
-  justify-content: center;
-  margin-top: 16px;
-}
-
-.order-details-modal {
-  max-width: 800px;
-  max-height: 90vh;
-}
-
-.detail-value {
-  font-weight: 500;
-  color: var(--text-primary);
-}
-
-.item-card {
-  background: var(--background-secondary);
-  border: 1px solid var(--border-light);
-  border-radius: var(--border-radius-md);
-  padding: 16px;
-  margin-bottom: 12px;
-}
-
-.item-details {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.item-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.item-label {
-  font-weight: 500;
-  color: var(--text-secondary);
-  min-width: 120px;
-}
-
-.item-value {
-  color: var(--text-primary);
-  text-align: right;
-}
-
-.no-items {
-  text-align: center;
-  padding: 20px;
-  color: var(--text-secondary);
-  font-style: italic;
-}
-
-/* Responsive adjustments */
-@media (max-width: 768px) {
-  .header-actions {
-    flex-direction: column;
-    gap: 8px;
-    width: 100%;
-  }
-
-  .header-actions .btn {
-    width: 100%;
-  }
-
-  .item-row {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 4px;
-  }
-
-  .item-label {
-    min-width: auto;
-  }
-
-  .item-value {
-    text-align: left;
-  }
-}
 </style>

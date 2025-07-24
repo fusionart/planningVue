@@ -1,8 +1,26 @@
-<!-- src/views/Dashboard.vue -->
+<!-- src/views/Dashboard.vue - Updated without mock data -->
 <template>
   <div class="dashboard">
     <h2 class="page-title">Dashboard</h2>
     <div class="dashboard-content">
+      <!-- Connection Status -->
+      <div class="connection-status">
+        <div class="status-card" :class="connectionStatus.class">
+          <div class="status-icon">{{ connectionStatus.icon }}</div>
+          <div class="status-text">
+            <h3>{{ connectionStatus.title }}</h3>
+            <p>{{ connectionStatus.message }}</p>
+          </div>
+          <button 
+            v-if="!hasCredentials" 
+            class="btn btn-primary"
+            @click="$router.push('/sales-orders')"
+          >
+            Setup Credentials
+          </button>
+        </div>
+      </div>
+
       <!-- Sales Orders Statistics -->
       <div class="stats-grid">
         <div class="stat-card">
@@ -10,10 +28,10 @@
             <h3>Total Sales Orders</h3>
             <span class="stat-icon">📋</span>
           </div>
-          <p class="stat-number">{{ salesStats.totalOrders || '-' }}</p>
-          <p class="stat-change positive" v-if="!loadingStats">
-            <span class="change-icon">↗</span>
-            12% vs last month
+          <p class="stat-number" v-if="!loadingStats">{{ salesStats.totalOrders || 0 }}</p>
+          <div v-else class="stat-loading">Loading...</div>
+          <p class="stat-description" v-if="!loadingStats">
+            {{ getStatusMessage('orders') }}
           </p>
         </div>
 
@@ -22,10 +40,10 @@
             <h3>Completed Orders</h3>
             <span class="stat-icon">✅</span>
           </div>
-          <p class="stat-number">{{ salesStats.completedOrders || '-' }}</p>
-          <p class="stat-change positive" v-if="!loadingStats">
-            <span class="change-icon">↗</span>
-            8% vs last month
+          <p class="stat-number" v-if="!loadingStats">{{ salesStats.completedOrders || 0 }}</p>
+          <div v-else class="stat-loading">Loading...</div>
+          <p class="stat-description" v-if="!loadingStats">
+            {{ getCompletionRate() }}% completion rate
           </p>
         </div>
 
@@ -34,10 +52,10 @@
             <h3>Pending Orders</h3>
             <span class="stat-icon">⏳</span>
           </div>
-          <p class="stat-number">{{ salesStats.pendingOrders || '-' }}</p>
-          <p class="stat-change" v-if="!loadingStats">
-            <span class="change-icon">→</span>
-            Same as last month
+          <p class="stat-number" v-if="!loadingStats">{{ salesStats.pendingOrders || 0 }}</p>
+          <div v-else class="stat-loading">Loading...</div>
+          <p class="stat-description" v-if="!loadingStats">
+            {{ getStatusMessage('pending') }}
           </p>
         </div>
 
@@ -46,12 +64,12 @@
             <h3>Total Value</h3>
             <span class="stat-icon">💰</span>
           </div>
-          <p class="stat-number">
-            {{ salesStats.totalValue ? formatCurrency(salesStats.totalValue) : '-' }}
+          <p class="stat-number" v-if="!loadingStats">
+            {{ salesStats.totalValue ? formatCurrency(salesStats.totalValue) : '$0' }}
           </p>
-          <p class="stat-change positive" v-if="!loadingStats">
-            <span class="change-icon">↗</span>
-            15% vs last month
+          <div v-else class="stat-loading">Loading...</div>
+          <p class="stat-description" v-if="!loadingStats">
+            Estimated total value
           </p>
         </div>
       </div>
@@ -83,11 +101,19 @@
               <p>Browse and manage products</p>
             </div>
           </router-link>
+
+          <div class="action-card" @click="refreshDashboard">
+            <div class="action-icon">🔄</div>
+            <div class="action-content">
+              <h4>Refresh Data</h4>
+              <p>Update dashboard statistics</p>
+            </div>
+          </div>
         </div>
       </div>
 
-      <!-- Recent Orders -->
-      <div class="recent-orders" v-if="recentOrders.length > 0">
+      <!-- Recent Orders - Only show if we have credentials and data -->
+      <div class="recent-orders" v-if="hasCredentials && recentOrders.length > 0">
         <div class="section-header">
           <h3>Recent Sales Orders</h3>
           <router-link to="/sales-orders" class="view-all-link">
@@ -117,24 +143,28 @@
         </div>
       </div>
 
-      <!-- Loading States -->
-      <div v-if="loadingStats || loadingOrders" class="loading-section">
-        <p>Loading dashboard data...</p>
-      </div>
-
-      <!-- Error States -->
-      <div v-if="error" class="error-section">
-        <p class="error-message">{{ error }}</p>
-        <button class="btn btn-primary" @click="loadDashboardData">
-          Retry
-        </button>
+      <!-- Error State -->
+      <div v-if="error && hasCredentials" class="error-section">
+        <div class="error-content">
+          <div class="error-icon">❌</div>
+          <h3>Error Loading Data</h3>
+          <p class="error-message">{{ error }}</p>
+          <div class="error-actions">
+            <button class="btn btn-primary" @click="clearError">
+              Dismiss
+            </button>
+            <button class="btn btn-secondary" @click="refreshDashboard">
+              Retry
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { salesOrderService } from '@/services/salesOrderService'
 import type { SalesOrderDto } from '@/types/api'
 
@@ -150,8 +180,55 @@ const loadingStats = ref(false)
 const loadingOrders = ref(false)
 const error = ref<string | null>(null)
 
+// Check if credentials are available
+const hasCredentials = computed(() => {
+  return salesOrderService.hasCredentials()
+})
+
+// Connection status computed property
+const connectionStatus = computed(() => {
+  if (!hasCredentials.value) {
+    return {
+      class: 'status-warning',
+      icon: '🔓',
+      title: 'SAP Connection Required',
+      message: 'Please setup your SAP credentials to view sales data.'
+    }
+  }
+
+  if (error.value) {
+    return {
+      class: 'status-error',
+      icon: '❌',
+      title: 'Connection Error',
+      message: 'Failed to connect to SAP system. Check your credentials.'
+    }
+  }
+
+  if (loadingStats.value || loadingOrders.value) {
+    return {
+      class: 'status-loading',
+      icon: '⏳',
+      title: 'Loading Data',
+      message: 'Connecting to SAP system and loading sales data...'
+    }
+  }
+
+  return {
+    class: 'status-success',
+    icon: '✅',
+    title: 'Connected to SAP',
+    message: 'Successfully connected and data is up to date.'
+  }
+})
+
 // Load dashboard data
 const loadDashboardData = async () => {
+  if (!hasCredentials.value) {
+    console.log('⚠️ No credentials available, skipping data load')
+    return
+  }
+
   error.value = null
   
   // Load statistics
@@ -159,9 +236,10 @@ const loadDashboardData = async () => {
   try {
     const stats = await salesOrderService.getSalesOrdersStats()
     salesStats.value = stats
+    console.log('✅ Dashboard statistics loaded successfully')
   } catch (err) {
-    console.error('Failed to load sales stats:', err)
-    error.value = 'Failed to load statistics'
+    console.error('❌ Failed to load sales stats:', err)
+    error.value = err instanceof Error ? err.message : 'Failed to load statistics'
   } finally {
     loadingStats.value = false
   }
@@ -169,16 +247,56 @@ const loadDashboardData = async () => {
   // Load recent orders
   loadingOrders.value = true
   try {
-    const response = await salesOrderService.getSalesOrders({}, { page: 0, size: 5, sort: 'requestedDeliveryDate', direction: 'desc' })
+    const response = await salesOrderService.getSalesOrders({}, { 
+      page: 0, 
+      size: 5, 
+      sort: 'requestedDeliveryDate', 
+      direction: 'desc' 
+    })
     recentOrders.value = response.content
+    console.log('✅ Recent orders loaded successfully')
   } catch (err) {
-    console.error('Failed to load recent orders:', err)
+    console.error('❌ Failed to load recent orders:', err)
     if (!error.value) {
-      error.value = 'Failed to load recent orders'
+      error.value = err instanceof Error ? err.message : 'Failed to load recent orders'
     }
   } finally {
     loadingOrders.value = false
   }
+}
+
+// Refresh dashboard data
+const refreshDashboard = () => {
+  console.log('🔄 Refreshing dashboard data...')
+  loadDashboardData()
+}
+
+// Clear error
+const clearError = () => {
+  error.value = null
+}
+
+// Get status message for orders
+const getStatusMessage = (type: 'orders' | 'pending') => {
+  if (type === 'orders') {
+    const total = salesStats.value.totalOrders
+    if (total === 0) return 'No orders found'
+    if (total === 1) return '1 order found'
+    return `${total} orders found`
+  } else {
+    const pending = salesStats.value.pendingOrders
+    if (pending === 0) return 'All orders complete'
+    if (pending === 1) return '1 pending order'
+    return `${pending} pending orders`
+  }
+}
+
+// Get completion rate
+const getCompletionRate = () => {
+  const total = salesStats.value.totalOrders
+  const completed = salesStats.value.completedOrders
+  if (total === 0) return 0
+  return Math.round((completed / total) * 100)
 }
 
 // Format currency
@@ -203,7 +321,13 @@ const formatDate = (dateString: string) => {
 
 // Initialize data on component mount
 onMounted(() => {
-  loadDashboardData()
+  console.log('📊 Dashboard mounted, checking credentials...')
+  if (hasCredentials.value) {
+    console.log('✅ Credentials found, loading dashboard data')
+    loadDashboardData()
+  } else {
+    console.log('⚠️ No credentials found, dashboard will show setup prompt')
+  }
 })
 </script>
 
@@ -215,6 +339,58 @@ onMounted(() => {
 .page-title {
   margin-bottom: 24px;
   color: var(--text-primary);
+}
+
+.connection-status {
+  margin-bottom: 32px;
+}
+
+.status-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px;
+  border-radius: var(--border-radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.status-success {
+  background: #d1fae5;
+  border: 1px solid #10b981;
+}
+
+.status-warning {
+  background: #fef3c7;
+  border: 1px solid #f59e0b;
+}
+
+.status-error {
+  background: #fee2e2;
+  border: 1px solid #ef4444;
+}
+
+.status-loading {
+  background: #dbeafe;
+  border: 1px solid #3b82f6;
+}
+
+.status-icon {
+  font-size: 32px;
+}
+
+.status-text {
+  flex: 1;
+}
+
+.status-text h3 {
+  margin: 0 0 4px 0;
+  font-size: 18px;
+  color: var(--text-primary);
+}
+
+.status-text p {
+  margin: 0;
+  color: var(--text-secondary);
 }
 
 .stats-grid {
@@ -262,20 +438,22 @@ onMounted(() => {
   margin: 8px 0;
 }
 
-.stat-change {
-  display: flex;
-  align-items: center;
-  gap: 4px;
+.stat-loading {
+  font-size: 1.2rem;
+  color: var(--text-secondary);
+  margin: 8px 0;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.stat-description {
   font-size: 12px;
+  color: var(--text-secondary);
   margin: 0;
-}
-
-.stat-change.positive {
-  color: var(--color-success);
-}
-
-.change-icon {
-  font-size: 14px;
 }
 
 .quick-actions {
@@ -304,6 +482,7 @@ onMounted(() => {
   text-decoration: none;
   color: inherit;
   transition: var(--transition-fast);
+  cursor: pointer;
 }
 
 .action-card:hover {
@@ -339,6 +518,7 @@ onMounted(() => {
   border-radius: var(--border-radius-lg);
   box-shadow: var(--shadow-card);
   padding: 24px;
+  margin-bottom: 32px;
 }
 
 .section-header {
@@ -425,18 +605,39 @@ onMounted(() => {
   color: white;
 }
 
-.loading-section,
 .error-section {
-  text-align: center;
-  padding: 40px 20px;
   background: var(--background-card);
   border-radius: var(--border-radius-lg);
   box-shadow: var(--shadow-card);
+  padding: 32px;
+  text-align: center;
+}
+
+.error-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.error-icon {
+  font-size: 48px;
+}
+
+.error-content h3 {
+  margin: 0;
+  color: var(--text-primary);
 }
 
 .error-message {
   color: var(--color-error);
-  margin-bottom: 16px;
+  margin: 0;
+}
+
+.error-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
 }
 
 /* Responsive Design */
@@ -447,6 +648,11 @@ onMounted(() => {
 
   .actions-grid {
     grid-template-columns: 1fr;
+  }
+
+  .status-card {
+    flex-direction: column;
+    text-align: center;
   }
 
   .order-item {

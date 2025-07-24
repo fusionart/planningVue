@@ -1,4 +1,4 @@
-// src/config/env.ts - Updated configuration for SAP backend integration
+// src/config/env.ts - Updated configuration with mock data disabled
 
 export const env = {
   // App Information
@@ -8,8 +8,8 @@ export const env = {
   // API Configuration for your Spring Boot backend
   API: {
     BASE_URL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api',
-    TIMEOUT: parseInt(import.meta.env.VITE_API_TIMEOUT) || 30000,
-    RETRY_ATTEMPTS: parseInt(import.meta.env.VITE_API_RETRY_ATTEMPTS) || 3,
+    TIMEOUT: parseInt(import.meta.env.VITE_API_TIMEOUT) || 60000, // Increased for SAP calls
+    RETRY_ATTEMPTS: parseInt(import.meta.env.VITE_API_RETRY_ATTEMPTS) || 2,
     // SAP specific endpoints from your controller
     SAP_ENDPOINT: '/sap/getSalesOrders',
     HEALTH_ENDPOINT: '/health',
@@ -17,25 +17,24 @@ export const env = {
   
   // SAP Connection Settings
   SAP: {
-    // These should be configured via environment variables or user input
     DEFAULT_DATE_RANGE_DAYS: parseInt(import.meta.env.VITE_SAP_DEFAULT_DATE_RANGE) || 30,
     MAX_RESULTS_PER_REQUEST: parseInt(import.meta.env.VITE_SAP_MAX_RESULTS) || 1000,
     REQUEST_TIMEOUT: parseInt(import.meta.env.VITE_SAP_TIMEOUT) || 60000, // 60 seconds for SAP calls
   },
   
-  // Feature Flags
+  // Feature Flags - MOCK DATA DISABLED
   FEATURES: {
     DEBUG_MODE: import.meta.env.VITE_ENABLE_DEBUG_MODE === 'true',
-    MOCK_DATA: import.meta.env.VITE_ENABLE_MOCK_DATA === 'true',
+    MOCK_DATA: false, // DISABLED - No mock data
     ANALYTICS: import.meta.env.VITE_ENABLE_ANALYTICS === 'true',
     DEV_TOOLS: import.meta.env.VITE_SHOW_DEV_TOOLS === 'true',
     // SAP specific features
-    SAP_CONNECTION: import.meta.env.VITE_ENABLE_SAP_CONNECTION !== 'false', // Enabled by default
-    CREDENTIALS_STORAGE: import.meta.env.VITE_ENABLE_CREDENTIALS_STORAGE === 'true',
+    SAP_CONNECTION: true, // Always enabled
+    CREDENTIALS_STORAGE: import.meta.env.VITE_ENABLE_CREDENTIALS_STORAGE !== 'false',
     AUTO_REFRESH: import.meta.env.VITE_ENABLE_AUTO_REFRESH === 'true',
     EXPORT_FEATURES: import.meta.env.VITE_ENABLE_EXPORT_FEATURES === 'true',
-    // Disable features not supported by your backend
-    ORDER_EDITING: false, // Your backend doesn't support CRUD operations
+    // Features not supported by your backend
+    ORDER_EDITING: false,
     BULK_OPERATIONS: false,
     REAL_TIME_UPDATES: false,
   },
@@ -95,15 +94,11 @@ export const validateEnvironment = () => {
     console.group('🔧 Environment Configuration')
     console.log('Mode:', env.MODE)
     console.log('API Base URL:', env.API.BASE_URL)
+    console.log('Mock Data:', env.FEATURES.MOCK_DATA) // Should be false
     console.log('SAP Features:', {
       connection: env.FEATURES.SAP_CONNECTION,
       credentialsStorage: env.FEATURES.CREDENTIALS_STORAGE,
       autoRefresh: env.FEATURES.AUTO_REFRESH
-    })
-    console.log('UI Config:', {
-      itemsPerPage: env.UI.ITEMS_PER_PAGE,
-      currency: env.UI.CURRENCY,
-      dateFormat: env.UI.DEFAULT_DATE_FORMAT
     })
     console.groupEnd()
   }
