@@ -1,8 +1,4 @@
-// src/types/api.ts
-
-export interface ToItem {
-  // Add properties based on your ToItem structure
-  // Example properties (adjust according to your actual ToItem structure):
+export interface SalesOrderItem {
   itemNumber?: string;
   materialNumber?: string;
   materialDescription?: string;
@@ -12,16 +8,32 @@ export interface ToItem {
   confirmedDeliveryDate?: string;
   plant?: string;
   storageLocation?: string;
-  // Add other properties as needed based on your backend ToItem structure
 }
 
-export interface SalesOrderDto {
+export interface SalesOrderHeader {
   salesOrderNumber: string;
   soldToParty: string;
   requestedDeliveryDate: string; // ISO string format from API
   requestedDeliveryWeek: string;
+  overallTotalDeliveryStatus?: string;
+  toItem: SalesOrderItem[];
+}
+
+// Backend response format based on your controller
+export interface SalesOrdersResponse {
+  success: boolean;
+  data: SalesOrderHeader[];
+  message?: string;
+}
+
+// DTO that matches the backend MapToSalesOrderDto service output
+export interface SalesOrderDto {
+  salesOrderNumber: string;
+  soldToParty: string;
+  requestedDeliveryDate: string;
+  requestedDeliveryWeek: string;
   completeDelivery: boolean;
-  toItem: ToItem[];
+  toItem: SalesOrderItem[];
 }
 
 export interface ApiResponse<T> {
@@ -46,4 +58,12 @@ export interface ApiError {
   status: number;
   timestamp: string;
   path?: string;
+}
+
+// Backend request parameters
+export interface SalesOrderRequest {
+  username: string;
+  password: string;
+  reqDelDateBegin: string; // ISO DateTime format
+  reqDelDateEnd: string;   // ISO DateTime format
 }

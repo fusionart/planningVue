@@ -29,10 +29,10 @@
   --shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
   --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
   
-  /* Spacing */
-  --header-height: 60px;
-  --sidebar-width: 250px;
-  --footer-height: 50px;
+  /* Spacing - Reduced from original values */
+  --header-height: 50px; /* Reduced from 60px */
+  --sidebar-width: 220px; /* Reduced from 250px */
+  --footer-height: 40px; /* Reduced from 50px */
   
   /* Border Radius */
   --border-radius-sm: 4px;

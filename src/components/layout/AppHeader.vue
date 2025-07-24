@@ -2,7 +2,7 @@
   <header class="app-header">
     <div class="header-container">
       <div class="header-brand">
-        <h1 class="brand-title">My App</h1>
+        <h1 class="brand-title">Планиране</h1>
       </div>
       <nav class="header-nav">
         <div class="nav-items">

@@ -7,7 +7,7 @@
 }
 
 .sidebar-nav {
-  padding: 20px 0;
+  padding: 12px 0; /* Reduced from 20px 0 */
 }
 
 .nav-menu {
@@ -16,7 +16,7 @@
 }
 
 .nav-item {
-  margin: 2px 10px;
+  margin: 1px 8px; /* Reduced from 2px 10px */
 }
 
 .nav-item.active .nav-link {
@@ -27,7 +27,7 @@
 .nav-link {
   display: flex;
   align-items: center;
-  padding: 12px 16px;
+  padding: 10px 12px; /* Reduced from 12px 16px */
   color: var(--text-secondary);
   border-radius: var(--border-radius-md);
   transition: var(--transition-fast);
@@ -40,8 +40,8 @@
 }
 
 .nav-icon {
-  margin-right: 12px;
-  font-size: 18px;
+  margin-right: 10px; /* Reduced from 12px */
+  font-size: 16px; /* Reduced from 18px */
 }
 
 .nav-label {
@@ -51,7 +51,7 @@
 /* Responsive */
 @media (max-width: 768px) {
   .app-sidebar {
-    width: 60px;
+    width: 55px; /* Reduced from 60px */
   }
   
   .nav-label {

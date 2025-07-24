@@ -1,8 +1,6 @@
-// src/composables/useSalesOrders.ts
-
 import { ref, reactive, computed, onMounted } from 'vue'
 import { salesOrderService } from '@/services/salesOrderService'
-import type { SalesOrderDto, PaginatedResponse } from '@/types/api'
+import type { SalesOrderDto } from '@/types/api'
 import type { SalesOrderFilters, PaginationParams } from '@/services/salesOrderService'
 
 export function useSalesOrders() {
@@ -21,12 +19,10 @@ export function useSalesOrders() {
   })
 
   const filters = reactive<SalesOrderFilters>({
+    reqDelDateBegin: '',
+    reqDelDateEnd: '',
     salesOrderNumber: '',
-    soldToParty: '',
-    requestedDeliveryWeek: '',
-    completeDelivery: undefined,
-    dateFrom: '',
-    dateTo: ''
+    soldToParty: ''
   })
 
   // Computed properties
@@ -39,35 +35,42 @@ export function useSalesOrders() {
     error.value = null
   }
 
+  // Calculate pagination info
+  const updatePaginationInfo = (total: number) => {
+    pagination.totalElements = total
+    pagination.totalPages = Math.ceil(total / pagination.size)
+    pagination.first = pagination.page === 0
+    pagination.last = pagination.page >= pagination.totalPages - 1
+  }
+
   // Fetch sales orders with current filters and pagination
   const fetchSalesOrders = async () => {
     loading.value = true
     error.value = null
     
     try {
-      const activeFilters = Object.fromEntries(
-        Object.entries(filters).filter(([_, value]) => value !== '' && value !== undefined)
-      )
+      const activeFilters: SalesOrderFilters = {}
+      
+      // Only include non-empty filters
+      if (filters.reqDelDateBegin) activeFilters.reqDelDateBegin = filters.reqDelDateBegin
+      if (filters.reqDelDateEnd) activeFilters.reqDelDateEnd = filters.reqDelDateEnd
+      if (filters.salesOrderNumber) activeFilters.salesOrderNumber = filters.salesOrderNumber
+      if (filters.soldToParty) activeFilters.soldToParty = filters.soldToParty
 
       const paginationParams: PaginationParams = {
         page: pagination.page,
         size: pagination.size
       }
 
-      const response: PaginatedResponse<SalesOrderDto> = await salesOrderService.getSalesOrders(
-        activeFilters,
-        paginationParams
-      )
-
+      const response = await salesOrderService.getSalesOrders(activeFilters, paginationParams)
+      
       salesOrders.value = response.content
-      pagination.totalElements = response.totalElements
-      pagination.totalPages = response.totalPages
-      pagination.first = response.first
-      pagination.last = response.last
+      updatePaginationInfo(response.total)
       
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to fetch sales orders'
       salesOrders.value = []
+      updatePaginationInfo(0)
     } finally {
       loading.value = false
     }
@@ -100,20 +103,32 @@ export function useSalesOrders() {
       })
 
       salesOrders.value = response.content
-      pagination.totalElements = response.totalElements
-      pagination.totalPages = response.totalPages
-      pagination.first = response.first
-      pagination.last = response.last
+      updatePaginationInfo(response.total)
       
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to search sales orders'
       salesOrders.value = []
+      updatePaginationInfo(0)
     } finally {
       loading.value = false
     }
   }
 
-  // Create new sales order
+  // Set date range filter
+  const setDateRange = (startDate: Date, endDate: Date) => {
+    filters.reqDelDateBegin = startDate.toISOString()
+    filters.reqDelDateEnd = endDate.toISOString()
+  }
+
+  // Set current month as default date range
+  const setCurrentMonthRange = () => {
+    const now = new Date()
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59)
+    setDateRange(startOfMonth, endOfMonth)
+  }
+
+  // Create new sales order (not supported by backend)
   const createSalesOrder = async (salesOrderData: Omit<SalesOrderDto, 'salesOrderNumber'>) => {
     loading.value = true
     error.value = null
@@ -123,14 +138,14 @@ export function useSalesOrders() {
       salesOrders.value.unshift(newSalesOrder)
       return newSalesOrder
     } catch (err) {
-      error.value = err instanceof Error ? err.message : 'Failed to create sales order'
+      error.value = err instanceof Error ? err.message : 'Create operation not supported'
       throw err
     } finally {
       loading.value = false
     }
   }
 
-  // Update sales order
+  // Update sales order (not supported by backend)
   const updateSalesOrder = async (salesOrderNumber: string, updates: Partial<SalesOrderDto>) => {
     loading.value = true
     error.value = null
@@ -149,14 +164,14 @@ export function useSalesOrders() {
       
       return updatedSalesOrder
     } catch (err) {
-      error.value = err instanceof Error ? err.message : 'Failed to update sales order'
+      error.value = err instanceof Error ? err.message : 'Update operation not supported'
       throw err
     } finally {
       loading.value = false
     }
   }
 
-  // Delete sales order
+  // Delete sales order (not supported by backend)
   const deleteSalesOrder = async (salesOrderNumber: string) => {
     loading.value = true
     error.value = null
@@ -169,7 +184,7 @@ export function useSalesOrders() {
         currentSalesOrder.value = null
       }
     } catch (err) {
-      error.value = err instanceof Error ? err.message : 'Failed to delete sales order'
+      error.value = err instanceof Error ? err.message : 'Delete operation not supported'
       throw err
     } finally {
       loading.value = false
@@ -206,15 +221,32 @@ export function useSalesOrders() {
 
   // Clear filters
   const clearFilters = () => {
-    Object.keys(filters).forEach(key => {
-      filters[key as keyof SalesOrderFilters] = key === 'completeDelivery' ? undefined : ''
-    })
+    filters.reqDelDateBegin = ''
+    filters.reqDelDateEnd = ''
+    filters.salesOrderNumber = ''
+    filters.soldToParty = ''
     pagination.page = 0
     fetchSalesOrders()
   }
 
+  // Set credentials for API calls
+  const setCredentials = (username: string, password: string) => {
+    salesOrderService.setCredentials(username, password)
+  }
+
+  // Clear credentials
+  const clearCredentials = () => {
+    salesOrderService.clearCredentials()
+  }
+
   // Refresh data
   const refresh = () => {
+    fetchSalesOrders()
+  }
+
+  // Initialize with current month by default
+  const initialize = () => {
+    setCurrentMonthRange()
     fetchSalesOrders()
   }
 
@@ -245,6 +277,11 @@ export function useSalesOrders() {
     applyFilters,
     clearFilters,
     clearError,
-    refresh
+    refresh,
+    initialize,
+    setDateRange,
+    setCurrentMonthRange,
+    setCredentials,
+    clearCredentials
   }
 }

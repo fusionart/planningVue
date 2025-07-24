@@ -7,7 +7,7 @@
 
 .footer-container {
   height: 100%;
-  padding: 0 20px;
+  padding: 0 16px; /* Reduced from 20px */
 }
 
 .footer-content {
@@ -26,13 +26,13 @@
 .footer-info {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px; /* Reduced from 10px */
 }
 
 .version {
   font-size: 12px;
   color: var(--text-light);
   background-color: var(--background-secondary);
-  padding: 2px 8px;
+  padding: 2px 6px; /* Reduced from 2px 8px */
   border-radius: var(--border-radius-sm);
 }

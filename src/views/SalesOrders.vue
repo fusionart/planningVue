@@ -3,14 +3,82 @@
   <div class="sales-orders">
     <div class="page-header">
       <h2 class="page-title">Sales Orders</h2>
-      <button class="btn btn-primary" @click="refresh">
-        Refresh
-      </button>
+      <div class="header-actions">
+        <button class="btn btn-secondary" @click="showCredentialsModal = true">
+          🔐 Credentials
+        </button>
+        <button class="btn btn-primary" @click="refresh" :disabled="loading">
+          {{ loading ? 'Loading...' : 'Refresh' }}
+        </button>
+      </div>
+    </div>
+
+    <!-- Credentials Modal -->
+    <div v-if="showCredentialsModal" class="modal-overlay" @click="closeCredentialsModal">
+      <div class="modal credentials-modal" @click.stop>
+        <div class="modal-header">
+          <h3>SAP API Credentials</h3>
+          <button class="modal-close" @click="closeCredentialsModal">×</button>
+        </div>
+        
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="username">Username:</label>
+            <input
+              id="username"
+              v-model="credentialsForm.username"
+              type="text"
+              placeholder="Enter SAP username"
+              class="form-input"
+            />
+          </div>
+          
+          <div class="form-group">
+            <label for="password">Password:</label>
+            <input
+              id="password"
+              v-model="credentialsForm.password"
+              type="password"
+              placeholder="Enter SAP password"
+              class="form-input"
+            />
+          </div>
+          
+          <div class="form-actions">
+            <button class="btn btn-secondary" @click="closeCredentialsModal">
+              Cancel
+            </button>
+            <button class="btn btn-primary" @click="saveCredentials">
+              Save & Apply
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Filters Section -->
     <div class="filters-section">
       <div class="filters-grid">
+        <div class="filter-group">
+          <label for="dateFrom">Date From</label>
+          <input
+            id="dateFrom"
+            v-model="dateFromInput"
+            type="datetime-local"
+            class="filter-input"
+          />
+        </div>
+
+        <div class="filter-group">
+          <label for="dateTo">Date To</label>
+          <input
+            id="dateTo"
+            v-model="dateToInput"
+            type="datetime-local"
+            class="filter-input"
+          />
+        </div>
+
         <div class="filter-group">
           <label for="salesOrderNumber">Sales Order Number</label>
           <input
@@ -32,30 +100,6 @@
             class="filter-input"
           />
         </div>
-
-        <div class="filter-group">
-          <label for="deliveryWeek">Delivery Week</label>
-          <input
-            id="deliveryWeek"
-            v-model="filters.requestedDeliveryWeek"
-            type="text"
-            placeholder="e.g., 2025-W04"
-            class="filter-input"
-          />
-        </div>
-
-        <div class="filter-group">
-          <label for="completeDelivery">Complete Delivery</label>
-          <select
-            id="completeDelivery"
-            v-model="filters.completeDelivery"
-            class="filter-select"
-          >
-            <option :value="undefined">All</option>
-            <option :value="true">Yes</option>
-            <option :value="false">No</option>
-          </select>
-        </div>
       </div>
 
       <div class="filters-actions">
@@ -65,25 +109,39 @@
         <button class="btn btn-secondary" @click="clearFilters" :disabled="loading">
           Clear Filters
         </button>
+        <button class="btn btn-secondary" @click="setCurrentMonthRange">
+          Current Month
+        </button>
       </div>
     </div>
 
     <!-- Loading State -->
     <div v-if="loading" class="loading-state">
-      <p>Loading sales orders...</p>
+      <div class="loading-spinner"></div>
+      <p>Loading sales orders from SAP...</p>
     </div>
 
     <!-- Error State -->
     <div v-else-if="hasError" class="error-state">
+      <div class="error-icon">❌</div>
       <p class="error-message">{{ error }}</p>
-      <button class="btn btn-primary" @click="clearError">
-        Dismiss
-      </button>
+      <div class="error-actions">
+        <button class="btn btn-primary" @click="clearError">
+          Dismiss
+        </button>
+        <button class="btn btn-secondary" @click="showCredentialsModal = true">
+          Check Credentials
+        </button>
+      </div>
     </div>
 
     <!-- Empty State -->
     <div v-else-if="isEmpty" class="empty-state">
-      <p>No sales orders found.</p>
+      <div class="empty-icon">📋</div>
+      <p>No sales orders found for the selected criteria.</p>
+      <button class="btn btn-primary" @click="clearFilters">
+        Clear Filters
+      </button>
     </div>
 
     <!-- Sales Orders Table -->
@@ -118,7 +176,7 @@
                 {{ order.completeDelivery ? 'Complete' : 'Partial' }}
               </span>
             </td>
-            <td>{{ order.toItem.length }}</td>
+            <td>{{ order.toItem?.length || 0 }}</td>
             <td>
               <div class="actions">
                 <button
@@ -127,20 +185,6 @@
                   title="View Details"
                 >
                   👁️
-                </button>
-                <button
-                  class="btn-icon"
-                  @click="editOrder(order)"
-                  title="Edit Order"
-                >
-                  ✏️
-                </button>
-                <button
-                  class="btn-icon btn-danger"
-                  @click="confirmDelete(order)"
-                  title="Delete Order"
-                >
-                  🗑️
                 </button>
               </div>
             </td>
@@ -182,9 +226,9 @@
       </div>
     </div>
 
-    <!-- Order Details Modal (if viewing) -->
+    <!-- Order Details Modal -->
     <div v-if="selectedOrder" class="modal-overlay" @click="closeModal">
-      <div class="modal" @click.stop>
+      <div class="modal order-details-modal" @click.stop>
         <div class="modal-header">
           <h3>Sales Order Details</h3>
           <button class="modal-close" @click="closeModal">×</button>
@@ -194,27 +238,30 @@
           <div class="order-details">
             <div class="detail-group">
               <label>Order Number:</label>
-              <span>{{ selectedOrder.salesOrderNumber }}</span>
+              <span class="detail-value">{{ selectedOrder.salesOrderNumber }}</span>
             </div>
             
             <div class="detail-group">
               <label>Sold To Party:</label>
-              <span>{{ selectedOrder.soldToParty }}</span>
+              <span class="detail-value">{{ selectedOrder.soldToParty }}</span>
             </div>
             
             <div class="detail-group">
               <label>Requested Delivery Date:</label>
-              <span>{{ formatDate(selectedOrder.requestedDeliveryDate) }}</span>
+              <span class="detail-value">{{ formatDate(selectedOrder.requestedDeliveryDate) }}</span>
             </div>
             
             <div class="detail-group">
               <label>Delivery Week:</label>
-              <span>{{ selectedOrder.requestedDeliveryWeek }}</span>
+              <span class="detail-value">{{ selectedOrder.requestedDeliveryWeek }}</span>
             </div>
             
             <div class="detail-group">
               <label>Complete Delivery:</label>
-              <span class="status-badge" :class="selectedOrder.completeDelivery ? 'status-success' : 'status-warning'">
+              <span 
+                class="status-badge" 
+                :class="selectedOrder.completeDelivery ? 'status-success' : 'status-warning'"
+              >
                 {{ selectedOrder.completeDelivery ? 'Yes' : 'No' }}
               </span>
             </div>
@@ -222,17 +269,36 @@
 
           <!-- Order Items -->
           <div class="order-items">
-            <h4>Order Items ({{ selectedOrder.toItem.length }})</h4>
-            <div v-if="selectedOrder.toItem.length > 0" class="items-list">
+            <h4>Order Items ({{ selectedOrder.toItem?.length || 0 }})</h4>
+            <div v-if="selectedOrder.toItem && selectedOrder.toItem.length > 0" class="items-list">
               <div
                 v-for="(item, index) in selectedOrder.toItem"
                 :key="index"
                 class="item-card"
               >
-                <pre>{{ JSON.stringify(item, null, 2) }}</pre>
+                <div class="item-details">
+                  <div class="item-row">
+                    <span class="item-label">Item Number:</span>
+                    <span class="item-value">{{ item.itemNumber || 'N/A' }}</span>
+                  </div>
+                  <div class="item-row">
+                    <span class="item-label">Material Number:</span>
+                    <span class="item-value">{{ item.materialNumber || 'N/A' }}</span>
+                  </div>
+                  <div class="item-row">
+                    <span class="item-label">Description:</span>
+                    <span class="item-value">{{ item.materialDescription || 'N/A' }}</span>
+                  </div>
+                  <div class="item-row">
+                    <span class="item-label">Quantity:</span>
+                    <span class="item-value">{{ item.quantity || 'N/A' }} {{ item.unitOfMeasure || '' }}</span>
+                  </div>
+                </div>
               </div>
             </div>
-            <p v-else class="no-items">No items found for this order.</p>
+            <div v-else class="no-items">
+              <p>No items found for this order.</p>
+            </div>
           </div>
         </div>
       </div>
@@ -241,7 +307,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useSalesOrders } from '@/composables/useSalesOrders'
 import type { SalesOrderDto } from '@/types/api'
 
@@ -254,22 +320,62 @@ const {
   hasData,
   hasError,
   isEmpty,
-  fetchSalesOrders,
   applyFilters,
   clearFilters,
   clearError,
   refresh,
   nextPage,
   prevPage,
-  deleteSalesOrder
+  setCurrentMonthRange,
+  setCredentials
 } = useSalesOrders()
 
+// Component state
 const selectedOrder = ref<SalesOrderDto | null>(null)
-
-// Initialize data on component mount
-onMounted(() => {
-  fetchSalesOrders()
+const showCredentialsModal = ref(false)
+const credentialsForm = ref({
+  username: '',
+  password: ''
 })
+
+// Date inputs for the filter form
+const dateFromInput = ref('')
+const dateToInput = ref('')
+
+// Initialize date inputs with current month
+const initializeDateInputs = () => {
+  const now = new Date()
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59)
+  
+  dateFromInput.value = formatDateTimeLocal(startOfMonth)
+  dateToInput.value = formatDateTimeLocal(endOfMonth)
+  
+  // Set the filters
+  filters.reqDelDateBegin = startOfMonth.toISOString()
+  filters.reqDelDateEnd = endOfMonth.toISOString()
+}
+
+// Watch date inputs and update filters
+watch([dateFromInput, dateToInput], ([fromDate, toDate]) => {
+  if (fromDate) {
+    filters.reqDelDateBegin = new Date(fromDate).toISOString()
+  }
+  if (toDate) {
+    filters.reqDelDateEnd = new Date(toDate).toISOString()
+  }
+})
+
+// Format date for datetime-local input
+const formatDateTimeLocal = (date: Date): string => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  
+  return `${year}-${month}-${day}T${hours}:${minutes}`
+}
 
 // Format date for display
 const formatDate = (dateString: string) => {
@@ -277,7 +383,9 @@ const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
-      day: '2-digit'
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
     })
   } catch {
     return dateString
@@ -289,29 +397,186 @@ const viewOrder = (order: SalesOrderDto) => {
   selectedOrder.value = order
 }
 
-// Edit order (placeholder for future implementation)
-const editOrder = (order: SalesOrderDto) => {
-  console.log('Edit order:', order.salesOrderNumber)
-  // TODO: Implement edit functionality
-}
-
-// Confirm delete order
-const confirmDelete = async (order: SalesOrderDto) => {
-  if (confirm(`Are you sure you want to delete order ${order.salesOrderNumber}?`)) {
-    try {
-      await deleteSalesOrder(order.salesOrderNumber)
-    } catch (err) {
-      console.error('Failed to delete order:', err)
-    }
-  }
-}
-
-// Close modal
+// Close order details modal
 const closeModal = () => {
   selectedOrder.value = null
 }
+
+// Save credentials
+const saveCredentials = () => {
+  if (credentialsForm.value.username && credentialsForm.value.password) {
+    setCredentials(credentialsForm.value.username, credentialsForm.value.password)
+    closeCredentialsModal()
+    // Refresh data with new credentials
+    refresh()
+  }
+}
+
+// Close credentials modal
+const closeCredentialsModal = () => {
+  showCredentialsModal.value = false
+  credentialsForm.value = { username: '', password: '' }
+}
+
+// Set current month range and refresh
+const setCurrentMonthRangeAndRefresh = () => {
+  setCurrentMonthRange()
+  initializeDateInputs()
+  applyFilters()
+}
+
+// Initialize component
+onMounted(() => {
+  initializeDateInputs()
+  refresh()
+})
 </script>
 
 <style scoped>
 @import '@/styles/views/SalesOrder.css';
+
+/* Additional styles for credentials modal and improved UI */
+.header-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.credentials-modal {
+  max-width: 400px;
+}
+
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 4px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.form-input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border-medium);
+  border-radius: var(--border-radius-md);
+  font-size: 14px;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.form-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 20px;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid var(--border-light);
+  border-top: 4px solid var(--color-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 16px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.error-icon,
+.empty-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+
+.error-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 16px;
+}
+
+.order-details-modal {
+  max-width: 800px;
+  max-height: 90vh;
+}
+
+.detail-value {
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.item-card {
+  background: var(--background-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--border-radius-md);
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+.item-details {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.item-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.item-label {
+  font-weight: 500;
+  color: var(--text-secondary);
+  min-width: 120px;
+}
+
+.item-value {
+  color: var(--text-primary);
+  text-align: right;
+}
+
+.no-items {
+  text-align: center;
+  padding: 20px;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .header-actions {
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .header-actions .btn {
+    width: 100%;
+  }
+
+  .item-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .item-label {
+    min-width: auto;
+  }
+
+  .item-value {
+    text-align: left;
+  }
+}
 </style>
