@@ -116,8 +116,8 @@ export function useSalesOrders() {
 
   // Set date range filter
   const setDateRange = (startDate: Date, endDate: Date) => {
-    filters.reqDelDateBegin = startDate.toISOString()
-    filters.reqDelDateEnd = endDate.toISOString()
+    filters.reqDelDateBegin = formatDateForBackend(startDate)
+    filters.reqDelDateEnd = formatDateForBackend(endDate)
   }
 
   // Set current month as default date range
@@ -125,7 +125,8 @@ export function useSalesOrders() {
     const now = new Date()
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59)
-    setDateRange(startOfMonth, endOfMonth)
+    filters.reqDelDateBegin = formatDateForBackend(startOfMonth)
+    filters.reqDelDateEnd = formatDateForBackend(endOfMonth)
   }
 
   // Create new sales order (not supported by backend)
@@ -249,6 +250,17 @@ export function useSalesOrders() {
     setCurrentMonthRange()
     fetchSalesOrders()
   }
+
+const formatDateForBackend = (date: Date): string => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  const seconds = String(date.getSeconds()).padStart(2, '0')
+  
+  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`
+}
 
   return {
     // State

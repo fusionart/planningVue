@@ -18,7 +18,7 @@ export interface PaginationParams {
 }
 
 class SalesOrderService {
-  private readonly endpoint = '/sap'
+  private readonly endpoint = '/api/sap'
 
   /**
    * Get sales orders from your Spring Boot backend
@@ -33,8 +33,8 @@ class SalesOrderService {
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
       const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0)
 
-      const reqDelDateBegin = filters.reqDelDateBegin || startOfMonth.toISOString()
-      const reqDelDateEnd = filters.reqDelDateEnd || endOfMonth.toISOString()
+      const reqDelDateBegin = filters.reqDelDateBegin || this.formatDateForBackend(startOfMonth)
+    const reqDelDateEnd = filters.reqDelDateEnd || this.formatDateForBackend(endOfMonth)
 
       // Get credentials - this will throw error if not available
       const credentials = this.getCredentials()
@@ -217,7 +217,10 @@ class SalesOrderService {
     // Check if credentials are stored (from login form)
     const storedCredentials = this.getStoredCredentials()
     if (storedCredentials.username && storedCredentials.password) {
-      return storedCredentials
+      return {
+        username: atob(storedCredentials.username),
+        password: atob(storedCredentials.password)
+      }
     }
 
     // No fallback to default credentials - always require proper credentials
@@ -279,37 +282,18 @@ class SalesOrderService {
     }
   }
 
-  /**
-   * Test credentials by making a small API call
-   */
-  async testCredentials(username: string, password: string): Promise<boolean> {
-    try {
-      const tempCredentials = {
-        username: btoa(username),
-        password: btoa(password)
-      }
-
-      // Try to fetch a small amount of data
-      const now = new Date()
-      const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000)
-
-      const params = {
-        username: tempCredentials.username,
-        password: tempCredentials.password,
-        reqDelDateBegin: yesterday.toISOString(),
-        reqDelDateEnd: now.toISOString()
-      }
-
-      await apiClient.get<SalesOrderDto[]>(`${this.endpoint}/getSalesOrders`, params)
-      return true
-    } catch (error) {
-      if (isFeatureEnabled('DEBUG_MODE')) {
-        console.error('🔐 Credentials test failed:', error)
-      }
-      return false
-    }
+  private formatDateForBackend(date: Date): string {
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    const hours = String(date.getHours()).padStart(2, '0')
+    const minutes = String(date.getMinutes()).padStart(2, '0')
+    const seconds = String(date.getSeconds()).padStart(2, '0')
+  
+  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`
   }
 }
+
 
 // Export singleton instance
 export const salesOrderService = new SalesOrderService()

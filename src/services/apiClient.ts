@@ -1,4 +1,4 @@
-// src/services/apiClient.ts - Updated without mock data fallbacks
+// src/services/apiClient.ts - Improved version with better error handling
 
 import { env, validateEnvironment, isDevelopment, isFeatureEnabled } from '@/config/env'
 import type { ApiError } from '@/types/api'
@@ -35,7 +35,7 @@ class ApiClient {
       console.log('Base URL:', this.baseURL)
       console.log('Timeout:', this.timeout)
       console.log('Retry Attempts:', this.retryAttempts)
-      console.log('Mock Data Enabled:', false) // Always false now
+      console.log('Mode:', env.MODE)
       console.groupEnd()
     }
   }
@@ -52,6 +52,8 @@ class ApiClient {
     const timeoutId = setTimeout(() => controller.abort(), this.timeout)
     
     const config: RequestInit = {
+      mode: 'cors', // Explicitly set CORS mode
+      credentials: 'omit', // Don't send cookies
       headers: {
         ...this.defaultHeaders,
         ...options.headers
@@ -67,6 +69,7 @@ class ApiClient {
         console.log('URL:', url)
         console.log('Method:', config.method || 'GET')
         console.log('Headers:', config.headers)
+        console.log('Mode:', config.mode)
         if (config.body) {
           console.log('Body:', config.body)
         }
@@ -76,19 +79,37 @@ class ApiClient {
       const response = await fetch(url, config)
       clearTimeout(timeoutId)
       
+      // Log response details in debug mode
+      if (isFeatureEnabled('DEBUG_MODE')) {
+        console.group(`📡 API Response (attempt ${attempt})`)
+        console.log('Status:', response.status)
+        console.log('Status Text:', response.statusText)
+        console.log('Headers:', Object.fromEntries(response.headers.entries()))
+        console.log('OK:', response.ok)
+        console.groupEnd()
+      }
+      
       if (!response.ok) {
-        const errorData: ApiError = await response.json().catch(() => ({
-          message: `HTTP ${response.status}: ${response.statusText}`,
-          status: response.status,
-          timestamp: new Date().toISOString()
-        }))
+        let errorData: ApiError
+        
+        try {
+          errorData = await response.json()
+        } catch (parseError) {
+          // If we can't parse the error response, create a generic error
+          errorData = {
+            message: `HTTP ${response.status}: ${response.statusText}`,
+            status: response.status,
+            timestamp: new Date().toISOString()
+          }
+        }
         
         // Log error in debug mode
         if (isFeatureEnabled('DEBUG_MODE')) {
           console.error('❌ API Error Response:', {
             status: response.status,
             statusText: response.statusText,
-            error: errorData
+            error: errorData,
+            url: url
           })
         }
         
@@ -101,7 +122,9 @@ class ApiClient {
       if (isFeatureEnabled('DEBUG_MODE')) {
         console.group('✅ API Success Response')
         console.log('Status:', response.status)
-        console.log('Data:', data)
+        console.log('Data Type:', Array.isArray(data) ? 'Array' : typeof data)
+        console.log('Data Length:', Array.isArray(data) ? data.length : 'N/A')
+        console.log('Sample Data:', Array.isArray(data) ? data.slice(0, 2) : data)
         console.groupEnd()
       }
       
@@ -109,20 +132,39 @@ class ApiClient {
     } catch (error) {
       clearTimeout(timeoutId)
       
-      // Log error details
+      // Enhanced error logging
       if (isFeatureEnabled('DEBUG_MODE')) {
-        console.error(`❌ API Request failed (attempt ${attempt}/${this.retryAttempts}):`, {
-          url,
-          error: error instanceof Error ? error.message : error,
-          stack: error instanceof Error ? error.stack : undefined
-        })
+        console.group(`❌ API Request Failed (attempt ${attempt}/${this.retryAttempts})`)
+        console.log('URL:', url)
+        console.log('Error Type:', error?.constructor?.name)
+        console.log('Error Message:', error instanceof Error ? error.message : error)
+        console.log('Error Stack:', error instanceof Error ? error.stack : undefined)
+        
+        // Check for specific error types
+        if (error instanceof TypeError && error.message.includes('fetch')) {
+          console.log('🔍 This looks like a network/CORS error!')
+          console.log('💡 Possible causes:')
+          console.log('   1. Backend server is not running')
+          console.log('   2. CORS is not configured on the backend')
+          console.log('   3. Wrong API URL in configuration')
+          console.log('   4. Network connectivity issues')
+        }
+        
+        if (error?.name === 'AbortError') {
+          console.log('⏰ Request timed out after', this.timeout, 'ms')
+        }
+        
+        console.groupEnd()
       }
 
-      // Retry logic for network errors (but not for 4xx client errors)
+      // Determine if we should retry
       const shouldRetry = attempt < this.retryAttempts && 
                          error instanceof Error && 
                          error.name !== 'AbortError' &&
-                         !error.message.includes('4') // Don't retry 4xx errors
+                         // Don't retry client errors (4xx)
+                         !error.message.includes('4') &&
+                         // Don't retry CORS/Network errors on first attempt (they won't resolve)
+                         !(error instanceof TypeError && attempt === 1)
 
       if (shouldRetry) {
         const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000) // Exponential backoff with max 5s
@@ -135,24 +177,39 @@ class ApiClient {
         return this.request<T>(endpoint, options, attempt + 1)
       }
 
-      // NO MOCK DATA FALLBACK - Always throw the error
-      throw error
+      // Enhance error message with helpful information
+      let enhancedMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+      
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        enhancedMessage = `Network error: Unable to connect to the backend server at ${this.baseURL}. Please check:
+1. Is your backend server running on port 8080?
+2. Is CORS configured on your backend?
+3. Is the API URL correct in your .env file?
+
+Original error: ${error.message}`
+      } else if (error?.name === 'AbortError') {
+        enhancedMessage = `Request timeout: The request took longer than ${this.timeout}ms to complete. The backend might be slow or unresponsive.`
+      }
+      
+      throw new Error(enhancedMessage)
     }
   }
 
-  // Generic GET method
+  // Generic GET method with better URL handling
   async get<T>(endpoint: string, params?: Record<string, any>): Promise<T> {
-    const url = new URL(`${this.baseURL}${endpoint}`)
+    let finalUrl = endpoint
     
     if (params) {
+      const url = new URL(`${this.baseURL}${endpoint}`)
       Object.keys(params).forEach(key => {
         if (params[key] !== undefined && params[key] !== null && params[key] !== '') {
           url.searchParams.append(key, String(params[key]))
         }
       })
+      finalUrl = url.pathname + url.search
     }
 
-    return this.request<T>(url.pathname + url.search)
+    return this.request<T>(finalUrl)
   }
 
   // Generic POST method
@@ -204,16 +261,35 @@ class ApiClient {
     }
   }
 
-  // Health check method
+  // Enhanced health check method
   async healthCheck(): Promise<{ status: string; timestamp: string }> {
     try {
+      if (isFeatureEnabled('DEBUG_MODE')) {
+        console.log('🏥 Performing health check...')
+      }
+      
       const response = await this.get<{ status: string; timestamp: string }>('/health')
+      
+      if (isFeatureEnabled('DEBUG_MODE')) {
+        console.log('✅ Health check passed:', response)
+      }
+      
       return response
     } catch (error) {
       if (isFeatureEnabled('DEBUG_MODE')) {
-        console.warn('Health check failed, API might be down:', error)
+        console.warn('❌ Health check failed:', error)
       }
       throw error
+    }
+  }
+
+  // Test connection method
+  async testConnection(): Promise<boolean> {
+    try {
+      await this.healthCheck()
+      return true
+    } catch (error) {
+      return false
     }
   }
 
@@ -230,6 +306,27 @@ class ApiClient {
       retryAttempts: this.retryAttempts,
       mode: env.MODE,
       features: env.FEATURES
+    }
+  }
+
+  // Debug method to test CORS
+  async testCORS(): Promise<{ cors: boolean; error?: string }> {
+    try {
+      // Try a simple GET request
+      const response = await fetch(`${this.baseURL}/health`, {
+        mode: 'cors',
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
+      
+      return { cors: true }
+    } catch (error) {
+      return { 
+        cors: false, 
+        error: error instanceof Error ? error.message : 'Unknown CORS error' 
+      }
     }
   }
 }
@@ -251,5 +348,33 @@ export const checkApiHealth = async (): Promise<boolean> => {
   } catch (error) {
     console.warn('⚠️ API health check failed:', error)
     return false
+  }
+}
+
+// Utility function to test CORS configuration
+export const testCORSConfiguration = async (): Promise<void> => {
+  if (isFeatureEnabled('DEBUG_MODE')) {
+    console.log('🔍 Testing CORS configuration...')
+    const result = await apiClient.testCORS()
+    if (result.cors) {
+      console.log('✅ CORS is working correctly')
+    } else {
+      console.error('❌ CORS test failed:', result.error)
+      console.log('💡 To fix CORS issues, add this to your Spring Boot backend:')
+      console.log(`
+@Configuration
+@EnableWebMvc
+public class CorsConfiguration implements WebMvcConfigurer {
+    @Override
+    public void addCorsMappings(CorsRegistry registry) {
+        registry.addMapping("/api/**")
+                .allowedOrigins("http://localhost:5173", "http://localhost:3000")
+                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
+                .allowedHeaders("*")
+                .allowCredentials(false)
+                .maxAge(3600);
+    }
+}`)
+    }
   }
 }
