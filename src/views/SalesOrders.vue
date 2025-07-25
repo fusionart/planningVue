@@ -117,9 +117,6 @@
           <button class="btn btn-primary" @click="loadDataFromAPI" :disabled="loading">
             {{ loading ? 'Loading...' : '📊 Load Data' }}
           </button>
-          <button class="btn btn-secondary" @click="setCurrentMonthAndLoad">
-            📅 Current Month
-          </button>
         </div>
       </div>
     </div>
@@ -190,7 +187,7 @@
       <div class="empty-icon">📋</div>
       <p>No sales orders found for the selected date range.</p>
       <p class="empty-sub">Try adjusting the date range or load data for a different period.</p>
-      <button class="btn btn-primary" @click="setCurrentMonthAndLoad">
+      <button class="btn btn-primary" @click="loadDataFromAPIWithCurrentMonth">
         Load Current Month
       </button>
     </div>
@@ -501,7 +498,7 @@ const loadDataFromAPI = async () => {
 }
 
 // Set current month and load data
-const setCurrentMonthAndLoad = async () => {
+const loadDataFromAPIWithCurrentMonth = async () => {
   initializeDateInputs()
   await loadDataFromAPI()
 }
