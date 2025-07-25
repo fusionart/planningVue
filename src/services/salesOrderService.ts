@@ -3,8 +3,8 @@ import type { SalesOrderDto } from '@/types/api'
 import { env, isFeatureEnabled } from '@/config/env'
 
 export interface SalesOrderFilters {
-  reqDelDateBegin?: string; // ISO DateTime string
-  reqDelDateEnd?: string;   // ISO DateTime string
+  reqDelDateBegin?: string; // LocalDateTime string (YYYY-MM-DDTHH:mm:ss)
+  reqDelDateEnd?: string;   // LocalDateTime string (YYYY-MM-DDTHH:mm:ss)
   // Additional filters for client-side filtering
   salesOrderNumber?: string;
   soldToParty?: string;
@@ -21,6 +21,36 @@ class SalesOrderService {
   private readonly endpoint = '/api/sap'
 
   /**
+   * FIXED: Format date for backend LocalDateTime (no timezone)
+   */
+  private formatDateForBackend(date: Date): string {
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    const hours = String(date.getHours()).padStart(2, '0')
+    const minutes = String(date.getMinutes()).padStart(2, '0')
+    const seconds = String(date.getSeconds()).padStart(2, '0')
+    
+    return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`
+  }
+
+  /**
+   * FIXED: Parse various date string formats
+   */
+  private parseDateString(dateString: string): Date {
+    if (dateString.includes('Z') || dateString.includes('+')) {
+      // ISO string with timezone
+      return new Date(dateString)
+    } else if (dateString.includes('T')) {
+      // datetime-local format or LocalDateTime format
+      return new Date(dateString)
+    } else {
+      // fallback
+      return new Date(dateString)
+    }
+  }
+
+  /**
    * Get sales orders from your Spring Boot backend
    */
   async getSalesOrders(
@@ -31,17 +61,33 @@ class SalesOrderService {
       // Prepare date range - default to current month if not specified
       const now = new Date()
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-      const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+      const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59)
 
-      const reqDelDateBegin = filters.reqDelDateBegin || this.formatDateForBackend(startOfMonth)
-    const reqDelDateEnd = filters.reqDelDateEnd || this.formatDateForBackend(endOfMonth)
+      // FIXED: Handle date conversion properly
+      let reqDelDateBegin: string
+      let reqDelDateEnd: string
 
-      // Get credentials - this will throw error if not available
+      if (filters.reqDelDateBegin) {
+        const startDate = this.parseDateString(filters.reqDelDateBegin)
+        reqDelDateBegin = this.formatDateForBackend(startDate)
+      } else {
+        reqDelDateBegin = this.formatDateForBackend(startOfMonth)
+      }
+
+      if (filters.reqDelDateEnd) {
+        const endDate = this.parseDateString(filters.reqDelDateEnd)
+        reqDelDateEnd = this.formatDateForBackend(endDate)
+      } else {
+        reqDelDateEnd = this.formatDateForBackend(endOfMonth)
+      }
+
+      // FIXED: Get credentials and encode them as Base64 for backend
       const credentials = this.getCredentials()
 
+      // IMPORTANT: Backend expects Base64 encoded credentials
       const params = {
-        username: credentials.username,
-        password: credentials.password,
+        username: btoa(credentials.username), // Base64 encode for backend
+        password: btoa(credentials.password), // Base64 encode for backend
         reqDelDateBegin,
         reqDelDateEnd
       }
@@ -50,7 +96,9 @@ class SalesOrderService {
         console.log('🔍 Fetching sales orders with params:', {
           reqDelDateBegin,
           reqDelDateEnd,
-          hasCredentials: !!(credentials.username && credentials.password)
+          hasCredentials: !!(credentials.username && credentials.password),
+          credentialsEncoded: true, // Confirm they are Base64 encoded
+          originalFilters: filters
         })
       }
 
@@ -85,7 +133,8 @@ class SalesOrderService {
         console.log('📊 Sales orders fetched successfully:', {
           total: salesOrders.length,
           filtered: filteredOrders.length,
-          paginated: paginatedOrders.length
+          paginated: paginatedOrders.length,
+          datesSent: { reqDelDateBegin, reqDelDateEnd }
         })
       }
 
@@ -96,6 +145,11 @@ class SalesOrderService {
 
     } catch (error) {
       console.error('❌ Failed to fetch sales orders:', error)
+      
+      // Enhanced error message for date format issues
+      if (error instanceof Error && error.message.includes('LocalDateTime')) {
+        throw new Error('Date format error: Please check the date range and try again. The backend requires dates in LocalDateTime format.')
+      }
       
       // Re-throw the error without mock data fallback
       if (error instanceof Error) {
@@ -210,14 +264,16 @@ class SalesOrderService {
   }
 
   /**
-   * Get credentials for API calls
-   * Throws error if credentials are not available
+   * FIXED: Get credentials for API calls
+   * Returns plain text credentials (backend will Base64 encode them)
    */
   private getCredentials() {
-    // Check if credentials are stored (from login form)
+    // Check if credentials are stored (they are already Base64 encoded in storage)
     const storedCredentials = this.getStoredCredentials()
     if (storedCredentials.username && storedCredentials.password) {
       return {
+        // Decode from storage to get plain text for API call
+        // (The API call will re-encode them for the backend)
         username: atob(storedCredentials.username),
         password: atob(storedCredentials.password)
       }
@@ -228,28 +284,29 @@ class SalesOrderService {
   }
 
   /**
-   * Store credentials (base64 encoded)
+   * Store credentials (Base64 encoded for security in storage)
    */
   setCredentials(username: string, password: string) {
     if (!username || !password) {
       throw new Error('Username and password are required')
     }
 
+    // Store credentials as Base64 encoded in sessionStorage for security
     const credentials = {
-      username: btoa(username),
-      password: btoa(password)
+      username: btoa(username), // Base64 encode for storage
+      password: btoa(password)  // Base64 encode for storage
     }
     
     // Store in sessionStorage for security
     sessionStorage.setItem('sales_order_credentials', JSON.stringify(credentials))
     
     if (isFeatureEnabled('DEBUG_MODE')) {
-      console.log('🔐 Credentials stored for API calls')
+      console.log('🔐 Credentials stored (Base64 encoded) for API calls')
     }
   }
 
   /**
-   * Get stored credentials
+   * Get stored credentials (Base64 encoded)
    */
   private getStoredCredentials() {
     try {
@@ -282,18 +339,22 @@ class SalesOrderService {
     }
   }
 
-  private formatDateForBackend(date: Date): string {
-    const year = date.getFullYear()
-    const month = String(date.getMonth() + 1).padStart(2, '0')
-    const day = String(date.getDate()).padStart(2, '0')
-    const hours = String(date.getHours()).padStart(2, '0')
-    const minutes = String(date.getMinutes()).padStart(2, '0')
-    const seconds = String(date.getSeconds()).padStart(2, '0')
-  
-  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`
+  /**
+   * Test credentials without making a full API call
+   */
+  async testCredentials(): Promise<boolean> {
+    try {
+      // Try to get a small amount of data to test credentials
+      const { content } = await this.getSalesOrders({}, { size: 1 })
+      return true
+    } catch (error) {
+      if (isFeatureEnabled('DEBUG_MODE')) {
+        console.log('🔐 Credential test failed:', error)
+      }
+      return false
+    }
   }
 }
-
 
 // Export singleton instance
 export const salesOrderService = new SalesOrderService()

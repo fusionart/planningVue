@@ -43,6 +43,34 @@ export function useSalesOrders() {
     pagination.last = pagination.page >= pagination.totalPages - 1
   }
 
+  // FIXED: Format date for backend (LocalDateTime without timezone)
+  const formatDateForBackend = (date: Date): string => {
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    const hours = String(date.getHours()).padStart(2, '0')
+    const minutes = String(date.getMinutes()).padStart(2, '0')
+    const seconds = String(date.getSeconds()).padStart(2, '0')
+    
+    // Return LocalDateTime format: YYYY-MM-DDTHH:mm:ss (no timezone)
+    return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`
+  }
+
+  // FIXED: Parse date string properly
+  const parseDateString = (dateString: string): Date => {
+    // Handle both ISO strings and datetime-local input values
+    if (dateString.includes('Z') || dateString.includes('+')) {
+      // ISO string with timezone - convert to local time
+      return new Date(dateString)
+    } else if (dateString.includes('T')) {
+      // datetime-local format - treat as local time
+      return new Date(dateString)
+    } else {
+      // fallback
+      return new Date(dateString)
+    }
+  }
+
   // Fetch sales orders with current filters and pagination
   const fetchSalesOrders = async () => {
     loading.value = true
@@ -51,9 +79,17 @@ export function useSalesOrders() {
     try {
       const activeFilters: SalesOrderFilters = {}
       
-      // Only include non-empty filters
-      if (filters.reqDelDateBegin) activeFilters.reqDelDateBegin = filters.reqDelDateBegin
-      if (filters.reqDelDateEnd) activeFilters.reqDelDateEnd = filters.reqDelDateEnd
+      // FIXED: Convert date strings to proper LocalDateTime format
+      if (filters.reqDelDateBegin) {
+        const startDate = parseDateString(filters.reqDelDateBegin)
+        activeFilters.reqDelDateBegin = formatDateForBackend(startDate)
+      }
+      
+      if (filters.reqDelDateEnd) {
+        const endDate = parseDateString(filters.reqDelDateEnd)
+        activeFilters.reqDelDateEnd = formatDateForBackend(endDate)
+      }
+      
       if (filters.salesOrderNumber) activeFilters.salesOrderNumber = filters.salesOrderNumber
       if (filters.soldToParty) activeFilters.soldToParty = filters.soldToParty
 
@@ -61,6 +97,11 @@ export function useSalesOrders() {
         page: pagination.page,
         size: pagination.size
       }
+
+      console.log('🔍 Sending date parameters to backend:', {
+        reqDelDateBegin: activeFilters.reqDelDateBegin,
+        reqDelDateEnd: activeFilters.reqDelDateEnd
+      })
 
       const response = await salesOrderService.getSalesOrders(activeFilters, paginationParams)
       
@@ -114,17 +155,18 @@ export function useSalesOrders() {
     }
   }
 
-  // Set date range filter
+  // FIXED: Set date range with proper formatting
   const setDateRange = (startDate: Date, endDate: Date) => {
     filters.reqDelDateBegin = formatDateForBackend(startDate)
     filters.reqDelDateEnd = formatDateForBackend(endDate)
   }
 
-  // Set current month as default date range
+  // FIXED: Set current month range
   const setCurrentMonthRange = () => {
     const now = new Date()
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59)
+    
     filters.reqDelDateBegin = formatDateForBackend(startOfMonth)
     filters.reqDelDateEnd = formatDateForBackend(endOfMonth)
   }
@@ -251,17 +293,6 @@ export function useSalesOrders() {
     fetchSalesOrders()
   }
 
-const formatDateForBackend = (date: Date): string => {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  const hours = String(date.getHours()).padStart(2, '0')
-  const minutes = String(date.getMinutes()).padStart(2, '0')
-  const seconds = String(date.getSeconds()).padStart(2, '0')
-  
-  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`
-}
-
   return {
     // State
     salesOrders,
@@ -294,6 +325,7 @@ const formatDateForBackend = (date: Date): string => {
     setDateRange,
     setCurrentMonthRange,
     setCredentials,
-    clearCredentials
+    clearCredentials,
+    formatDateForBackend // Export this helper
   }
 }

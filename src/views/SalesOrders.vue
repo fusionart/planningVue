@@ -1,4 +1,4 @@
-<!-- src/views/SalesOrders.vue - Fixed credentials and date handling -->
+<!-- src/views/SalesOrders.vue - Fixed date handling for backend -->
 <template>
   <div class="sales-orders">
     <div class="page-header">
@@ -201,7 +201,7 @@
         <h3>Sales Orders ({{ pagination.totalElements }})</h3>
         <div class="table-info">
           <span class="data-range">
-            Data: {{ formatDate(filters.reqDelDateBegin || '') }} - {{ formatDate(filters.reqDelDateEnd || '') }}
+            Data: {{ formatDateDisplay(apiDateFrom) }} - {{ formatDateDisplay(apiDateTo) }}
           </span>
         </div>
       </div>
@@ -387,7 +387,8 @@ const {
   prevPage,
   setCredentials,
   clearCredentials,
-  fetchSalesOrders
+  fetchSalesOrders,
+  formatDateForBackend
 } = useSalesOrders()
 
 // Component state
@@ -409,7 +410,7 @@ const hasCredentials = computed(() => {
   return salesOrderService.hasCredentials()
 })
 
-// Initialize date inputs with current month
+// FIXED: Initialize date inputs with current month
 const initializeDateInputs = () => {
   const now = new Date()
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
@@ -419,7 +420,7 @@ const initializeDateInputs = () => {
   apiDateTo.value = formatDateTimeLocal(endOfMonth)
 }
 
-// Format date for datetime-local input
+// FIXED: Format date for datetime-local input
 const formatDateTimeLocal = (date: Date): string => {
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, '0')
@@ -446,38 +447,57 @@ const formatDate = (dateString: string) => {
   }
 }
 
-const formatDateForBackend = (date: Date): string => {
-  // Format as LocalDateTime string without timezone (YYYY-MM-DDTHH:mm:ss)
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  const hours = String(date.getHours()).padStart(2, '0')
-  const minutes = String(date.getMinutes()).padStart(2, '0')
-  const seconds = String(date.getSeconds()).padStart(2, '0')
-  
-  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`
+// FIXED: Format datetime-local input for display
+const formatDateDisplay = (datetimeLocal: string) => {
+  if (!datetimeLocal) return ''
+  try {
+    const date = new Date(datetimeLocal)
+    return formatDate(date.toISOString())
+  } catch {
+    return datetimeLocal
+  }
 }
 
-// Load data from API with current date parameters
+// FIXED: Load data from API with proper date conversion
 const loadDataFromAPI = async () => {
   if (!apiDateFrom.value || !apiDateTo.value) {
     alert('Please select both date from and date to')
     return
   }
 
-  // Set the API date filters
-  filters.reqDelDateBegin = new Date(apiDateFrom.value).toISOString()
-  filters.reqDelDateEnd = new Date(apiDateTo.value).toISOString()
-  
-  // Clear table filters
-  filters.salesOrderNumber = ''
-  filters.soldToParty = ''
-  
-  // Reset pagination
-  pagination.page = 0
-  
-  // Fetch data
-  await fetchSalesOrders()
+  try {
+    // Convert datetime-local values to proper format for backend
+    const startDate = new Date(apiDateFrom.value)
+    const endDate = new Date(apiDateTo.value)
+    
+    // Set the API date filters using the backend format
+    filters.reqDelDateBegin = formatDateForBackend(startDate)
+    filters.reqDelDateEnd = formatDateForBackend(endDate)
+    
+    console.log('🔍 Setting date filters:', {
+      fromInput: apiDateFrom.value,
+      toInput: apiDateTo.value,
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+      backendFormat: {
+        begin: filters.reqDelDateBegin,
+        end: filters.reqDelDateEnd
+      }
+    })
+    
+    // Clear table filters
+    filters.salesOrderNumber = ''
+    filters.soldToParty = ''
+    
+    // Reset pagination
+    pagination.page = 0
+    
+    // Fetch data
+    await fetchSalesOrders()
+  } catch (error) {
+    console.error('❌ Error in loadDataFromAPI:', error)
+    alert('Error loading data: ' + (error instanceof Error ? error.message : 'Unknown error'))
+  }
 }
 
 // Set current month and load data
