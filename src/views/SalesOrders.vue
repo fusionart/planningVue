@@ -1,4 +1,4 @@
-<!-- src/views/SalesOrders.vue - Fixed date handling for backend -->
+<!-- src/views/SalesOrders.vue - Updated with DataTables -->
 <template>
   <div class="sales-orders">
     <div class="page-header">
@@ -121,43 +121,6 @@
       </div>
     </div>
 
-    <!-- Table Filters Section - Only show if we have data -->
-    <div v-if="hasCredentials && (hasData || !isEmpty)" class="filters-section">
-      <h3>Filter Results</h3>
-      <div class="filters-grid">
-        <div class="filter-group">
-          <label for="salesOrderNumber">Sales Order Number</label>
-          <input
-            id="salesOrderNumber"
-            v-model="filters.salesOrderNumber"
-            type="text"
-            placeholder="Filter by order number"
-            class="filter-input"
-          />
-        </div>
-
-        <div class="filter-group">
-          <label for="soldToParty">Sold To Party</label>
-          <input
-            id="soldToParty"
-            v-model="filters.soldToParty"
-            type="text"
-            placeholder="Filter by party name"
-            class="filter-input"
-          />
-        </div>
-      </div>
-
-      <div class="filters-actions">
-        <button class="btn btn-primary" @click="applyFilters" :disabled="loading">
-          Apply Filters
-        </button>
-        <button class="btn btn-secondary" @click="clearFilters" :disabled="loading">
-          Clear Filters
-        </button>
-      </div>
-    </div>
-
     <!-- Loading State -->
     <div v-if="loading" class="loading-state">
       <div class="loading-spinner"></div>
@@ -192,94 +155,25 @@
       </button>
     </div>
 
-    <!-- Sales Orders Table -->
+    <!-- DataTables Sales Orders Table -->
     <div v-else-if="hasData" class="table-container">
       <div class="table-header">
-        <h3>Sales Orders ({{ pagination.totalElements }})</h3>
+        <h3>Sales Orders ({{ salesOrders.length }})</h3>
         <div class="table-info">
           <span class="data-range">
             Data: {{ formatDateDisplay(apiDateFrom) }} - {{ formatDateDisplay(apiDateTo) }}
           </span>
         </div>
       </div>
-      <table class="sales-orders-table">
-        <thead>
-          <tr>
-            <th>Order Number</th>
-            <th>Sold To Party</th>
-            <th>Delivery Date</th>
-            <th>Delivery Week</th>
-            <th>Complete Delivery</th>
-            <th>Items Count</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
-            v-for="order in salesOrders"
-            :key="order.salesOrderNumber"
-            class="table-row"
-          >
-            <td class="font-semibold">{{ order.salesOrderNumber }}</td>
-            <td>{{ order.soldToParty }}</td>
-            <td>{{ formatDate(order.requestedDeliveryDate) }}</td>
-            <td>{{ order.requestedDeliveryWeek }}</td>
-            <td>
-              <span
-                class="status-badge"
-                :class="order.completeDelivery ? 'status-success' : 'status-warning'"
-              >
-                {{ order.completeDelivery ? 'Complete' : 'Partial' }}
-              </span>
-            </td>
-            <td>{{ order.toItem?.length || 0 }}</td>
-            <td>
-              <div class="actions">
-                <button
-                  class="btn-icon"
-                  @click="viewOrder(order)"
-                  title="View Details"
-                >
-                  👁️
-                </button>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-
-    <!-- Pagination -->
-    <div v-if="hasData" class="pagination">
-      <div class="pagination-info">
-        <span>
-          Showing {{ pagination.page * pagination.size + 1 }} to 
-          {{ Math.min((pagination.page + 1) * pagination.size, pagination.totalElements) }} 
-          of {{ pagination.totalElements }} results
-        </span>
-      </div>
       
-      <div class="pagination-controls">
-        <button
-          class="btn btn-secondary"
-          @click="prevPage"
-          :disabled="pagination.first || loading"
-        >
-          Previous
-        </button>
-        
-        <span class="page-info">
-          Page {{ pagination.page + 1 }} of {{ pagination.totalPages }}
-        </span>
-        
-        <button
-          class="btn btn-secondary"
-          @click="nextPage"
-          :disabled="pagination.last || loading"
-        >
-          Next
-        </button>
-      </div>
+      <!-- DataTables Component -->
+      <DataTable
+        ref="dataTable"
+        :data="tableData"
+        :columns="columns"
+        :options="tableOptions"
+        class="sales-orders-datatable"
+      />
     </div>
 
     <!-- Order Details Modal -->
@@ -363,10 +257,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useSalesOrders } from '@/composables/useSalesOrders'
 import { salesOrderService } from '@/services/salesOrderService'
+import DataTable from 'datatables.net-vue3'
+import DataTablesCore from 'datatables.net'
+import 'datatables.net-dt'
 import type { SalesOrderDto } from '@/types/api'
+
+// Register DataTables components
+DataTable.use(DataTablesCore)
 
 const {
   salesOrders,
@@ -397,6 +297,7 @@ const credentialsForm = ref({
   username: '',
   password: ''
 })
+const dataTable = ref()
 
 // API parameters (separate from table filters)
 const apiDateFrom = ref('')
@@ -407,7 +308,112 @@ const hasCredentials = computed(() => {
   return salesOrderService.hasCredentials()
 })
 
-// FIXED: Initialize date inputs with current month
+// DataTables configuration
+const columns = [
+  {
+    title: 'Order Number',
+    data: 'salesOrderNumber',
+    className: 'font-semibold'
+  },
+  {
+    title: 'Sold To Party',
+    data: 'soldToParty'
+  },
+  {
+    title: 'Delivery Date',
+    data: 'requestedDeliveryDate',
+    render: (data: string) => formatDate(data)
+  },
+  {
+    title: 'Delivery Week',
+    data: 'requestedDeliveryWeek'
+  },
+  {
+    title: 'Complete Delivery',
+    data: 'completeDelivery',
+    render: (data: boolean) => {
+      const status = data ? 'Complete' : 'Partial'
+      const className = data ? 'status-success' : 'status-warning'
+      return `<span class="status-badge ${className}">${status}</span>`
+    }
+  },
+  {
+    title: 'Items Count',
+    data: 'toItem',
+    render: (data: any[]) => data?.length || 0,
+    searchable: false
+  },
+  {
+    title: 'Actions',
+    data: null,
+    orderable: false,
+    searchable: false,
+    render: (data: any, type: string, row: SalesOrderDto) => {
+      return '<button class="btn-icon view-order" title="View Details">👁️</button>'
+    }
+  }
+]
+
+const tableOptions = {
+  responsive: true,
+  pageLength: 10,
+  lengthChange: true,
+  lengthMenu: [10, 25, 50, 100],
+  searching: true,
+  ordering: true,
+  info: true,
+  autoWidth: false,
+  language: {
+    search: 'Search orders:',
+    lengthMenu: 'Show _MENU_ orders per page',
+    info: 'Showing _START_ to _END_ of _TOTAL_ orders',
+    infoEmpty: 'No orders available',
+    infoFiltered: '(filtered from _MAX_ total orders)',
+    paginate: {
+      first: 'First',
+      last: 'Last',
+      next: 'Next',
+      previous: 'Previous'
+    }
+  },
+  drawCallback: () => {
+    // Re-attach event listeners after table redraw
+    setTimeout(() => {
+      attachActionListeners()
+    }, 0)
+  }
+}
+
+// Computed property for table data
+const tableData = computed(() => {
+  return salesOrders.value || []
+})
+
+// Attach event listeners to action buttons
+const attachActionListeners = () => {
+  const viewButtons = document.querySelectorAll('.view-order')
+  viewButtons.forEach((button) => {
+    button.addEventListener('click', (e) => {
+      const target = e.target as HTMLElement
+      const tr = target.closest('tr')
+      if (tr && dataTable.value?.dt) {
+        const rowData = dataTable.value.dt.row(tr).data() as SalesOrderDto
+        viewOrder(rowData)
+      }
+    })
+  })
+}
+
+// Watch for changes in salesOrders to refresh table
+watch(salesOrders, () => {
+  if (dataTable.value?.dt) {
+    dataTable.value.dt.clear()
+    dataTable.value.dt.rows.add(tableData.value)
+    dataTable.value.dt.draw()
+  }
+}, { deep: true })
+
+// Initialize date inputs with current month
 const initializeDateInputs = () => {
   const now = new Date()
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
@@ -417,7 +423,7 @@ const initializeDateInputs = () => {
   apiDateTo.value = formatDateTimeLocal(endOfMonth)
 }
 
-// FIXED: Format date for datetime-local input
+// Format date for datetime-local input
 const formatDateTimeLocal = (date: Date): string => {
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, '0')
@@ -444,7 +450,7 @@ const formatDate = (dateString: string) => {
   }
 }
 
-// FIXED: Format datetime-local input for display
+// Format datetime-local input for display
 const formatDateDisplay = (datetimeLocal: string) => {
   if (!datetimeLocal) return ''
   try {
@@ -455,7 +461,7 @@ const formatDateDisplay = (datetimeLocal: string) => {
   }
 }
 
-// FIXED: Load data from API with proper date conversion
+// Load data from API with proper date conversion
 const loadDataFromAPI = async () => {
   if (!apiDateFrom.value || !apiDateTo.value) {
     alert('Please select both date from and date to')
@@ -567,4 +573,164 @@ onMounted(() => {
 
 <style scoped>
 @import '@/styles/views/SalesOrder.css';
+
+/* DataTables specific styles - CSS should be imported globally in main.ts */
+.sales-orders-datatable {
+  width: 100% !important;
+}
+
+/* Custom styles for DataTables integration */
+:deep(.dataTables_wrapper) {
+  background: var(--background-card);
+  border-radius: var(--border-radius-lg);
+  box-shadow: var(--shadow-card);
+  padding: 20px;
+  margin-top: 20px;
+}
+
+:deep(.dataTables_length),
+:deep(.dataTables_filter) {
+  margin-bottom: 20px;
+}
+
+:deep(.dataTables_length label),
+:deep(.dataTables_filter label) {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+:deep(.dataTables_length select),
+:deep(.dataTables_filter input) {
+  padding: 8px 12px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--border-radius-sm);
+  background: var(--background-secondary);
+  color: var(--text-primary);
+  margin-left: 8px;
+}
+
+:deep(.dataTables_info) {
+  color: var(--text-secondary);
+  padding-top: 16px;
+}
+
+:deep(.dataTables_paginate) {
+  padding-top: 16px;
+}
+
+:deep(.dataTables_paginate .paginate_button) {
+  padding: 8px 16px;
+  margin-left: 4px;
+  background: var(--background-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--border-radius-sm);
+  color: var(--text-primary);
+  text-decoration: none;
+  transition: var(--transition-fast);
+}
+
+:deep(.dataTables_paginate .paginate_button:hover) {
+  background: var(--color-primary);
+  color: white;
+  border-color: var(--color-primary);
+}
+
+:deep(.dataTables_paginate .paginate_button.current) {
+  background: var(--color-primary);
+  color: white;
+  border-color: var(--color-primary);
+}
+
+:deep(.dataTables_paginate .paginate_button.disabled) {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+:deep(.dataTables_paginate .paginate_button.disabled:hover) {
+  background: var(--background-secondary);
+  color: var(--text-primary);
+  border-color: var(--border-light);
+}
+
+/* Table styling */
+:deep(table.dataTable) {
+  width: 100% !important;
+  border-collapse: collapse;
+}
+
+:deep(table.dataTable thead th) {
+  background: var(--background-secondary);
+  color: var(--text-primary);
+  font-weight: 600;
+  padding: 12px 16px;
+  border-bottom: 2px solid var(--border-light);
+  text-align: left;
+}
+
+:deep(table.dataTable tbody td) {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-light);
+  color: var(--text-primary);
+}
+
+:deep(table.dataTable tbody tr:hover) {
+  background: var(--background-secondary);
+}
+
+/* Status badges */
+:deep(.status-badge) {
+  padding: 4px 8px;
+  border-radius: var(--border-radius-sm);
+  font-size: 12px;
+  font-weight: 500;
+  display: inline-block;
+}
+
+:deep(.status-success) {
+  background: var(--color-success);
+  color: white;
+}
+
+:deep(.status-warning) {
+  background: var(--color-warning);
+  color: white;
+}
+
+/* Action buttons */
+:deep(.btn-icon) {
+  background: none;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: var(--border-radius-sm);
+  transition: var(--transition-fast);
+}
+
+:deep(.btn-icon:hover) {
+  background: var(--background-secondary);
+}
+
+/* Font weight utility */
+:deep(.font-semibold) {
+  font-weight: 600;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  :deep(.dataTables_wrapper) {
+    padding: 15px;
+  }
+  
+  :deep(.dataTables_length),
+  :deep(.dataTables_filter) {
+    margin-bottom: 15px;
+  }
+  
+  :deep(table.dataTable thead th),
+  :deep(table.dataTable tbody td) {
+    padding: 8px 12px;
+    font-size: 14px;
+  }
+}
 </style>

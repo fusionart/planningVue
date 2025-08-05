@@ -7,6 +7,8 @@ import { env, isDevelopment, isFeatureEnabled } from '@/config/env'
 import { checkApiHealth } from '@/services/apiClient'
 import './styles/main.css'
 
+import 'datatables.net-dt/css/dataTables.dataTables.css'
+
 // Initialize application with real API connection
 async function initializeApp() {
   // Show loading indicator
