@@ -1,15 +1,15 @@
-<!-- src/views/SalesOrders.vue - Updated with DataTables and Delivery Week Tabs -->
+<!-- src/views/SalesOrders.vue - COMPLETE file for SalesOrderByDate model -->
 <template>
   <div class="sales-orders">
     <div class="page-header">
-      <h2 class="page-title">Sales Orders</h2>
+      <h2 class="page-title">Клиентски поръчки по заявена дата на доставка</h2>
       <div class="header-actions">
         <button 
           class="btn" 
           :class="hasCredentials ? 'btn-success' : 'btn-warning'"
           @click="showCredentialsModal = true"
         >
-          {{ hasCredentials ? '🔐 Update Credentials' : '🔓 Enter Credentials' }}
+          {{ hasCredentials ? '🔐 Актуализация на идентификационни данни' : '🔓 Въведете идентификационни данни' }}
         </button>
       </div>
     </div>
@@ -19,11 +19,11 @@
       <div class="notice-content">
         <div class="notice-icon">🔐</div>
         <div class="notice-text">
-          <h3>SAP Credentials Required</h3>
-          <p>Please provide your SAP username and password to access sales orders data.</p>
+          <h3>SAP изискват се идентификационни данни</h3>
+          <p>Моля въведете вашите потребителско име и парола за SAP.</p>
         </div>
         <button class="btn btn-primary" @click="showCredentialsModal = true">
-          Enter Credentials
+          Въведнете потребител и парола
         </button>
       </div>
     </div>
@@ -32,17 +32,17 @@
     <div v-if="showCredentialsModal" class="modal-overlay" @click="closeCredentialsModal">
       <div class="modal credentials-modal" @click.stop>
         <div class="modal-header">
-          <h3>SAP API Credentials</h3>
+          <h3>SAP API идентификационни данн</h3>
           <button class="modal-close" @click="closeCredentialsModal">×</button>
         </div>
         
         <div class="modal-body">
           <div class="credentials-info">
-            <p>Enter your SAP system credentials. They will be stored securely and used for API requests.</p>
+            <p>Моля въведете вашите потребителско име и парола за SAP</p>
           </div>
 
           <div class="form-group">
-            <label for="username">Username:</label>
+            <label for="username">Потребителско име:</label>
             <input
               id="username"
               v-model="credentialsForm.username"
@@ -54,7 +54,7 @@
           </div>
           
           <div class="form-group">
-            <label for="password">Password:</label>
+            <label for="password">Парола:</label>
             <input
               id="password"
               v-model="credentialsForm.password"
@@ -91,10 +91,10 @@
 
     <!-- API Parameters Section - Only show if credentials are available -->
     <div v-if="hasCredentials" class="api-parameters-section">
-      <h3>Load Data Parameters</h3>
+      <h3>Времеви период</h3>
       <div class="parameters-grid">
         <div class="parameter-group">
-          <label for="dateFrom">Date From</label>
+          <label for="dateFrom">Дата от</label>
           <input
             id="dateFrom"
             v-model="apiDateFrom"
@@ -104,7 +104,7 @@
         </div>
 
         <div class="parameter-group">
-          <label for="dateTo">Date To</label>
+          <label for="dateTo">Дата до</label>
           <input
             id="dateTo"
             v-model="apiDateTo"
@@ -115,7 +115,7 @@
 
         <div class="parameter-actions">
           <button class="btn btn-primary" @click="loadDataFromAPI" :disabled="loading">
-            {{ loading ? 'Loading...' : '📊 Load Data' }}
+            {{ loading ? 'Loading...' : '📊 Зареди' }}
           </button>
         </div>
       </div>
@@ -124,7 +124,7 @@
     <!-- Loading State -->
     <div v-if="loading" class="loading-state">
       <div class="loading-spinner"></div>
-      <p>Loading sales orders from SAP...</p>
+      <p>Loading sales orders by delivery week from SAP...</p>
       <p class="loading-sub">This may take a moment...</p>
     </div>
 
@@ -155,10 +155,10 @@
       </button>
     </div>
 
-    <!-- Delivery Week Tabs and DataTables Sales Orders Table -->
+    <!-- Delivery Week Tabs and DataTables -->
     <div v-else-if="hasData" class="table-container">
       <div class="table-header">
-        <h3>Sales Orders ({{ salesOrders.length }})</h3>
+        <h3>Батерии за седмица {{ activeWeekData.reqDlvWeek }} - {{ activeWeekData.salesOrderMainList.length }} броя</h3>
         <div class="table-info">
           <span class="data-range">
             Data: {{ formatDateDisplay(apiDateFrom) }} - {{ formatDateDisplay(apiDateTo) }}
@@ -167,42 +167,22 @@
       </div>
 
       <!-- Delivery Week Tabs -->
-      <div v-if="deliveryWeeks.length > 0" class="delivery-week-tabs">
-        <div class="tabs-header">
-          <h4>Filter by Delivery Week</h4>
-        </div>
+      <div v-if="salesOrdersByDate.length > 0" class="delivery-week-tabs">
         <div class="tabs-navigation">
           <nav class="tabs-nav">
-            <!-- All Tab (always first) -->
             <button
-              @click="clearWeekFilter"
+              v-for="(weekData, index) in salesOrdersByDate"
+              :key="weekData.reqDlvWeek"
+              @click="setActiveWeekTab(weekData.reqDlvWeek, index)"
               :class="[
                 'tab-button',
-                !activeWeekTab ? 'tab-active' : 'tab-inactive'
+                activeWeekTab === weekData.reqDlvWeek ? 'tab-active' : 'tab-inactive'
               ]"
             >
               <div class="tab-content">
-                <span class="tab-label">All</span>
+                <span class="tab-label">{{ weekData.reqDlvWeek }}</span>
                 <span class="tab-count">
-                  {{ salesOrders.length }} orders
-                </span>
-              </div>
-            </button>
-            
-            <!-- Individual Week Tabs -->
-            <button
-              v-for="week in deliveryWeeks"
-              :key="week"
-              @click="setActiveWeekTab(week)"
-              :class="[
-                'tab-button',
-                activeWeekTab === week ? 'tab-active' : 'tab-inactive'
-              ]"
-            >
-              <div class="tab-content">
-                <span class="tab-label">{{ week }}</span>
-                <span class="tab-count">
-                  {{ getWeekOrderCount(week) }} orders
+                  {{ weekData.salesOrderMainList.length }} броя
                 </span>
               </div>
             </button>
@@ -210,88 +190,111 @@
         </div>
       </div>
       
-      <!-- DataTables Component -->
-      <DataTable
-        ref="dataTable"
-        :data="filteredTableData"
-        :columns="columns"
-        :options="tableOptions"
-        class="sales-orders-datatable"
-      />
+      <!-- DataTables Component for Active Week -->
+      <div v-if="activeWeekData" class="week-table-container">        
+        <DataTable
+          ref="dataTable"
+          :data="activeWeekData.salesOrderMainList"
+          :columns="columns"
+          :options="tableOptions"
+          class="sales-orders-datatable"
+          :key="activeWeekTab"
+        />
+      </div>
     </div>
 
     <!-- Order Details Modal -->
     <div v-if="selectedOrder" class="modal-overlay" @click="closeModal">
       <div class="modal order-details-modal" @click.stop>
         <div class="modal-header">
-          <h3>Sales Order Details</h3>
+          <h3>Sales Order Item Details</h3>
           <button class="modal-close" @click="closeModal">×</button>
         </div>
         
         <div class="modal-body">
           <div class="order-details">
             <div class="detail-group">
-              <label>Order Number:</label>
-              <span class="detail-value">{{ selectedOrder.salesOrderNumber }}</span>
+              <label>Material:</label>
+              <span class="detail-value">{{ selectedOrder.material }}</span>
             </div>
             
             <div class="detail-group">
-              <label>Sold To Party:</label>
-              <span class="detail-value">{{ selectedOrder.soldToParty }}</span>
+              <label>Plant:</label>
+              <span class="detail-value">{{ selectedOrder.plant }}</span>
             </div>
             
             <div class="detail-group">
-              <label>Requested Delivery Date:</label>
-              <span class="detail-value">{{ formatDate(selectedOrder.requestedDeliveryDate) }}</span>
+              <label>Requested Quantity:</label>
+              <span class="detail-value">{{ selectedOrder.requestedQuantity }} {{ selectedOrder.requestedQuantityUnit }}</span>
             </div>
             
             <div class="detail-group">
-              <label>Delivery Week:</label>
-              <span class="detail-value">{{ selectedOrder.requestedDeliveryWeek }}</span>
+              <label>Available Not Charged:</label>
+              <span class="detail-value">{{ selectedOrder.availableNotCharged }}</span>
             </div>
             
             <div class="detail-group">
-              <label>Complete Delivery:</label>
-              <span 
-                class="status-badge" 
-                :class="selectedOrder.completeDelivery ? 'status-success' : 'status-warning'"
-              >
-                {{ selectedOrder.completeDelivery ? 'Yes' : 'No' }}
-              </span>
+              <label>Available Charged:</label>
+              <span class="detail-value">{{ selectedOrder.availableCharged }}</span>
+            </div>
+
+            <div class="detail-group">
+              <label>Quantity Unit:</label>
+              <span class="detail-value">{{ selectedOrder.requestedQuantityUnit }}</span>
             </div>
           </div>
 
-          <!-- Order Items -->
-          <div class="order-items">
-            <h4>Order Items ({{ selectedOrder.toItem?.length || 0 }})</h4>
-            <div v-if="selectedOrder.toItem && selectedOrder.toItem.length > 0" class="items-list">
+          <!-- Availability Status -->
+          <div class="availability-status">
+            <h4>Availability Analysis</h4>
+            <div class="availability-grid">
+              <div class="availability-item">
+                <span class="availability-label">Total Available:</span>
+                <span class="availability-value">{{ getTotalAvailable(selectedOrder) }}</span>
+              </div>
+              <div class="availability-item">
+                <span class="availability-label">Fulfillment Rate:</span>
+                <span class="availability-value">{{ getFulfillmentRate(selectedOrder) }}%</span>
+              </div>
+              <div class="availability-item">
+                <span class="availability-label">Status:</span>
+                <span 
+                  class="status-badge" 
+                  :class="getAvailabilityStatusClass(selectedOrder)"
+                >
+                  {{ getAvailabilityStatus(selectedOrder) }}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Dynamic SO Items -->
+          <div v-if="selectedOrder.dynamicSoItems && Object.keys(selectedOrder.dynamicSoItems).length > 0" class="dynamic-so-items">
+            <h4>Dynamic Sales Order Items</h4>
+            <div class="dynamic-items-grid">
               <div
-                v-for="(item, index) in selectedOrder.toItem"
-                :key="index"
-                class="item-card"
+                v-for="(item, key) in selectedOrder.dynamicSoItems"
+                :key="key"
+                class="dynamic-item-card"
               >
-                <div class="item-details">
-                  <div class="item-row">
-                    <span class="item-label">Item Number:</span>
-                    <span class="item-value">{{ item.itemNumber || 'N/A' }}</span>
+                <div class="dynamic-item-header">
+                  <span class="dynamic-item-key">{{ key }}</span>
+                </div>
+                <div class="dynamic-item-details">
+                  <div class="dynamic-item-row" v-if="item.quantity">
+                    <span class="dynamic-item-label">Quantity:</span>
+                    <span class="dynamic-item-value">{{ item.quantity }}</span>
                   </div>
-                  <div class="item-row">
-                    <span class="item-label">Material Number:</span>
-                    <span class="item-value">{{ item.materialNumber || 'N/A' }}</span>
+                  <div class="dynamic-item-row" v-if="item.plannedOrder">
+                    <span class="dynamic-item-label">Planned Order:</span>
+                    <span class="dynamic-item-value">{{ item.plannedOrder }}</span>
                   </div>
-                  <div class="item-row">
-                    <span class="item-label">Description:</span>
-                    <span class="item-value">{{ item.materialDescription || 'N/A' }}</span>
-                  </div>
-                  <div class="item-row">
-                    <span class="item-label">Quantity:</span>
-                    <span class="item-value">{{ item.quantity || 'N/A' }} {{ item.unitOfMeasure || '' }}</span>
+                  <div class="dynamic-item-row" v-if="item.productionOrder">
+                    <span class="dynamic-item-label">Production Order:</span>
+                    <span class="dynamic-item-value">{{ item.productionOrder }}</span>
                   </div>
                 </div>
               </div>
-            </div>
-            <div v-else class="no-items">
-              <p>No items found for this order.</p>
             </div>
           </div>
         </div>
@@ -307,13 +310,14 @@ import { salesOrderService } from '@/services/salesOrderService'
 import DataTable from 'datatables.net-vue3'
 import DataTablesCore from 'datatables.net'
 import 'datatables.net-dt'
-import type { SalesOrderDto } from '@/types/api'
+import type { SalesOrderMain, SalesOrderByDate } from '@/types/api'
 
 // Register DataTables components
 DataTable.use(DataTablesCore)
 
 const {
-  salesOrders,
+  salesOrdersByDate,
+  allSalesOrders,
   loading,
   error,
   pagination,
@@ -333,7 +337,7 @@ const {
 } = useSalesOrders()
 
 // Component state
-const selectedOrder = ref<SalesOrderDto | null>(null)
+const selectedOrder = ref<SalesOrderMain | null>(null)
 const showCredentialsModal = ref(false)
 const savingCredentials = ref(false)
 const credentialsError = ref('')
@@ -348,103 +352,110 @@ const apiDateFrom = ref('')
 const apiDateTo = ref('')
 
 // Delivery week tabs state
-const activeWeekTab = ref<string | null>(null)
+const activeWeekTab = ref<string>('')
+const activeWeekIndex = ref<number>(0)
 
 // Check if credentials are available
 const hasCredentials = computed(() => {
   return salesOrderService.hasCredentials()
 })
 
-// Get unique delivery weeks from sales orders, sorted chronologically
-const deliveryWeeks = computed(() => {
-  if (!salesOrders.value || salesOrders.value.length === 0) return []
-  
-  const weeks = [...new Set(
-    salesOrders.value
-      .map(order => order.requestedDeliveryWeek)
-      .filter(week => week && week.trim() !== '')
-  )]
-  
-  return weeks.sort()
+// Get total items count across all weeks
+const totalItemsCount = computed(() => {
+  return salesOrdersByDate.value.reduce((total, weekData) => 
+    total + weekData.salesOrderMainList.length, 0)
 })
 
-// Get order count for a specific week
-const getWeekOrderCount = (week: string) => {
-  if (!salesOrders.value) return 0
-  return salesOrders.value.filter(order => order.requestedDeliveryWeek === week).length
-}
-
-// Filter table data based on active week tab
-const filteredTableData = computed(() => {
-  if (!salesOrders.value) return []
-  if (!activeWeekTab.value) return salesOrders.value
-  
-  return salesOrders.value.filter(order => order.requestedDeliveryWeek === activeWeekTab.value)
+// Get active week data
+const activeWeekData = computed(() => {
+  if (!salesOrdersByDate.value.length || !activeWeekTab.value) {
+    return salesOrdersByDate.value[0] || null
+  }
+  return salesOrdersByDate.value.find(weekData => weekData.reqDlvWeek === activeWeekTab.value) || null
 })
 
 // Set active week tab
-const setActiveWeekTab = (week: string) => {
-  activeWeekTab.value = week
-  // Force DataTable to refresh with new filtered data
-  if (dataTable.value?.dt) {
+const setActiveWeekTab = (weekName: string, index: number) => {
+  activeWeekTab.value = weekName
+  activeWeekIndex.value = index
+  
+  // Force DataTable to refresh with new data
+  if (dataTable.value?.dt && activeWeekData.value) {
     dataTable.value.dt.clear()
-    dataTable.value.dt.rows.add(filteredTableData.value)
+    dataTable.value.dt.rows.add(activeWeekData.value.salesOrderMainList)
     dataTable.value.dt.draw()
   }
 }
 
-// Clear week filter
-const clearWeekFilter = () => {
-  activeWeekTab.value = null
-  // Force DataTable to refresh with all data
-  if (dataTable.value?.dt) {
-    dataTable.value.dt.clear()
-    dataTable.value.dt.rows.add(filteredTableData.value)
-    dataTable.value.dt.draw()
+// Watch for data changes to set first tab as active
+watch(salesOrdersByDate, (newData) => {
+  if (newData.length > 0 && !activeWeekTab.value) {
+    setActiveWeekTab(newData[0].reqDlvWeek, 0)
+  }
+}, { deep: true })
+
+// Helper functions for availability calculations
+const getTotalAvailable = (order: SalesOrderMain) => {
+  return order.availableNotCharged + order.availableCharged
+}
+
+const getFulfillmentRate = (order: SalesOrderMain) => {
+  const total = getTotalAvailable(order)
+  if (order.requestedQuantity === 0) return 0
+  return Math.round((total / order.requestedQuantity) * 100)
+}
+
+const getAvailabilityStatus = (order: SalesOrderMain) => {
+  const rate = getFulfillmentRate(order)
+  if (rate >= 100) return 'Full'
+  if (rate >= 50) return 'Partial'
+  return 'Low'
+}
+
+const getAvailabilityStatusClass = (order: SalesOrderMain) => {
+  const status = getAvailabilityStatus(order)
+  switch (status) {
+    case 'Full': return 'status-success'
+    case 'Partial': return 'status-warning'
+    case 'Low': return 'status-error'
+    default: return 'status-warning'
   }
 }
 
 // DataTables configuration
 const columns = [
   {
-    title: 'Order Number',
-    data: 'salesOrderNumber',
+    title: 'Material',
+    data: 'material',
     className: 'font-semibold'
   },
   {
-    title: 'Sold To Party',
-    data: 'soldToParty'
+    title: 'Plant',
+    data: 'plant'
   },
   {
-    title: 'Delivery Date',
-    data: 'requestedDeliveryDate',
-    render: (data: string) => formatDate(data)
-  },
-  {
-    title: 'Delivery Week',
-    data: 'requestedDeliveryWeek'
-  },
-  {
-    title: 'Complete Delivery',
-    data: 'completeDelivery',
-    render: (data: boolean) => {
-      const status = data ? 'Complete' : 'Partial'
-      const className = data ? 'status-success' : 'status-warning'
-      return `<span class="status-badge ${className}">${status}</span>`
+    title: 'Requested Qty',
+    data: 'requestedQuantity',
+    render: (data: number, type: string, row: SalesOrderMain) => {
+      return `${data} ${row.requestedQuantityUnit}`
     }
   },
   {
-    title: 'Items Count',
-    data: 'toItem',
-    render: (data: any[]) => data?.length || 0,
-    searchable: false
+    title: 'Available Not Charged',
+    data: 'availableNotCharged',
+    render: (data: number) => data.toLocaleString()
+  },
+  {
+    title: 'Available Charged',
+    data: 'availableCharged',
+    render: (data: number) => data.toLocaleString()
   },
   {
     title: 'Actions',
     data: null,
     orderable: false,
     searchable: false,
-    render: (data: any, type: string, row: SalesOrderDto) => {
+    render: (data: any, type: string, row: SalesOrderMain) => {
       return '<button class="btn-icon view-order" title="View Details">👁️</button>'
     }
   }
@@ -452,19 +463,19 @@ const columns = [
 
 const tableOptions = {
   responsive: true,
-  pageLength: 10,
+  pageLength: 15,
   lengthChange: true,
-  lengthMenu: [10, 25, 50, 100],
+  lengthMenu: [10, 15, 25, 50, 100],
   searching: true,
   ordering: true,
   info: true,
   autoWidth: false,
   language: {
-    search: 'Search orders:',
-    lengthMenu: 'Show _MENU_ orders per page',
-    info: 'Showing _START_ to _END_ of _TOTAL_ orders',
-    infoEmpty: 'No orders available',
-    infoFiltered: '(filtered from _MAX_ total orders)',
+    search: 'Search items in this week:',
+    lengthMenu: 'Show _MENU_ items per page',
+    info: 'Showing _START_ to _END_ of _TOTAL_ items',
+    infoEmpty: 'No items available',
+    infoFiltered: '(filtered from _MAX_ total items)',
     paginate: {
       first: 'First',
       last: 'Last',
@@ -488,26 +499,12 @@ const attachActionListeners = () => {
       const target = e.target as HTMLElement
       const tr = target.closest('tr')
       if (tr && dataTable.value?.dt) {
-        const rowData = dataTable.value.dt.row(tr).data() as SalesOrderDto
+        const rowData = dataTable.value.dt.row(tr).data() as SalesOrderMain
         viewOrder(rowData)
       }
     })
   })
 }
-
-// Watch for changes in filteredTableData to refresh table
-watch(filteredTableData, () => {
-  if (dataTable.value?.dt) {
-    dataTable.value.dt.clear()
-    dataTable.value.dt.rows.add(filteredTableData.value)
-    dataTable.value.dt.draw()
-  }
-}, { deep: true })
-
-// Reset week filter when new data is loaded
-watch(salesOrders, () => {
-  activeWeekTab.value = null
-}, { deep: true })
 
 // Initialize date inputs with current month
 const initializeDateInputs = () => {
@@ -530,28 +527,18 @@ const formatDateTimeLocal = (date: Date): string => {
   return `${year}-${month}-${day}T${hours}:${minutes}`
 }
 
-// Format date for display
-const formatDate = (dateString: string) => {
-  if (!dateString) return ''
+// Format datetime-local input for display
+const formatDateDisplay = (datetimeLocal: string) => {
+  if (!datetimeLocal) return ''
   try {
-    return new Date(dateString).toLocaleDateString('en-US', {
+    const date = new Date(datetimeLocal)
+    return date.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
       day: '2-digit',
       hour: '2-digit',
       minute: '2-digit'
     })
-  } catch {
-    return dateString
-  }
-}
-
-// Format datetime-local input for display
-const formatDateDisplay = (datetimeLocal: string) => {
-  if (!datetimeLocal) return ''
-  try {
-    const date = new Date(datetimeLocal)
-    return formatDate(date.toISOString())
   } catch {
     return datetimeLocal
   }
@@ -585,11 +572,15 @@ const loadDataFromAPI = async () => {
     })
     
     // Clear table filters
-    filters.salesOrderNumber = ''
-    filters.soldToParty = ''
+    filters.material = ''
+    filters.plant = ''
     
     // Reset pagination
     pagination.page = 0
+    
+    // Reset active week tab
+    activeWeekTab.value = ''
+    activeWeekIndex.value = 0
     
     // Fetch data
     await fetchSalesOrders()
@@ -606,7 +597,7 @@ const loadDataFromAPIWithCurrentMonth = async () => {
 }
 
 // View order details
-const viewOrder = (order: SalesOrderDto) => {
+const viewOrder = (order: SalesOrderMain) => {
   selectedOrder.value = order
 }
 
@@ -658,6 +649,7 @@ const clearCredentialsAndReload = () => {
 
 // Initialize component
 onMounted(() => {
+  console.log('🔍 Available salesOrderService methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(salesOrderService)))
   initializeDateInputs()
   
   // Don't auto-load data, wait for user to click "Load Data"
@@ -672,11 +664,11 @@ onMounted(() => {
 
 /* Delivery Week Tabs Styling */
 .delivery-week-tabs {
-  margin-bottom: 20px;
+  margin-bottom: 5px;
   background: var(--background-card);
   border-radius: var(--border-radius-lg);
   box-shadow: var(--shadow-card);
-  padding: 20px;
+  padding: 5px;
 }
 
 .tabs-header {
@@ -691,11 +683,6 @@ onMounted(() => {
   color: var(--text-primary);
   font-size: 16px;
   font-weight: 600;
-}
-
-.btn-sm {
-  padding: 6px 12px;
-  font-size: 12px;
 }
 
 .tabs-navigation {
@@ -758,18 +745,148 @@ onMounted(() => {
   font-weight: 400;
 }
 
-/* DataTables specific styles - CSS should be imported globally in main.ts */
+/* Week Table Container - WITH MORE SPACE */
+.week-table-container {
+  background: var(--background-card);
+  border-radius: var(--border-radius-lg);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+  /* margin-top: 32px; */
+}
+
+.week-table-header {
+  /* padding: 20px; */
+  background: var(--background-secondary);
+  border-bottom: 1px solid var(--border-light);
+}
+
+.week-table-header h4 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+/* Dynamic SO Items Styling */
+.dynamic-so-items {
+  border-top: 1px solid var(--border-light);
+  padding-top: 20px;
+  margin-top: 20px;
+}
+
+.dynamic-so-items h4 {
+  margin: 0 0 16px 0;
+  color: var(--text-primary);
+  font-size: 16px;
+}
+
+.dynamic-items-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 16px;
+}
+
+.dynamic-item-card {
+  background: var(--background-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--border-radius-md);
+  padding: 16px;
+}
+
+.dynamic-item-header {
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.dynamic-item-key {
+  font-weight: 600;
+  color: var(--color-primary);
+  font-size: 14px;
+}
+
+.dynamic-item-details {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dynamic-item-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.dynamic-item-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.dynamic-item-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* Availability Status Styles */
+.availability-status {
+  border-top: 1px solid var(--border-light);
+  padding-top: 20px;
+  margin-top: 20px;
+}
+
+.availability-status h4 {
+  margin: 0 0 16px 0;
+  color: var(--text-primary);
+  font-size: 16px;
+}
+
+.availability-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 16px;
+}
+
+.availability-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  background: var(--background-secondary);
+  border-radius: var(--border-radius-md);
+  border: 1px solid var(--border-light);
+}
+
+.availability-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.availability-value {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* Status badge variants */
+.status-error {
+  background: var(--color-error);
+  color: white;
+}
+
+/* DataTables styling */
 .sales-orders-datatable {
   width: 100% !important;
 }
 
-/* Custom styles for DataTables integration */
 :deep(.dataTables_wrapper) {
-  background: var(--background-card);
-  border-radius: var(--border-radius-lg);
-  box-shadow: var(--shadow-card);
   padding: 20px;
-  margin-top: 20px;
 }
 
 :deep(.dataTables_length),
@@ -836,7 +953,6 @@ onMounted(() => {
   border-color: var(--border-light);
 }
 
-/* Table styling */
 :deep(table.dataTable) {
   width: 100% !important;
   border-collapse: collapse;
@@ -861,7 +977,6 @@ onMounted(() => {
   background: var(--background-secondary);
 }
 
-/* Status badges */
 :deep(.status-badge) {
   padding: 4px 8px;
   border-radius: var(--border-radius-sm);
@@ -880,7 +995,6 @@ onMounted(() => {
   color: white;
 }
 
-/* Action buttons */
 :deep(.btn-icon) {
   background: none;
   border: none;
@@ -895,7 +1009,6 @@ onMounted(() => {
   background: var(--background-secondary);
 }
 
-/* Font weight utility */
 :deep(.font-semibold) {
   font-weight: 600;
 }
@@ -928,6 +1041,11 @@ onMounted(() => {
     font-size: 10px;
   }
 
+  .availability-grid,
+  .dynamic-items-grid {
+    grid-template-columns: 1fr;
+  }
+
   :deep(.dataTables_wrapper) {
     padding: 15px;
   }
@@ -941,6 +1059,20 @@ onMounted(() => {
   :deep(table.dataTable tbody td) {
     padding: 8px 12px;
     font-size: 14px;
+  }
+
+  .dynamic-item-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .week-table-container {
+    margin-top: 24px; /* Reduced spacing on mobile */
+  }
+  
+  .week-table-header {
+    padding: 16px; /* Reduced padding on mobile */
   }
 }
 </style>

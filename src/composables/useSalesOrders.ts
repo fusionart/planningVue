@@ -1,11 +1,13 @@
+// src/composables/useSalesOrders.ts - Updated for SalesOrderByDate model
+
 import { ref, reactive, computed, onMounted } from 'vue'
 import { salesOrderService } from '@/services/salesOrderService'
-import type { SalesOrderDto } from '@/types/api'
+import type { SalesOrderByDate, SalesOrderMain } from '@/types/api'
 import type { SalesOrderFilters, PaginationParams } from '@/services/salesOrderService'
 
 export function useSalesOrders() {
-  const salesOrders = ref<SalesOrderDto[]>([])
-  const currentSalesOrder = ref<SalesOrderDto | null>(null)
+  const salesOrdersByDate = ref<SalesOrderByDate[]>([])
+  const currentSalesOrder = ref<SalesOrderMain | null>(null)
   const loading = ref(false)
   const error = ref<string | null>(null)
   
@@ -21,14 +23,23 @@ export function useSalesOrders() {
   const filters = reactive<SalesOrderFilters>({
     reqDelDateBegin: '',
     reqDelDateEnd: '',
-    salesOrderNumber: '',
-    soldToParty: ''
+    material: '',
+    plant: ''
   })
 
   // Computed properties
-  const hasData = computed(() => salesOrders.value.length > 0)
+  const hasData = computed(() => salesOrdersByDate.value.length > 0)
   const hasError = computed(() => error.value !== null)
   const isEmpty = computed(() => !loading.value && !hasData.value && !hasError.value)
+
+  // Get all sales orders flattened across all weeks (for backward compatibility)
+  const allSalesOrders = computed(() => {
+    const allOrders: SalesOrderMain[] = []
+    salesOrdersByDate.value.forEach(weekData => {
+      allOrders.push(...weekData.salesOrderMainList)
+    })
+    return allOrders
+  })
 
   // Clear error
   const clearError = () => {
@@ -43,7 +54,7 @@ export function useSalesOrders() {
     pagination.last = pagination.page >= pagination.totalPages - 1
   }
 
-  // FIXED: Format date for backend (LocalDateTime without timezone)
+  // Format date for backend (LocalDateTime without timezone)
   const formatDateForBackend = (date: Date): string => {
     const year = date.getFullYear()
     const month = String(date.getMonth() + 1).padStart(2, '0')
@@ -56,7 +67,7 @@ export function useSalesOrders() {
     return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`
   }
 
-  // FIXED: Parse date string properly
+  // Parse date string properly
   const parseDateString = (dateString: string): Date => {
     // Handle both ISO strings and datetime-local input values
     if (dateString.includes('Z') || dateString.includes('+')) {
@@ -71,7 +82,7 @@ export function useSalesOrders() {
     }
   }
 
-  // Fetch sales orders with current filters and pagination
+  // Fetch sales orders by date using current filters and pagination
   const fetchSalesOrders = async () => {
     loading.value = true
     error.value = null
@@ -79,7 +90,7 @@ export function useSalesOrders() {
     try {
       const activeFilters: SalesOrderFilters = {}
       
-      // FIXED: Convert date strings to proper LocalDateTime format
+      // Convert date strings to proper LocalDateTime format
       if (filters.reqDelDateBegin) {
         const startDate = parseDateString(filters.reqDelDateBegin)
         activeFilters.reqDelDateBegin = formatDateForBackend(startDate)
@@ -90,8 +101,8 @@ export function useSalesOrders() {
         activeFilters.reqDelDateEnd = formatDateForBackend(endDate)
       }
       
-      if (filters.salesOrderNumber) activeFilters.salesOrderNumber = filters.salesOrderNumber
-      if (filters.soldToParty) activeFilters.soldToParty = filters.soldToParty
+      if (filters.material) activeFilters.material = filters.material
+      if (filters.plant) activeFilters.plant = filters.plant
 
       const paginationParams: PaginationParams = {
         page: pagination.page,
@@ -103,27 +114,28 @@ export function useSalesOrders() {
         reqDelDateEnd: activeFilters.reqDelDateEnd
       })
 
-      const response = await salesOrderService.getSalesOrders(activeFilters, paginationParams)
+      // Use the method that calls getSalesOrdersByDate
+      const response = await salesOrderService.getSalesOrdersByDate(activeFilters, paginationParams)
       
-      salesOrders.value = response.content
+      salesOrdersByDate.value = response.content
       updatePaginationInfo(response.total)
       
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to fetch sales orders'
-      salesOrders.value = []
+      salesOrdersByDate.value = []
       updatePaginationInfo(0)
     } finally {
       loading.value = false
     }
   }
 
-  // Fetch single sales order by number
-  const fetchSalesOrderByNumber = async (salesOrderNumber: string) => {
+  // Fetch single sales order by material
+  const fetchSalesOrderByMaterial = async (material: string) => {
     loading.value = true
     error.value = null
     
     try {
-      currentSalesOrder.value = await salesOrderService.getSalesOrderByNumber(salesOrderNumber)
+      currentSalesOrder.value = await salesOrderService.getSalesOrderByMaterial(material)
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to fetch sales order'
       currentSalesOrder.value = null
@@ -143,25 +155,25 @@ export function useSalesOrders() {
         size: pagination.size
       })
 
-      salesOrders.value = response.content
+      salesOrdersByDate.value = response.content
       updatePaginationInfo(response.total)
       
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to search sales orders'
-      salesOrders.value = []
+      salesOrdersByDate.value = []
       updatePaginationInfo(0)
     } finally {
       loading.value = false
     }
   }
 
-  // FIXED: Set date range with proper formatting
+  // Set date range with proper formatting
   const setDateRange = (startDate: Date, endDate: Date) => {
     filters.reqDelDateBegin = formatDateForBackend(startDate)
     filters.reqDelDateEnd = formatDateForBackend(endDate)
   }
 
-  // FIXED: Set current month range
+  // Set current month range
   const setCurrentMonthRange = () => {
     const now = new Date()
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
@@ -172,13 +184,13 @@ export function useSalesOrders() {
   }
 
   // Create new sales order (not supported by backend)
-  const createSalesOrder = async (salesOrderData: Omit<SalesOrderDto, 'salesOrderNumber'>) => {
+  const createSalesOrder = async (salesOrderData: Omit<SalesOrderMain, 'material'>) => {
     loading.value = true
     error.value = null
     
     try {
       const newSalesOrder = await salesOrderService.createSalesOrder(salesOrderData)
-      salesOrders.value.unshift(newSalesOrder)
+      // Would need to add to appropriate week - not implemented
       return newSalesOrder
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Create operation not supported'
@@ -189,19 +201,23 @@ export function useSalesOrders() {
   }
 
   // Update sales order (not supported by backend)
-  const updateSalesOrder = async (salesOrderNumber: string, updates: Partial<SalesOrderDto>) => {
+  const updateSalesOrder = async (material: string, updates: Partial<SalesOrderMain>) => {
     loading.value = true
     error.value = null
     
     try {
-      const updatedSalesOrder = await salesOrderService.updateSalesOrder(salesOrderNumber, updates)
+      const updatedSalesOrder = await salesOrderService.updateSalesOrder(material, updates)
       
-      const index = salesOrders.value.findIndex(so => so.salesOrderNumber === salesOrderNumber)
-      if (index !== -1) {
-        salesOrders.value[index] = updatedSalesOrder
+      // Find and update in the appropriate week
+      for (const weekData of salesOrdersByDate.value) {
+        const index = weekData.salesOrderMainList.findIndex(so => so.material === material)
+        if (index !== -1) {
+          weekData.salesOrderMainList[index] = updatedSalesOrder
+          break
+        }
       }
       
-      if (currentSalesOrder.value?.salesOrderNumber === salesOrderNumber) {
+      if (currentSalesOrder.value?.material === material) {
         currentSalesOrder.value = updatedSalesOrder
       }
       
@@ -215,15 +231,22 @@ export function useSalesOrders() {
   }
 
   // Delete sales order (not supported by backend)
-  const deleteSalesOrder = async (salesOrderNumber: string) => {
+  const deleteSalesOrder = async (material: string) => {
     loading.value = true
     error.value = null
     
     try {
-      await salesOrderService.deleteSalesOrder(salesOrderNumber)
-      salesOrders.value = salesOrders.value.filter(so => so.salesOrderNumber !== salesOrderNumber)
+      await salesOrderService.deleteSalesOrder(material)
       
-      if (currentSalesOrder.value?.salesOrderNumber === salesOrderNumber) {
+      // Remove from the appropriate week
+      salesOrdersByDate.value.forEach(weekData => {
+        weekData.salesOrderMainList = weekData.salesOrderMainList.filter(so => so.material !== material)
+      })
+      
+      // Remove empty weeks
+      salesOrdersByDate.value = salesOrdersByDate.value.filter(weekData => weekData.salesOrderMainList.length > 0)
+      
+      if (currentSalesOrder.value?.material === material) {
         currentSalesOrder.value = null
       }
     } catch (err) {
@@ -266,8 +289,8 @@ export function useSalesOrders() {
   const clearFilters = () => {
     filters.reqDelDateBegin = ''
     filters.reqDelDateEnd = ''
-    filters.salesOrderNumber = ''
-    filters.soldToParty = ''
+    filters.material = ''
+    filters.plant = ''
     pagination.page = 0
     fetchSalesOrders()
   }
@@ -294,8 +317,9 @@ export function useSalesOrders() {
   }
 
   return {
-    // State
-    salesOrders,
+    // State - Updated for new structure
+    salesOrdersByDate, // New: SalesOrderByDate[]
+    allSalesOrders, // Computed: flattened SalesOrderMain[] for backward compatibility
     currentSalesOrder,
     loading,
     error,
@@ -309,7 +333,7 @@ export function useSalesOrders() {
     
     // Methods
     fetchSalesOrders,
-    fetchSalesOrderByNumber,
+    fetchSalesOrderByMaterial,
     searchSalesOrders,
     createSalesOrder,
     updateSalesOrder,
@@ -326,6 +350,15 @@ export function useSalesOrders() {
     setCurrentMonthRange,
     setCredentials,
     clearCredentials,
-    formatDateForBackend // Export this helper
+    formatDateForBackend: (date: Date) => {
+      const year = date.getFullYear()
+      const month = String(date.getMonth() + 1).padStart(2, '0')
+      const day = String(date.getDate()).padStart(2, '0')
+      const hours = String(date.getHours()).padStart(2, '0')
+      const minutes = String(date.getMinutes()).padStart(2, '0')
+      const seconds = String(date.getSeconds()).padStart(2, '0')
+      
+      return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`
+    } // Export this helper
   }
 }

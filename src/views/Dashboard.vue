@@ -1,4 +1,4 @@
-<!-- src/views/Dashboard.vue - Updated without mock data -->
+<!-- src/views/Dashboard.vue - Updated for SalesOrderMain model -->
 <template>
   <div class="dashboard">
     <h2 class="page-title">Dashboard</h2>
@@ -25,7 +25,7 @@
       <div class="stats-grid">
         <div class="stat-card">
           <div class="stat-header">
-            <h3>Total Sales Orders</h3>
+            <h3>Total Items</h3>
             <span class="stat-icon">📋</span>
           </div>
           <p class="stat-number" v-if="!loadingStats">{{ salesStats.totalOrders || 0 }}</p>
@@ -37,39 +37,61 @@
 
         <div class="stat-card">
           <div class="stat-header">
-            <h3>Completed Orders</h3>
+            <h3>Total Requested Quantity</h3>
+            <span class="stat-icon">📦</span>
+          </div>
+          <p class="stat-number" v-if="!loadingStats">{{ formatNumber(salesStats.totalRequestedQuantity || 0) }}</p>
+          <div v-else class="stat-loading">Loading...</div>
+          <p class="stat-description" v-if="!loadingStats">
+            Units requested across all items
+          </p>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-header">
+            <h3>Available Not Charged</h3>
             <span class="stat-icon">✅</span>
           </div>
-          <p class="stat-number" v-if="!loadingStats">{{ salesStats.completedOrders || 0 }}</p>
+          <p class="stat-number" v-if="!loadingStats">{{ formatNumber(salesStats.totalAvailableNotCharged || 0) }}</p>
           <div v-else class="stat-loading">Loading...</div>
           <p class="stat-description" v-if="!loadingStats">
-            {{ getCompletionRate() }}% completion rate
+            Total available inventory not charged
           </p>
         </div>
 
         <div class="stat-card">
           <div class="stat-header">
-            <h3>Pending Orders</h3>
-            <span class="stat-icon">⏳</span>
+            <h3>Available Charged</h3>
+            <span class="stat-icon">⚡</span>
           </div>
-          <p class="stat-number" v-if="!loadingStats">{{ salesStats.pendingOrders || 0 }}</p>
+          <p class="stat-number" v-if="!loadingStats">{{ formatNumber(salesStats.totalAvailableCharged || 0) }}</p>
           <div v-else class="stat-loading">Loading...</div>
           <p class="stat-description" v-if="!loadingStats">
-            {{ getStatusMessage('pending') }}
+            Total available inventory charged
           </p>
         </div>
 
         <div class="stat-card">
           <div class="stat-header">
-            <h3>Total Value</h3>
-            <span class="stat-icon">💰</span>
+            <h3>Unique Plants</h3>
+            <span class="stat-icon">🏭</span>
           </div>
-          <p class="stat-number" v-if="!loadingStats">
-            {{ salesStats.totalValue ? formatCurrency(salesStats.totalValue) : '$0' }}
-          </p>
+          <p class="stat-number" v-if="!loadingStats">{{ salesStats.uniquePlants || 0 }}</p>
           <div v-else class="stat-loading">Loading...</div>
           <p class="stat-description" v-if="!loadingStats">
-            Estimated total value
+            Number of different plants
+          </p>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-header">
+            <h3>Unique Materials</h3>
+            <span class="stat-icon">🧱</span>
+          </div>
+          <p class="stat-number" v-if="!loadingStats">{{ salesStats.uniqueMaterials || 0 }}</p>
+          <div v-else class="stat-loading">Loading...</div>
+          <p class="stat-description" v-if="!loadingStats">
+            Number of different materials
           </p>
         </div>
       </div>
@@ -81,8 +103,8 @@
           <router-link to="/sales-orders" class="action-card">
             <div class="action-icon">📋</div>
             <div class="action-content">
-              <h4>View Sales Orders</h4>
-              <p>Manage and track all sales orders</p>
+              <h4>View Sales Orders Items</h4>
+              <p>Manage and track all sales order items</p>
             </div>
           </router-link>
 
@@ -115,7 +137,7 @@
       <!-- Recent Orders - Only show if we have credentials and data -->
       <div class="recent-orders" v-if="hasCredentials && recentOrders.length > 0">
         <div class="section-header">
-          <h3>Recent Sales Orders</h3>
+          <h3>Recent Sales Order Items</h3>
           <router-link to="/sales-orders" class="view-all-link">
             View All
           </router-link>
@@ -123,21 +145,55 @@
         <div class="orders-list">
           <div
             v-for="order in recentOrders"
-            :key="order.salesOrderNumber"
+            :key="order.material"
             class="order-item"
           >
             <div class="order-info">
-              <span class="order-number">{{ order.salesOrderNumber }}</span>
-              <span class="order-party">{{ order.soldToParty }}</span>
+              <span class="order-number">{{ order.material }}</span>
+              <span class="order-party">Plant: {{ order.plant }}</span>
             </div>
             <div class="order-meta">
-              <span class="order-date">{{ formatDate(order.requestedDeliveryDate) }}</span>
+              <span class="order-quantity">{{ formatNumber(order.requestedQuantity) }} {{ order.requestedQuantityUnit }}</span>
               <span
                 class="order-status"
-                :class="order.completeDelivery ? 'status-complete' : 'status-partial'"
+                :class="getAvailabilityStatusClass(order)"
               >
-                {{ order.completeDelivery ? 'Complete' : 'Partial' }}
+                {{ getAvailabilityStatus(order) }}
               </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Availability Overview -->
+      <div class="availability-overview" v-if="hasCredentials && hasData">
+        <div class="section-header">
+          <h3>Availability Overview</h3>
+        </div>
+        <div class="availability-stats">
+          <div class="availability-stat">
+            <div class="stat-label">Overall Fulfillment Rate</div>
+            <div class="stat-value">{{ getOverallFulfillmentRate() }}%</div>
+            <div class="stat-bar">
+              <div 
+                class="stat-bar-fill" 
+                :style="{ width: getOverallFulfillmentRate() + '%' }"
+                :class="getFulfillmentBarClass(getOverallFulfillmentRate())"
+              ></div>
+            </div>
+          </div>
+          <div class="availability-breakdown">
+            <div class="breakdown-item">
+              <span class="breakdown-label">Full Availability:</span>
+              <span class="breakdown-value">{{ getAvailabilityBreakdown().full }} items</span>
+            </div>
+            <div class="breakdown-item">
+              <span class="breakdown-label">Partial Availability:</span>
+              <span class="breakdown-value">{{ getAvailabilityBreakdown().partial }} items</span>
+            </div>
+            <div class="breakdown-item">
+              <span class="breakdown-label">Low Availability:</span>
+              <span class="breakdown-value">{{ getAvailabilityBreakdown().low }} items</span>
             </div>
           </div>
         </div>
@@ -166,16 +222,18 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { salesOrderService } from '@/services/salesOrderService'
-import type { SalesOrderDto } from '@/types/api'
+import type { SalesOrderMain } from '@/types/api'
 
 const salesStats = ref({
   totalOrders: 0,
-  completedOrders: 0,
-  pendingOrders: 0,
-  totalValue: 0
+  totalRequestedQuantity: 0,
+  totalAvailableNotCharged: 0,
+  totalAvailableCharged: 0,
+  uniquePlants: 0,
+  uniqueMaterials: 0
 })
 
-const recentOrders = ref<SalesOrderDto[]>([])
+const recentOrders = ref<SalesOrderMain[]>([])
 const loadingStats = ref(false)
 const loadingOrders = ref(false)
 const error = ref<string | null>(null)
@@ -183,6 +241,11 @@ const error = ref<string | null>(null)
 // Check if credentials are available
 const hasCredentials = computed(() => {
   return salesOrderService.hasCredentials()
+})
+
+// Check if we have data
+const hasData = computed(() => {
+  return salesStats.value.totalOrders > 0
 })
 
 // Connection status computed property
@@ -222,6 +285,65 @@ const connectionStatus = computed(() => {
   }
 })
 
+// Helper functions for availability calculations
+const getTotalAvailable = (order: SalesOrderMain) => {
+  return order.availableNotCharged + order.availableCharged
+}
+
+const getFulfillmentRate = (order: SalesOrderMain) => {
+  const total = getTotalAvailable(order)
+  if (order.requestedQuantity === 0) return 0
+  return Math.round((total / order.requestedQuantity) * 100)
+}
+
+const getAvailabilityStatus = (order: SalesOrderMain) => {
+  const rate = getFulfillmentRate(order)
+  if (rate >= 100) return 'Full'
+  if (rate >= 50) return 'Partial'
+  return 'Low'
+}
+
+const getAvailabilityStatusClass = (order: SalesOrderMain) => {
+  const status = getAvailabilityStatus(order)
+  switch (status) {
+    case 'Full': return 'status-complete'
+    case 'Partial': return 'status-partial'
+    case 'Low': return 'status-low'
+    default: return 'status-partial'
+  }
+}
+
+// Overall fulfillment rate calculation
+const getOverallFulfillmentRate = () => {
+  if (salesStats.value.totalRequestedQuantity === 0) return 0
+  const totalAvailable = salesStats.value.totalAvailableNotCharged + salesStats.value.totalAvailableCharged
+  return Math.round((totalAvailable / salesStats.value.totalRequestedQuantity) * 100)
+}
+
+// Get availability breakdown
+const getAvailabilityBreakdown = () => {
+  if (recentOrders.value.length === 0) return { full: 0, partial: 0, low: 0 }
+  
+  const breakdown = { full: 0, partial: 0, low: 0 }
+  recentOrders.value.forEach(order => {
+    const status = getAvailabilityStatus(order)
+    switch (status) {
+      case 'Full': breakdown.full++; break
+      case 'Partial': breakdown.partial++; break
+      case 'Low': breakdown.low++; break
+    }
+  })
+  
+  return breakdown
+}
+
+// Get fulfillment bar class
+const getFulfillmentBarClass = (rate: number) => {
+  if (rate >= 80) return 'bar-success'
+  if (rate >= 50) return 'bar-warning'
+  return 'bar-error'
+}
+
 // Load dashboard data
 const loadDashboardData = async () => {
   if (!hasCredentials.value) {
@@ -244,14 +366,12 @@ const loadDashboardData = async () => {
     loadingStats.value = false
   }
 
-  // Load recent orders
+  // Load recent orders (first 10)
   loadingOrders.value = true
   try {
-    const response = await salesOrderService.getSalesOrders({}, { 
+    const response = await salesOrderService.getSalesOrdersItems({}, { 
       page: 0, 
-      size: 5, 
-      sort: 'requestedDeliveryDate', 
-      direction: 'desc' 
+      size: 10
     })
     recentOrders.value = response.content
     console.log('✅ Recent orders loaded successfully')
@@ -277,45 +397,21 @@ const clearError = () => {
 }
 
 // Get status message for orders
-const getStatusMessage = (type: 'orders' | 'pending') => {
-  if (type === 'orders') {
-    const total = salesStats.value.totalOrders
-    if (total === 0) return 'No orders found'
-    if (total === 1) return '1 order found'
-    return `${total} orders found`
-  } else {
-    const pending = salesStats.value.pendingOrders
-    if (pending === 0) return 'All orders complete'
-    if (pending === 1) return '1 pending order'
-    return `${pending} pending orders`
-  }
-}
-
-// Get completion rate
-const getCompletionRate = () => {
+const getStatusMessage = (type: 'orders') => {
   const total = salesStats.value.totalOrders
-  const completed = salesStats.value.completedOrders
-  if (total === 0) return 0
-  return Math.round((completed / total) * 100)
+  if (total === 0) return 'No items found'
+  if (total === 1) return '1 item found'
+  return `${total} items found`
 }
 
-// Format currency
-const formatCurrency = (value: number) => {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD'
-  }).format(value)
-}
-
-// Format date
-const formatDate = (dateString: string) => {
-  try {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short',
-      day: '2-digit'
-    })
-  } catch {
-    return dateString
+// Format number
+const formatNumber = (value: number) => {
+  if (value >= 1000000) {
+    return (value / 1000000).toFixed(1) + 'M'
+  } else if (value >= 1000) {
+    return (value / 1000).toFixed(1) + 'K'
+  } else {
+    return value.toLocaleString()
   }
 }
 
@@ -513,7 +609,8 @@ onMounted(() => {
   color: var(--text-secondary);
 }
 
-.recent-orders {
+.recent-orders,
+.availability-overview {
   background: var(--background-card);
   border-radius: var(--border-radius-lg);
   box-shadow: var(--shadow-card);
@@ -583,9 +680,10 @@ onMounted(() => {
   gap: 4px;
 }
 
-.order-date {
+.order-quantity {
   font-size: 14px;
   color: var(--text-secondary);
+  font-weight: 500;
 }
 
 .order-status {
@@ -603,6 +701,90 @@ onMounted(() => {
 .status-partial {
   background: var(--color-warning);
   color: white;
+}
+
+.status-low {
+  background: var(--color-error);
+  color: white;
+}
+
+/* Availability Overview Styles */
+.availability-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.availability-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.stat-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.stat-value {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.stat-bar {
+  width: 100%;
+  height: 12px;
+  background: var(--background-secondary);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.stat-bar-fill {
+  height: 100%;
+  border-radius: 6px;
+  transition: width 0.3s ease;
+}
+
+.bar-success {
+  background: linear-gradient(90deg, #10b981, #059669);
+}
+
+.bar-warning {
+  background: linear-gradient(90deg, #f59e0b, #d97706);
+}
+
+.bar-error {
+  background: linear-gradient(90deg, #ef4444, #dc2626);
+}
+
+.availability-breakdown {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.breakdown-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  background: var(--background-secondary);
+  border-radius: var(--border-radius-md);
+  border: 1px solid var(--border-light);
+}
+
+.breakdown-label {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.breakdown-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
 }
 
 .error-section {
@@ -663,6 +845,20 @@ onMounted(() => {
 
   .order-meta {
     align-items: flex-start;
+  }
+
+  .availability-breakdown {
+    grid-template-columns: 1fr;
+  }
+
+  .breakdown-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .stat-value {
+    font-size: 1.5rem;
   }
 }
 </style>

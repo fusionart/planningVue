@@ -1,3 +1,30 @@
+// src/types/api.ts - Updated for SalesOrderByDate model
+
+export interface SalesOrderMainItem {
+  quantity?: number;
+  plannedOrder?: string;
+  productionOrder?: string;
+}
+
+// Main model that matches your SalesOrderMain Java class
+export interface SalesOrderMain {
+  material: string;
+  requestedQuantity: number;
+  availableNotCharged: number;
+  availableCharged: number;
+  requestedQuantityUnit: string;
+  plant: string;
+  // Now including dynamicSoItems
+  dynamicSoItems?: Record<string, SalesOrderMainItem>;
+}
+
+// New model that matches your SalesOrderByDate Java class
+export interface SalesOrderByDate {
+  reqDlvWeek: string;
+  salesOrderMainList: SalesOrderMain[];
+}
+
+// Keep the old interfaces for backward compatibility if needed elsewhere
 export interface SalesOrderItem {
   itemNumber?: string;
   materialNumber?: string;
@@ -13,7 +40,7 @@ export interface SalesOrderItem {
 export interface SalesOrderHeader {
   salesOrderNumber: string;
   soldToParty: string;
-  requestedDeliveryDate: string; // ISO string format from API
+  requestedDeliveryDate: string;
   requestedDeliveryWeek: string;
   overallTotalDeliveryStatus?: string;
   toItem: SalesOrderItem[];
@@ -60,10 +87,10 @@ export interface ApiError {
   path?: string;
 }
 
-// Backend request parameters
-export interface SalesOrderRequest {
+// Backend request parameters for SalesOrderItemsController
+export interface SalesOrderItemsRequest {
   username: string;
   password: string;
-  reqDelDateBegin: string; // ISO DateTime format
-  reqDelDateEnd: string;   // ISO DateTime format
+  reqDelDateBegin: string; // LocalDateTime format
+  reqDelDateEnd: string;   // LocalDateTime format
 }

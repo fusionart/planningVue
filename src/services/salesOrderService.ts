@@ -1,13 +1,15 @@
+// src/services/salesOrderService.ts - Updated for SalesOrderByDate
+
 import { apiClient } from './apiClient'
-import type { SalesOrderDto } from '@/types/api'
+import type { SalesOrderByDate, SalesOrderMain, SalesOrderItemsRequest } from '@/types/api'
 import { env, isFeatureEnabled } from '@/config/env'
 
 export interface SalesOrderFilters {
   reqDelDateBegin?: string; // LocalDateTime string (YYYY-MM-DDTHH:mm:ss)
   reqDelDateEnd?: string;   // LocalDateTime string (YYYY-MM-DDTHH:mm:ss)
   // Additional filters for client-side filtering
-  salesOrderNumber?: string;
-  soldToParty?: string;
+  material?: string;
+  plant?: string;
 }
 
 export interface PaginationParams {
@@ -21,7 +23,7 @@ class SalesOrderService {
   private readonly endpoint = '/api/sap'
 
   /**
-   * FIXED: Format date for backend LocalDateTime (no timezone)
+   * Format date for backend LocalDateTime (no timezone)
    */
   private formatDateForBackend(date: Date): string {
     const year = date.getFullYear()
@@ -35,7 +37,7 @@ class SalesOrderService {
   }
 
   /**
-   * FIXED: Parse various date string formats
+   * Parse various date string formats
    */
   private parseDateString(dateString: string): Date {
     if (dateString.includes('Z') || dateString.includes('+')) {
@@ -51,19 +53,20 @@ class SalesOrderService {
   }
 
   /**
-   * Get sales orders from your Spring Boot backend
+   * Get sales orders by date from your SalesOrderItemsController
+   * This calls the /getSalesOrdersItems endpoint and returns SalesOrderByDate[]
    */
-  async getSalesOrders(
+  async getSalesOrdersByDate(
     filters: SalesOrderFilters = {},
     pagination: PaginationParams = {}
-  ): Promise<{ content: SalesOrderDto[], total: number }> {
+  ): Promise<{ content: SalesOrderByDate[], total: number }> {
     try {
       // Prepare date range - default to current month if not specified
       const now = new Date()
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
       const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59)
 
-      // FIXED: Handle date conversion properly
+      // Handle date conversion properly
       let reqDelDateBegin: string
       let reqDelDateEnd: string
 
@@ -81,10 +84,10 @@ class SalesOrderService {
         reqDelDateEnd = this.formatDateForBackend(endOfMonth)
       }
 
-      // FIXED: Get credentials and encode them as Base64 for backend
+      // Get credentials and encode them as Base64 for backend
       const credentials = this.getCredentials()
 
-      // IMPORTANT: Backend expects Base64 encoded credentials
+      // Backend expects Base64 encoded credentials
       const params = {
         username: btoa(credentials.username), // Base64 encode for backend
         password: btoa(credentials.password), // Base64 encode for backend
@@ -93,58 +96,63 @@ class SalesOrderService {
       }
 
       if (isFeatureEnabled('DEBUG_MODE')) {
-        console.log('🔍 Fetching sales orders with params:', {
+        console.log('🔍 Fetching sales orders by date with params:', {
           reqDelDateBegin,
           reqDelDateEnd,
           hasCredentials: !!(credentials.username && credentials.password),
-          credentialsEncoded: true, // Confirm they are Base64 encoded
+          credentialsEncoded: true,
           originalFilters: filters
         })
       }
 
-      const response = await apiClient.get<SalesOrderDto[]>(`${this.endpoint}/getSalesOrders`, params)
+      // Call the endpoint: /api/sap/getSalesOrdersItems
+      const response = await apiClient.get<SalesOrderByDate[]>(`${this.endpoint}/getSalesOrdersItems`, params)
       
-      // The backend returns an array directly, so we need to format it for pagination
-      const salesOrders = Array.isArray(response) ? response : []
+      // The backend returns SalesOrderByDate[] directly
+      const salesOrdersByDate = Array.isArray(response) ? response : []
       
-      // Apply client-side filtering if needed
-      let filteredOrders = salesOrders
+      // Apply client-side filtering if needed (filter within each week's data)
+      let filteredOrdersByDate = salesOrdersByDate
       
-      if (filters.salesOrderNumber) {
-        filteredOrders = filteredOrders.filter(order => 
-          order.salesOrderNumber.toLowerCase().includes(filters.salesOrderNumber!.toLowerCase())
-        )
-      }
-      
-      if (filters.soldToParty) {
-        filteredOrders = filteredOrders.filter(order => 
-          order.soldToParty.toLowerCase().includes(filters.soldToParty!.toLowerCase())
-        )
+      if (filters.material || filters.plant) {
+        filteredOrdersByDate = salesOrdersByDate.map(weekData => ({
+          ...weekData,
+          salesOrderMainList: weekData.salesOrderMainList.filter(order => {
+            let matches = true
+            
+            if (filters.material) {
+              matches = matches && order.material.toLowerCase().includes(filters.material.toLowerCase())
+            }
+            
+            if (filters.plant) {
+              matches = matches && order.plant.toLowerCase().includes(filters.plant.toLowerCase())
+            }
+            
+            return matches
+          })
+        })).filter(weekData => weekData.salesOrderMainList.length > 0) // Remove weeks with no matching orders
       }
 
-      // Apply client-side pagination
-      const page = pagination.page || 0
-      const size = pagination.size || 20
-      const startIndex = page * size
-      const endIndex = startIndex + size
-      const paginatedOrders = filteredOrders.slice(startIndex, endIndex)
+      // Calculate total items across all weeks
+      const totalItems = filteredOrdersByDate.reduce((total, weekData) => 
+        total + weekData.salesOrderMainList.length, 0)
 
       if (isFeatureEnabled('DEBUG_MODE')) {
-        console.log('📊 Sales orders fetched successfully:', {
-          total: salesOrders.length,
-          filtered: filteredOrders.length,
-          paginated: paginatedOrders.length,
+        console.log('📊 Sales orders by date fetched successfully:', {
+          totalWeeks: salesOrdersByDate.length,
+          filteredWeeks: filteredOrdersByDate.length,
+          totalItems: totalItems,
           datesSent: { reqDelDateBegin, reqDelDateEnd }
         })
       }
 
       return {
-        content: paginatedOrders,
-        total: filteredOrders.length
+        content: filteredOrdersByDate,
+        total: totalItems
       }
 
     } catch (error) {
-      console.error('❌ Failed to fetch sales orders:', error)
+      console.error('❌ Failed to fetch sales orders by date:', error)
       
       // Enhanced error message for date format issues
       if (error instanceof Error && error.message.includes('LocalDateTime')) {
@@ -153,94 +161,124 @@ class SalesOrderService {
       
       // Re-throw the error without mock data fallback
       if (error instanceof Error) {
-        throw new Error(`Failed to fetch sales orders: ${error.message}`)
+        throw new Error(`Failed to fetch sales orders by date: ${error.message}`)
       }
-      throw new Error('Failed to fetch sales orders: Unknown error')
+      throw new Error('Failed to fetch sales orders by date: Unknown error')
     }
   }
 
   /**
-   * Get a single sales order by number (not implemented in backend, using client-side filtering)
+   * Get a single sales order by material (using client-side filtering across all weeks)
    */
-  async getSalesOrderByNumber(salesOrderNumber: string): Promise<SalesOrderDto> {
-    const { content } = await this.getSalesOrders({ salesOrderNumber })
-    const order = content.find(o => o.salesOrderNumber === salesOrderNumber)
+  async getSalesOrderByMaterial(material: string): Promise<SalesOrderMain> {
+    const { content } = await this.getSalesOrdersByDate({ material })
     
-    if (!order) {
-      throw new Error(`Sales order ${salesOrderNumber} not found`)
+    // Search across all weeks
+    for (const weekData of content) {
+      const order = weekData.salesOrderMainList.find(o => o.material === material)
+      if (order) {
+        return order
+      }
     }
     
-    return order
+    throw new Error(`Sales order with material ${material} not found`)
   }
 
   /**
-   * Search sales orders (using client-side search)
+   * Search sales orders (using client-side search across all weeks)
    */
   async searchSalesOrders(
     query: string,
     pagination: PaginationParams = {}
-  ): Promise<{ content: SalesOrderDto[], total: number }> {
-    const { content: allOrders } = await this.getSalesOrders({}, { size: 1000 }) // Get all orders
+  ): Promise<{ content: SalesOrderByDate[], total: number }> {
+    const { content: allOrdersByDate } = await this.getSalesOrdersByDate({}, { size: 1000 }) // Get all orders
     
-    const searchResults = allOrders.filter(order => 
-      order.salesOrderNumber.toLowerCase().includes(query.toLowerCase()) ||
-      order.soldToParty.toLowerCase().includes(query.toLowerCase())
-    )
+    // Filter each week's data based on search query
+    const searchResults = allOrdersByDate.map(weekData => ({
+      ...weekData,
+      salesOrderMainList: weekData.salesOrderMainList.filter(order => 
+        order.material.toLowerCase().includes(query.toLowerCase()) ||
+        order.plant.toLowerCase().includes(query.toLowerCase()) ||
+        order.requestedQuantityUnit.toLowerCase().includes(query.toLowerCase())
+      )
+    })).filter(weekData => weekData.salesOrderMainList.length > 0) // Remove weeks with no matching orders
 
-    // Apply pagination to search results
-    const page = pagination.page || 0
-    const size = pagination.size || 20
-    const startIndex = page * size
-    const endIndex = startIndex + size
-    const paginatedResults = searchResults.slice(startIndex, endIndex)
+    // Calculate total matching items
+    const totalItems = searchResults.reduce((total, weekData) => 
+      total + weekData.salesOrderMainList.length, 0)
 
     return {
-      content: paginatedResults,
-      total: searchResults.length
+      content: searchResults,
+      total: totalItems
     }
   }
 
   /**
-   * Get sales orders by delivery week (client-side filtering)
+   * Get sales orders by plant (client-side filtering across all weeks)
    */
-  async getSalesOrdersByDeliveryWeek(week: string): Promise<SalesOrderDto[]> {
-    const { content } = await this.getSalesOrders({}, { size: 1000 })
-    return content.filter(order => order.requestedDeliveryWeek === week)
+  async getSalesOrdersByPlant(plant: string): Promise<SalesOrderMain[]> {
+    const { content } = await this.getSalesOrdersByDate({}, { size: 1000 })
+    const result: SalesOrderMain[] = []
+    
+    // Collect all orders from all weeks that match the plant
+    content.forEach(weekData => {
+      const plantOrders = weekData.salesOrderMainList.filter(order => order.plant === plant)
+      result.push(...plantOrders)
+    })
+    
+    return result
   }
 
   /**
-   * Get sales orders statistics (calculated client-side)
+   * Get sales orders statistics (calculated client-side across all weeks)
    */
   async getSalesOrdersStats(): Promise<{
     totalOrders: number
-    completedOrders: number
-    pendingOrders: number
-    totalValue: number
+    totalRequestedQuantity: number
+    totalAvailableNotCharged: number
+    totalAvailableCharged: number
+    uniquePlants: number
+    uniqueMaterials: number
+    weekCount: number
   }> {
     try {
-      const { content } = await this.getSalesOrders({}, { size: 1000 })
+      const { content } = await this.getSalesOrdersByDate({}, { size: 1000 })
       
-      const totalOrders = content.length
-      const completedOrders = content.filter(order => order.completeDelivery).length
-      const pendingOrders = totalOrders - completedOrders
+      // Flatten all orders from all weeks
+      const allOrders: SalesOrderMain[] = []
+      content.forEach(weekData => {
+        allOrders.push(...weekData.salesOrderMainList)
+      })
       
-      // Since we don't have order values, we'll calculate a mock total
-      const totalValue = totalOrders * 15000 // Mock average order value
+      const totalOrders = allOrders.length
+      const totalRequestedQuantity = allOrders.reduce((sum, order) => sum + order.requestedQuantity, 0)
+      const totalAvailableNotCharged = allOrders.reduce((sum, order) => sum + order.availableNotCharged, 0)
+      const totalAvailableCharged = allOrders.reduce((sum, order) => sum + order.availableCharged, 0)
+      
+      const uniquePlants = new Set(allOrders.map(order => order.plant)).size
+      const uniqueMaterials = new Set(allOrders.map(order => order.material)).size
+      const weekCount = content.length
 
       if (isFeatureEnabled('DEBUG_MODE')) {
         console.log('📈 Sales orders statistics calculated:', {
           totalOrders,
-          completedOrders,
-          pendingOrders,
-          totalValue
+          totalRequestedQuantity,
+          totalAvailableNotCharged,
+          totalAvailableCharged,
+          uniquePlants,
+          uniqueMaterials,
+          weekCount
         })
       }
 
       return {
         totalOrders,
-        completedOrders,
-        pendingOrders,
-        totalValue
+        totalRequestedQuantity,
+        totalAvailableNotCharged,
+        totalAvailableCharged,
+        uniquePlants,
+        uniqueMaterials,
+        weekCount
       }
     } catch (error) {
       console.error('❌ Failed to get sales orders stats:', error)
@@ -251,20 +289,20 @@ class SalesOrderService {
   // Create, Update, Delete operations are not implemented in your backend
   // These methods will throw errors to indicate they're not available
   
-  async createSalesOrder(salesOrder: Omit<SalesOrderDto, 'salesOrderNumber'>): Promise<SalesOrderDto> {
+  async createSalesOrder(salesOrder: Omit<SalesOrderMain, 'material'>): Promise<SalesOrderMain> {
     throw new Error('Create sales order is not implemented in the backend')
   }
 
-  async updateSalesOrder(salesOrderNumber: string, salesOrder: Partial<SalesOrderDto>): Promise<SalesOrderDto> {
+  async updateSalesOrder(material: string, salesOrder: Partial<SalesOrderMain>): Promise<SalesOrderMain> {
     throw new Error('Update sales order is not implemented in the backend')
   }
 
-  async deleteSalesOrder(salesOrderNumber: string): Promise<void> {
+  async deleteSalesOrder(material: string): Promise<void> {
     throw new Error('Delete sales order is not implemented in the backend')
   }
 
   /**
-   * FIXED: Get credentials for API calls
+   * Get credentials for API calls
    * Returns plain text credentials (backend will Base64 encode them)
    */
   private getCredentials() {
@@ -345,7 +383,7 @@ class SalesOrderService {
   async testCredentials(): Promise<boolean> {
     try {
       // Try to get a small amount of data to test credentials
-      const { content } = await this.getSalesOrders({}, { size: 1 })
+      const { content } = await this.getSalesOrdersByDate({}, { size: 1 })
       return true
     } catch (error) {
       if (isFeatureEnabled('DEBUG_MODE')) {
