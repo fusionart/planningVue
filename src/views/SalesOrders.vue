@@ -1,4 +1,4 @@
-<!-- src/views/SalesOrders.vue - Updated with DataTables -->
+<!-- src/views/SalesOrders.vue - Updated with DataTables and Delivery Week Tabs -->
 <template>
   <div class="sales-orders">
     <div class="page-header">
@@ -155,7 +155,7 @@
       </button>
     </div>
 
-    <!-- DataTables Sales Orders Table -->
+    <!-- Delivery Week Tabs and DataTables Sales Orders Table -->
     <div v-else-if="hasData" class="table-container">
       <div class="table-header">
         <h3>Sales Orders ({{ salesOrders.length }})</h3>
@@ -165,11 +165,55 @@
           </span>
         </div>
       </div>
+
+      <!-- Delivery Week Tabs -->
+      <div v-if="deliveryWeeks.length > 0" class="delivery-week-tabs">
+        <div class="tabs-header">
+          <h4>Filter by Delivery Week</h4>
+        </div>
+        <div class="tabs-navigation">
+          <nav class="tabs-nav">
+            <!-- All Tab (always first) -->
+            <button
+              @click="clearWeekFilter"
+              :class="[
+                'tab-button',
+                !activeWeekTab ? 'tab-active' : 'tab-inactive'
+              ]"
+            >
+              <div class="tab-content">
+                <span class="tab-label">All</span>
+                <span class="tab-count">
+                  {{ salesOrders.length }} orders
+                </span>
+              </div>
+            </button>
+            
+            <!-- Individual Week Tabs -->
+            <button
+              v-for="week in deliveryWeeks"
+              :key="week"
+              @click="setActiveWeekTab(week)"
+              :class="[
+                'tab-button',
+                activeWeekTab === week ? 'tab-active' : 'tab-inactive'
+              ]"
+            >
+              <div class="tab-content">
+                <span class="tab-label">{{ week }}</span>
+                <span class="tab-count">
+                  {{ getWeekOrderCount(week) }} orders
+                </span>
+              </div>
+            </button>
+          </nav>
+        </div>
+      </div>
       
       <!-- DataTables Component -->
       <DataTable
         ref="dataTable"
-        :data="tableData"
+        :data="filteredTableData"
         :columns="columns"
         :options="tableOptions"
         class="sales-orders-datatable"
@@ -303,10 +347,62 @@ const dataTable = ref()
 const apiDateFrom = ref('')
 const apiDateTo = ref('')
 
+// Delivery week tabs state
+const activeWeekTab = ref<string | null>(null)
+
 // Check if credentials are available
 const hasCredentials = computed(() => {
   return salesOrderService.hasCredentials()
 })
+
+// Get unique delivery weeks from sales orders, sorted chronologically
+const deliveryWeeks = computed(() => {
+  if (!salesOrders.value || salesOrders.value.length === 0) return []
+  
+  const weeks = [...new Set(
+    salesOrders.value
+      .map(order => order.requestedDeliveryWeek)
+      .filter(week => week && week.trim() !== '')
+  )]
+  
+  return weeks.sort()
+})
+
+// Get order count for a specific week
+const getWeekOrderCount = (week: string) => {
+  if (!salesOrders.value) return 0
+  return salesOrders.value.filter(order => order.requestedDeliveryWeek === week).length
+}
+
+// Filter table data based on active week tab
+const filteredTableData = computed(() => {
+  if (!salesOrders.value) return []
+  if (!activeWeekTab.value) return salesOrders.value
+  
+  return salesOrders.value.filter(order => order.requestedDeliveryWeek === activeWeekTab.value)
+})
+
+// Set active week tab
+const setActiveWeekTab = (week: string) => {
+  activeWeekTab.value = week
+  // Force DataTable to refresh with new filtered data
+  if (dataTable.value?.dt) {
+    dataTable.value.dt.clear()
+    dataTable.value.dt.rows.add(filteredTableData.value)
+    dataTable.value.dt.draw()
+  }
+}
+
+// Clear week filter
+const clearWeekFilter = () => {
+  activeWeekTab.value = null
+  // Force DataTable to refresh with all data
+  if (dataTable.value?.dt) {
+    dataTable.value.dt.clear()
+    dataTable.value.dt.rows.add(filteredTableData.value)
+    dataTable.value.dt.draw()
+  }
+}
 
 // DataTables configuration
 const columns = [
@@ -384,11 +480,6 @@ const tableOptions = {
   }
 }
 
-// Computed property for table data
-const tableData = computed(() => {
-  return salesOrders.value || []
-})
-
 // Attach event listeners to action buttons
 const attachActionListeners = () => {
   const viewButtons = document.querySelectorAll('.view-order')
@@ -404,13 +495,18 @@ const attachActionListeners = () => {
   })
 }
 
-// Watch for changes in salesOrders to refresh table
-watch(salesOrders, () => {
+// Watch for changes in filteredTableData to refresh table
+watch(filteredTableData, () => {
   if (dataTable.value?.dt) {
     dataTable.value.dt.clear()
-    dataTable.value.dt.rows.add(tableData.value)
+    dataTable.value.dt.rows.add(filteredTableData.value)
     dataTable.value.dt.draw()
   }
+}, { deep: true })
+
+// Reset week filter when new data is loaded
+watch(salesOrders, () => {
+  activeWeekTab.value = null
 }, { deep: true })
 
 // Initialize date inputs with current month
@@ -574,6 +670,94 @@ onMounted(() => {
 <style scoped>
 @import '@/styles/views/SalesOrder.css';
 
+/* Delivery Week Tabs Styling */
+.delivery-week-tabs {
+  margin-bottom: 20px;
+  background: var(--background-card);
+  border-radius: var(--border-radius-lg);
+  box-shadow: var(--shadow-card);
+  padding: 20px;
+}
+
+.tabs-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.tabs-header h4 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+.tabs-navigation {
+  border-bottom: 1px solid var(--border-light);
+}
+
+.tabs-nav {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  margin-bottom: -1px;
+}
+
+.tab-button {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 12px 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-radius: var(--border-radius-sm) var(--border-radius-sm) 0 0;
+  min-width: fit-content;
+  white-space: nowrap;
+}
+
+.tab-inactive {
+  color: var(--text-secondary);
+  background: var(--background-secondary);
+}
+
+.tab-inactive:hover {
+  color: var(--text-primary);
+  background: var(--background-hover, #f8f9fa);
+  border-bottom-color: var(--border-light);
+}
+
+.tab-active {
+  color: var(--color-primary);
+  background: var(--background-card);
+  border-bottom-color: var(--color-primary);
+  font-weight: 600;
+}
+
+.tab-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.tab-label {
+  font-size: 14px;
+  font-weight: inherit;
+}
+
+.tab-count {
+  font-size: 11px;
+  opacity: 0.8;
+  font-weight: 400;
+}
+
 /* DataTables specific styles - CSS should be imported globally in main.ts */
 .sales-orders-datatable {
   width: 100% !important;
@@ -718,6 +902,32 @@ onMounted(() => {
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
+  .delivery-week-tabs {
+    padding: 15px;
+  }
+  
+  .tabs-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  
+  .tabs-nav {
+    gap: 2px;
+  }
+  
+  .tab-button {
+    padding: 10px 12px;
+  }
+  
+  .tab-label {
+    font-size: 13px;
+  }
+  
+  .tab-count {
+    font-size: 10px;
+  }
+
   :deep(.dataTables_wrapper) {
     padding: 15px;
   }
