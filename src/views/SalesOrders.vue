@@ -1,4 +1,4 @@
-<!-- src/views/SalesOrders.vue - Simplified working version with Plant Filter -->
+<!-- src/views/SalesOrders.vue - Complete version with Dynamic Footer -->
 <template>
   <div class="sales-orders">
     <div class="page-header">
@@ -396,6 +396,9 @@ const activeWeekIndex = ref<number>(0)
 // Plant filter state
 const selectedPlant = ref('All')
 
+// New reactive reference for footer calculations based on DataTable search
+const searchFilteredData = ref<SalesOrderMain[]>([])
+
 // Check if credentials are available
 const hasCredentials = computed(() => {
   return salesOrderService.hasCredentials()
@@ -601,11 +604,37 @@ const getFooterCellClass = (column) => {
   return classes.join(' ')
 }
 
-// Calculate footer content for each column (updated to use filtered data)
-const getFooterContent = (column, index) => {
-  if (!filteredSalesOrderData.value || !filteredSalesOrderData.value.length) return ''
+// Function to update footer based on currently visible (searched/filtered) data
+const updateFooterWithVisibleData = () => {
+  if (!dataTable.value?.dt) return
   
-  const data = filteredSalesOrderData.value // Use filtered data instead of activeWeekData
+  // Get all visible rows after search/filter
+  const visibleRows = dataTable.value.dt.rows({ search: 'applied' }).data().toArray()
+  searchFilteredData.value = visibleRows
+  
+  // Update footer content
+  updateFooterCells()
+}
+
+// Function to update footer cells with current calculations
+const updateFooterCells = () => {
+  if (!dataTable.value?.dt) return
+  
+  const footerCells = document.querySelectorAll('.sales-orders-datatable tfoot th')
+  
+  footerCells.forEach((cell, index) => {
+    if (index < dynamicColumns.value.length) {
+      const column = dynamicColumns.value[index]
+      cell.textContent = getFooterContentForSearch(column, index)
+    }
+  })
+}
+
+// Updated footer content calculation using search-filtered data
+const getFooterContentForSearch = (column, index) => {
+  const data = searchFilteredData.value.length > 0 ? searchFilteredData.value : filteredSalesOrderData.value
+  
+  if (!data || !data.length) return ''
   
   // Helper function to get numeric value
   const numVal = (i) => {
@@ -685,10 +714,26 @@ const getFooterContent = (column, index) => {
   }
 }
 
+// Calculate footer content for each column (updated to use search-filtered data)
+const getFooterContent = (column, index) => {
+  // Use search-filtered data if available, otherwise fall back to plant-filtered data
+  return getFooterContentForSearch(column, index)
+}
+
 // Apply plant filter
 const applyPlantFilter = () => {
   console.log(`🏭 Plant filter changed to: ${selectedPlant.value}`)
   console.log(`📊 Showing ${filteredDataCount.value} of ${activeWeekData.value?.salesOrderMainList.length || 0} records`)
+  
+  // Reset search filtered data when plant filter changes
+  searchFilteredData.value = []
+  
+  // Trigger footer update after plant filter is applied
+  setTimeout(() => {
+    if (dataTable.value?.dt) {
+      updateFooterWithVisibleData()
+    }
+  }, 100)
 }
 
 // Set active week tab (updated to reset plant filter)
@@ -696,6 +741,7 @@ const setActiveWeekTab = (weekName: string, index: number) => {
   activeWeekTab.value = weekName
   activeWeekIndex.value = index
   selectedPlant.value = 'All' // Reset filter when switching weeks
+  searchFilteredData.value = [] // Reset search filtered data
   
   console.log(`🔄 Switching to week ${weekName} with ${dynamicColumnKeys.value.length} dynamic column groups`)
 }
@@ -706,6 +752,32 @@ watch(salesOrdersByDate, (newData) => {
     setActiveWeekTab(newData[0].reqDlvWeek, 0)
   }
 }, { deep: true })
+
+// Watch for changes in the DataTable search input
+watch(() => dataTable.value, (newValue) => {
+  if (newValue?.dt) {
+    // Listen for search events
+    newValue.dt.on('search.dt', () => {
+      setTimeout(() => {
+        updateFooterWithVisibleData()
+      }, 10)
+    })
+    
+    // Listen for page change events
+    newValue.dt.on('page.dt', () => {
+      setTimeout(() => {
+        updateFooterWithVisibleData()
+      }, 10)
+    })
+    
+    // Listen for length change events
+    newValue.dt.on('length.dt', () => {
+      setTimeout(() => {
+        updateFooterWithVisibleData()
+      }, 10)
+    })
+  }
+}, { immediate: true })
 
 // Helper functions for availability calculations
 const getTotalAvailable = (order: SalesOrderMain) => {
@@ -763,7 +835,12 @@ const tableOptions = {
     // Re-attach event listeners after table redraw
     setTimeout(() => {
       attachActionListeners()
+      updateFooterWithVisibleData()
     }, 0)
+  },
+  // Add search callback to update footer when search changes
+  initComplete: function(settings, json) {
+    updateFooterWithVisibleData()
   }
 }
 
@@ -857,6 +934,9 @@ const loadDataFromAPI = async () => {
     // Reset active week tab
     activeWeekTab.value = ''
     activeWeekIndex.value = 0
+    
+    // Reset search filtered data
+    searchFilteredData.value = []
     
     // Fetch data
     await fetchSalesOrders()
