@@ -1,4 +1,4 @@
-<!-- src/views/SalesOrders.vue - Simplified working version -->
+<!-- src/views/SalesOrders.vue - Simplified working version with Plant Filter -->
 <template>
   <div class="sales-orders">
     <div class="page-header">
@@ -158,7 +158,7 @@
     <!-- Delivery Week Tabs and DataTables -->
     <div v-else-if="hasData" class="table-container">
       <div class="table-header">
-        <h3>Батерии за седмица {{ activeWeekData?.reqDlvWeek }} - {{ activeWeekData?.salesOrderMainList?.length || 0 }} записа</h3>
+        <h3>Батерии за седмица {{ activeWeekData?.reqDlvWeek }} - {{ filteredDataCount }} записа</h3>
         <div class="table-info">
           <span class="data-range">
             Дати: {{ formatDateDisplay(apiDateFrom) }} - {{ formatDateDisplay(apiDateTo) }}
@@ -189,16 +189,41 @@
           </nav>
         </div>
       </div>
+
+      <!-- Plant Filter Section -->
+      <div v-if="activeWeekData && activeWeekData.salesOrderMainList.length > 0" class="table-filters">
+        <div class="filter-group">
+          <label for="plantFilter" class="filter-label">Филтър по завод:</label>
+          <select
+            id="plantFilter"
+            v-model="selectedPlant"
+            @change="applyPlantFilter"
+            class="filter-select"
+          >
+            <option value="All">Всички заводи</option>
+            <option 
+              v-for="plant in availablePlants" 
+              :key="plant" 
+              :value="plant"
+            >
+              {{ plant }}
+            </option>
+          </select>
+          <span class="filter-info">
+            Показване на {{ filteredDataCount }} от {{ activeWeekData.salesOrderMainList.length }} записа
+          </span>
+        </div>
+      </div>
       
       <!-- DataTables Component for Active Week -->
       <div v-if="activeWeekData && activeWeekData.salesOrderMainList.length > 0" class="week-table-container">        
         <DataTable
           ref="dataTable"
-          :data="activeWeekData.salesOrderMainList"
+          :data="filteredSalesOrderData"
           :columns="dynamicColumns"
           :options="tableOptions"
           class="sales-orders-datatable"
-          :key="activeWeekTab + '-' + dynamicColumnKeys.join('-')"
+          :key="activeWeekTab + '-' + dynamicColumnKeys.join('-') + '-' + selectedPlant"
         >
           <tfoot>
             <tr class="footer-row">
@@ -368,6 +393,9 @@ const apiDateTo = ref('')
 const activeWeekTab = ref<string>('')
 const activeWeekIndex = ref<number>(0)
 
+// Plant filter state
+const selectedPlant = ref('All')
+
 // Check if credentials are available
 const hasCredentials = computed(() => {
   return salesOrderService.hasCredentials()
@@ -385,6 +413,38 @@ const activeWeekData = computed(() => {
     return sortedSalesOrdersByDate.value[0] || null
   }
   return sortedSalesOrdersByDate.value.find(weekData => weekData.reqDlvWeek === activeWeekTab.value) || null
+})
+
+// Get unique plants from active week data
+const availablePlants = computed(() => {
+  if (!activeWeekData.value) return []
+  
+  const plants = new Set<string>()
+  activeWeekData.value.salesOrderMainList.forEach(order => {
+    if (order.plant && order.plant.trim() !== '') {
+      plants.add(order.plant.trim())
+    }
+  })
+  
+  return Array.from(plants).sort()
+})
+
+// Filter data based on selected plant
+const filteredSalesOrderData = computed(() => {
+  if (!activeWeekData.value) return []
+  
+  if (selectedPlant.value === 'All') {
+    return activeWeekData.value.salesOrderMainList
+  }
+  
+  return activeWeekData.value.salesOrderMainList.filter(order => 
+    order.plant === selectedPlant.value
+  )
+})
+
+// Count of filtered data
+const filteredDataCount = computed(() => {
+  return filteredSalesOrderData.value.length
 })
 
 // Get all unique dynamic column keys from the current active week data
@@ -541,11 +601,11 @@ const getFooterCellClass = (column) => {
   return classes.join(' ')
 }
 
-// Calculate footer content for each column
+// Calculate footer content for each column (updated to use filtered data)
 const getFooterContent = (column, index) => {
-  if (!activeWeekData.value || !activeWeekData.value.salesOrderMainList) return ''
+  if (!filteredSalesOrderData.value || !filteredSalesOrderData.value.length) return ''
   
-  const data = activeWeekData.value.salesOrderMainList
+  const data = filteredSalesOrderData.value // Use filtered data instead of activeWeekData
   
   // Helper function to get numeric value
   const numVal = (i) => {
@@ -625,10 +685,17 @@ const getFooterContent = (column, index) => {
   }
 }
 
-// Set active week tab
+// Apply plant filter
+const applyPlantFilter = () => {
+  console.log(`🏭 Plant filter changed to: ${selectedPlant.value}`)
+  console.log(`📊 Showing ${filteredDataCount.value} of ${activeWeekData.value?.salesOrderMainList.length || 0} records`)
+}
+
+// Set active week tab (updated to reset plant filter)
 const setActiveWeekTab = (weekName: string, index: number) => {
   activeWeekTab.value = weekName
   activeWeekIndex.value = index
+  selectedPlant.value = 'All' // Reset filter when switching weeks
   
   console.log(`🔄 Switching to week ${weekName} with ${dynamicColumnKeys.value.length} dynamic column groups`)
 }
