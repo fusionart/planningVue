@@ -1,4 +1,4 @@
-<!-- src/views/SalesOrders.vue - Updated with dynamic dynamicSoItems columns -->
+<!-- src/views/SalesOrders.vue - Simplified working version -->
 <template>
   <div class="sales-orders">
     <div class="page-header">
@@ -158,27 +158,13 @@
     <!-- Delivery Week Tabs and DataTables -->
     <div v-else-if="hasData" class="table-container">
       <div class="table-header">
-        <h3>Батерии за седмица {{ activeWeekData.reqDlvWeek }} - {{ activeWeekData.salesOrderMainList.length }} записа</h3>
+        <h3>Батерии за седмица {{ activeWeekData?.reqDlvWeek }} - {{ activeWeekData?.salesOrderMainList?.length || 0 }} записа</h3>
         <div class="table-info">
           <span class="data-range">
             Дати: {{ formatDateDisplay(apiDateFrom) }} - {{ formatDateDisplay(apiDateTo) }}
           </span>
         </div>
       </div>
-
-      <!-- Dynamic Columns Info -->
-      <!-- <div v-if="dynamicColumnKeys.length > 0" class="dynamic-columns-info">
-        <h4>Dynamic SO Items Found:</h4>
-        <div class="dynamic-keys">
-          <span 
-            v-for="key in dynamicColumnKeys" 
-            :key="key" 
-            class="dynamic-key-badge"
-          >
-            {{ key }} ({{ getDynamicKeyCount(key) }} items)
-          </span>
-        </div>
-      </div> -->
 
       <!-- Delivery Week Tabs -->
       <div v-if="salesOrdersByDate.length > 0" class="delivery-week-tabs">
@@ -205,7 +191,7 @@
       </div>
       
       <!-- DataTables Component for Active Week -->
-      <div v-if="activeWeekData" class="week-table-container">        
+      <div v-if="activeWeekData && activeWeekData.salesOrderMainList.length > 0" class="week-table-container">        
         <DataTable
           ref="dataTable"
           :data="activeWeekData.salesOrderMainList"
@@ -213,7 +199,20 @@
           :options="tableOptions"
           class="sales-orders-datatable"
           :key="activeWeekTab + '-' + dynamicColumnKeys.join('-')"
-        />
+        >
+          <tfoot>
+            <tr class="footer-row">
+              <th v-for="(column, index) in dynamicColumns" :key="index" :class="getFooterCellClass(column)">
+                {{ getFooterContent(column, index) }}
+              </th>
+            </tr>
+          </tfoot>
+        </DataTable>
+      </div>
+      
+      <!-- No data message for active week -->
+      <div v-else-if="activeWeekData && activeWeekData.salesOrderMainList.length === 0" class="no-data-message">
+        <p>No data available for week {{ activeWeekData.reqDlvWeek }}</p>
       </div>
     </div>
 
@@ -497,16 +496,116 @@ const getDynamicKeyCount = (key: string) => {
   ).length
 }
 
+// Add this helper method for footer cell styling:
+const getFooterCellClass = (column) => {
+  const classes = ['footer-cell']
+  
+  if (column.data === 'requestedQuantity' || 
+      column.data === 'availableNotCharged' || 
+      column.data === 'availableCharged' ||
+      column.title.includes('Qty')) {
+    classes.push('footer-numeric')
+  } else if (column.data === 'material' || 
+             column.data === 'plant' ||
+             column.title.includes('Order')) {
+    classes.push('footer-count')
+  } else if (column.title === 'Actions') {
+    classes.push('footer-actions')
+  }
+  
+  return classes.join(' ')
+}
+
+// Calculate footer content for each column
+const getFooterContent = (column, index) => {
+  if (!activeWeekData.value || !activeWeekData.value.salesOrderMainList) return ''
+  
+  const data = activeWeekData.value.salesOrderMainList
+  
+  // Helper function to get numeric value
+  const numVal = (i) => {
+    if (typeof i === 'string') {
+      const cleaned = i.replace(/[\$,\s]/g, '')
+      return parseFloat(cleaned) || 0
+    }
+    return typeof i === 'number' ? i : 0
+  }
+  
+  // Check if this is a numeric column
+  if (column.data === 'requestedQuantity' || 
+      column.data === 'availableNotCharged' || 
+      column.data === 'availableCharged' ||
+      column.title.includes('Qty')) {
+    
+    // Sum numeric values
+    let total = 0
+    data.forEach(rowData => {
+      if (column.data === 'requestedQuantity') {
+        total += numVal(rowData.requestedQuantity)
+      } else if (column.data === 'availableNotCharged') {
+        total += numVal(rowData.availableNotCharged)
+      } else if (column.data === 'availableCharged') {
+        total += numVal(rowData.availableCharged)
+      } else if (column.title.includes('Qty')) {
+        // For dynamic qty columns
+        const keyMatch = column.title.match(/^(.+) - Qty$/)
+        if (keyMatch) {
+          const key = keyMatch[1]
+          const item = rowData.dynamicSoItems?.[key]
+          total += numVal(item?.quantity || 0)
+        }
+      }
+    })
+    
+    return `Total: ${total.toLocaleString()}`
+    
+  } else if (column.data === 'material' || 
+             column.data === 'plant' ||
+             column.title.includes('Order')) {
+    
+    // Count non-empty values for string columns
+    let count = 0
+    data.forEach(rowData => {
+      if (column.data === 'material') {
+        if (rowData.material && rowData.material !== '-' && rowData.material.toString().trim() !== '') {
+          count++
+        }
+      } else if (column.data === 'plant') {
+        if (rowData.plant && rowData.plant !== '-' && rowData.plant.toString().trim() !== '') {
+          count++
+        }
+      } else if (column.title.includes('Planned Order') || column.title.includes('Production Order')) {
+        // For dynamic order columns
+        const keyMatch = column.title.match(/^(.+) - (Planned|Production) Order$/)
+        if (keyMatch) {
+          const key = keyMatch[1]
+          const orderType = keyMatch[2].toLowerCase() + 'Order'
+          const item = rowData.dynamicSoItems?.[key]
+          const orderValue = item?.[orderType]
+          if (orderValue && orderValue !== '-' && orderValue.toString().trim() !== '') {
+            count++
+          }
+        }
+      }
+    })
+    
+    return `${count} items`
+    
+  } else if (column.title === 'Actions') {
+    // Skip actions column
+    return ''
+  } else {
+    // For other columns, show total count
+    return `${data.length} total`
+  }
+}
+
 // Set active week tab
 const setActiveWeekTab = (weekName: string, index: number) => {
   activeWeekTab.value = weekName
   activeWeekIndex.value = index
   
-  // Force DataTable to refresh with new data and columns
-  if (dataTable.value?.dt && activeWeekData.value) {
-    // DataTable will automatically reinitialize due to the key change in the template
-    console.log(`🔄 Switching to week ${weekName} with ${dynamicColumnKeys.value.length} dynamic column groups`)
-  }
+  console.log(`🔄 Switching to week ${weekName} with ${dynamicColumnKeys.value.length} dynamic column groups`)
 }
 
 // Watch for data changes to set first tab as active
@@ -554,7 +653,7 @@ const tableOptions = {
   ordering: true,
   info: true,
   autoWidth: false,
-  scrollX: true, // Enable horizontal scrolling for dynamic columns
+  scrollX: true,
   language: {
     search: 'Search items in this week:',
     lengthMenu: 'Show _MENU_ items per page',
@@ -776,6 +875,16 @@ onMounted(() => {
   border-radius: var(--border-radius-sm);
   font-size: 12px;
   font-weight: 500;
+}
+
+/* No Data Message */
+.no-data-message {
+  background: var(--background-card);
+  border-radius: var(--border-radius-lg);
+  box-shadow: var(--shadow-card);
+  padding: 40px;
+  text-align: center;
+  color: var(--text-secondary);
 }
 
 /* Delivery Week Tabs Styling */
@@ -1095,6 +1204,42 @@ onMounted(() => {
   background: var(--background-secondary);
 }
 
+/* DataTable Footer Styles */
+:deep(table.dataTable tfoot th) {
+  background: var(--background-secondary) !important;
+  color: var(--text-primary) !important;
+  font-weight: 600 !important;
+  padding: 12px 8px !important;
+  border-top: 2px solid var(--color-primary) !important;
+  border-bottom: 1px solid var(--border-light) !important;
+  text-align: left !important;
+  font-size: 12px !important;
+  white-space: nowrap !important;
+  vertical-align: middle !important;
+}
+
+:deep(table.dataTable tfoot th.footer-numeric) {
+  background-color: #f0f9ff !important;
+  text-align: right !important;
+  font-weight: 700 !important;
+  color: var(--color-primary) !important;
+}
+
+:deep(table.dataTable tfoot th.footer-count) {
+  background-color: #f0fdf4 !important;
+  text-align: center !important;
+  color: var(--color-success) !important;
+  font-weight: 600 !important;
+}
+
+:deep(table.dataTable tfoot th.footer-actions) {
+  background-color: var(--background-card) !important;
+}
+
+:deep(.footer-row) {
+  border-top: 2px solid var(--color-primary) !important;
+}
+
 /* Dynamic column styling */
 :deep(.dynamic-col-qty) {
   background-color: #f0f9ff;
@@ -1242,7 +1387,8 @@ onMounted(() => {
   }
   
   :deep(table.dataTable thead th),
-  :deep(table.dataTable tbody td) {
+  :deep(table.dataTable tbody td),
+  :deep(table.dataTable tfoot th) {
     padding: 6px 4px;
     font-size: 11px;
   }
@@ -1279,7 +1425,8 @@ onMounted(() => {
   }
   
   :deep(table.dataTable thead th),
-  :deep(table.dataTable tbody td) {
+  :deep(table.dataTable tbody td),
+  :deep(table.dataTable tfoot th) {
     padding: 4px 2px;
   }
 }
