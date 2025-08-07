@@ -4,6 +4,8 @@ export interface SalesOrderMainItem {
   quantity?: number;
   plannedOrder?: string;
   productionOrder?: string;
+  customer?: string;           // NEW: Customer field
+  completeDelivery?: boolean;  // NEW: Complete delivery flag
 }
 
 // Main model that matches your SalesOrderMain Java class
