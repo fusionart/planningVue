@@ -32,7 +32,7 @@
     <div v-if="showCredentialsModal" class="modal-overlay" @click="closeCredentialsModal">
       <div class="modal credentials-modal" @click.stop>
         <div class="modal-header">
-          <h3>SAP API идентификационни данн</h3>
+          <h3>SAP API идентификационни данни</h3>
           <button class="modal-close" @click="closeCredentialsModal">×</button>
         </div>
         
@@ -47,7 +47,7 @@
               id="username"
               v-model="credentialsForm.username"
               type="text"
-              placeholder="Enter SAP username"
+              placeholder="Въведете SAP потребител"
               class="form-input"
               :disabled="savingCredentials"
             />
@@ -59,7 +59,7 @@
               id="password"
               v-model="credentialsForm.password"
               type="password"
-              placeholder="Enter SAP password"
+              placeholder="Въведете SAP парола"
               class="form-input"
               :disabled="savingCredentials"
             />
@@ -75,14 +75,14 @@
               @click="closeCredentialsModal"
               :disabled="savingCredentials"
             >
-              Cancel
+              Отказ
             </button>
             <button 
               class="btn btn-primary" 
               @click="saveCredentials"
               :disabled="!credentialsForm.username || !credentialsForm.password || savingCredentials"
             >
-              {{ savingCredentials ? 'Saving...' : 'Save Credentials' }}
+              {{ savingCredentials ? 'Запазване...' : 'Запази' }}
             </button>
           </div>
         </div>
@@ -158,10 +158,10 @@
     <!-- Delivery Week Tabs and DataTables -->
     <div v-else-if="hasData" class="table-container">
       <div class="table-header">
-        <h3>Батерии за седмица {{ activeWeekData.reqDlvWeek }} - {{ activeWeekData.salesOrderMainList.length }} броя</h3>
+        <h3>Батерии за седмица {{ activeWeekData.reqDlvWeek }} - {{ activeWeekData.salesOrderMainList.length }} записа</h3>
         <div class="table-info">
           <span class="data-range">
-            Data: {{ formatDateDisplay(apiDateFrom) }} - {{ formatDateDisplay(apiDateTo) }}
+            Дати: {{ formatDateDisplay(apiDateFrom) }} - {{ formatDateDisplay(apiDateTo) }}
           </span>
         </div>
       </div>
@@ -182,7 +182,7 @@
               <div class="tab-content">
                 <span class="tab-label">{{ weekData.reqDlvWeek }}</span>
                 <span class="tab-count">
-                  {{ weekData.salesOrderMainList.length }} броя
+                  {{ weekData.salesOrderMainList.length }} записа
                 </span>
               </div>
             </button>
