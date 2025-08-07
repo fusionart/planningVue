@@ -167,11 +167,11 @@
       </div>
 
       <!-- Delivery Week Tabs -->
-      <div v-if="salesOrdersByDate.length > 0" class="delivery-week-tabs">
+      <div v-if="sortedSalesOrdersByDate.length > 0" class="delivery-week-tabs">
         <div class="tabs-navigation">
           <nav class="tabs-nav">
             <button
-              v-for="(weekData, index) in salesOrdersByDate"
+              v-for="(weekData, index) in sortedSalesOrdersByDate"
               :key="weekData.reqDlvWeek"
               @click="setActiveWeekTab(weekData.reqDlvWeek, index)"
               :class="[
@@ -375,16 +375,16 @@ const hasCredentials = computed(() => {
 
 // Get total items count across all weeks
 const totalItemsCount = computed(() => {
-  return salesOrdersByDate.value.reduce((total, weekData) => 
+  return sortedSalesOrdersByDate.value.reduce((total, weekData) => 
     total + weekData.salesOrderMainList.length, 0)
 })
 
 // Get active week data
 const activeWeekData = computed(() => {
-  if (!salesOrdersByDate.value.length || !activeWeekTab.value) {
-    return salesOrdersByDate.value[0] || null
+  if (!sortedSalesOrdersByDate.value.length || !activeWeekTab.value) {
+    return sortedSalesOrdersByDate.value[0] || null
   }
-  return salesOrdersByDate.value.find(weekData => weekData.reqDlvWeek === activeWeekTab.value) || null
+  return sortedSalesOrdersByDate.value.find(weekData => weekData.reqDlvWeek === activeWeekTab.value) || null
 })
 
 // Get all unique dynamic column keys from the current active week data
@@ -485,6 +485,31 @@ const dynamicColumns = computed(() => {
   }
 
   return [...baseColumns, ...dynamicCols, actionsColumn]
+})
+
+const sortedSalesOrdersByDate = computed(() => {
+  if (!salesOrdersByDate.value.length) return []
+  
+  return [...salesOrdersByDate.value].sort((a, b) => {
+    // Parse the week format: "49/2025" -> { week: 49, year: 2025 }
+    const parseWeek = (weekStr: string) => {
+      const parts = weekStr.split('/')
+      return {
+        week: parseInt(parts[0]) || 0,
+        year: parseInt(parts[1]) || 0
+      }
+    }
+    
+    const weekA = parseWeek(a.reqDlvWeek)
+    const weekB = parseWeek(b.reqDlvWeek)
+    
+    // Sort by year first, then by week number
+    if (weekA.year !== weekB.year) {
+      return weekA.year - weekB.year
+    }
+    
+    return weekA.week - weekB.week
+  })
 })
 
 // Get count of items that have a specific dynamic key
