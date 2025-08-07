@@ -1,4 +1,4 @@
-<!-- src/views/SalesOrders.vue - COMPLETE file for SalesOrderByDate model -->
+<!-- src/views/SalesOrders.vue - Updated with dynamic dynamicSoItems columns -->
 <template>
   <div class="sales-orders">
     <div class="page-header">
@@ -166,6 +166,20 @@
         </div>
       </div>
 
+      <!-- Dynamic Columns Info -->
+      <!-- <div v-if="dynamicColumnKeys.length > 0" class="dynamic-columns-info">
+        <h4>Dynamic SO Items Found:</h4>
+        <div class="dynamic-keys">
+          <span 
+            v-for="key in dynamicColumnKeys" 
+            :key="key" 
+            class="dynamic-key-badge"
+          >
+            {{ key }} ({{ getDynamicKeyCount(key) }} items)
+          </span>
+        </div>
+      </div> -->
+
       <!-- Delivery Week Tabs -->
       <div v-if="salesOrdersByDate.length > 0" class="delivery-week-tabs">
         <div class="tabs-navigation">
@@ -195,10 +209,10 @@
         <DataTable
           ref="dataTable"
           :data="activeWeekData.salesOrderMainList"
-          :columns="columns"
+          :columns="dynamicColumns"
           :options="tableOptions"
           class="sales-orders-datatable"
-          :key="activeWeekTab"
+          :key="activeWeekTab + '-' + dynamicColumnKeys.join('-')"
         />
       </div>
     </div>
@@ -374,16 +388,124 @@ const activeWeekData = computed(() => {
   return salesOrdersByDate.value.find(weekData => weekData.reqDlvWeek === activeWeekTab.value) || null
 })
 
+// Get all unique dynamic column keys from the current active week data
+const dynamicColumnKeys = computed(() => {
+  if (!activeWeekData.value) return []
+  
+  const allKeys = new Set<string>()
+  
+  activeWeekData.value.salesOrderMainList.forEach(order => {
+    if (order.dynamicSoItems) {
+      Object.keys(order.dynamicSoItems).forEach(key => {
+        allKeys.add(key)
+      })
+    }
+  })
+  
+  return Array.from(allKeys).sort()
+})
+
+// Generate dynamic columns configuration
+const dynamicColumns = computed(() => {
+  // Base columns
+  const baseColumns = [
+    {
+      title: 'Material',
+      data: 'material',
+      className: 'font-semibold'
+    },
+    {
+      title: 'Plant',
+      data: 'plant'
+    },
+    {
+      title: 'Requested Qty',
+      data: 'requestedQuantity',
+      render: (data: number, type: string, row: SalesOrderMain) => {
+        return `${data} ${row.requestedQuantityUnit}`
+      }
+    },
+    {
+      title: 'Available Not Charged',
+      data: 'availableNotCharged',
+      render: (data: number) => data.toLocaleString()
+    },
+    {
+      title: 'Available Charged',
+      data: 'availableCharged',
+      render: (data: number) => data.toLocaleString()
+    }
+  ]
+
+  // Dynamic columns for each dynamicSoItems key
+  const dynamicCols = dynamicColumnKeys.value.flatMap(key => [
+    {
+      title: `${key} - Qty`,
+      data: null,
+      orderable: true,
+      searchable: false,
+      className: 'dynamic-col-qty',
+      render: (data: any, type: string, row: SalesOrderMain) => {
+        const item = row.dynamicSoItems?.[key]
+        return item?.quantity ? item.quantity.toString() : '-'
+      }
+    },
+    {
+      title: `${key} - Planned Order`,
+      data: null,
+      orderable: true,
+      searchable: true,
+      className: 'dynamic-col-planned',
+      render: (data: any, type: string, row: SalesOrderMain) => {
+        const item = row.dynamicSoItems?.[key]
+        return item?.plannedOrder || '-'
+      }
+    },
+    {
+      title: `${key} - Production Order`,
+      data: null,
+      orderable: true,
+      searchable: true,
+      className: 'dynamic-col-production',
+      render: (data: any, type: string, row: SalesOrderMain) => {
+        const item = row.dynamicSoItems?.[key]
+        return item?.productionOrder || '-'
+      }
+    }
+  ])
+
+  // Actions column
+  const actionsColumn = {
+    title: 'Actions',
+    data: null,
+    orderable: false,
+    searchable: false,
+    render: (data: any, type: string, row: SalesOrderMain) => {
+      return '<button class="btn-icon view-order" title="View Details">👁️</button>'
+    }
+  }
+
+  return [...baseColumns, ...dynamicCols, actionsColumn]
+})
+
+// Get count of items that have a specific dynamic key
+const getDynamicKeyCount = (key: string) => {
+  if (!activeWeekData.value) return 0
+  
+  return activeWeekData.value.salesOrderMainList.filter(order => 
+    order.dynamicSoItems && order.dynamicSoItems[key]
+  ).length
+}
+
 // Set active week tab
 const setActiveWeekTab = (weekName: string, index: number) => {
   activeWeekTab.value = weekName
   activeWeekIndex.value = index
   
-  // Force DataTable to refresh with new data
+  // Force DataTable to refresh with new data and columns
   if (dataTable.value?.dt && activeWeekData.value) {
-    dataTable.value.dt.clear()
-    dataTable.value.dt.rows.add(activeWeekData.value.salesOrderMainList)
-    dataTable.value.dt.draw()
+    // DataTable will automatically reinitialize due to the key change in the template
+    console.log(`🔄 Switching to week ${weekName} with ${dynamicColumnKeys.value.length} dynamic column groups`)
   }
 }
 
@@ -423,44 +545,6 @@ const getAvailabilityStatusClass = (order: SalesOrderMain) => {
 }
 
 // DataTables configuration
-const columns = [
-  {
-    title: 'Material',
-    data: 'material',
-    className: 'font-semibold'
-  },
-  {
-    title: 'Plant',
-    data: 'plant'
-  },
-  {
-    title: 'Requested Qty',
-    data: 'requestedQuantity',
-    render: (data: number, type: string, row: SalesOrderMain) => {
-      return `${data} ${row.requestedQuantityUnit}`
-    }
-  },
-  {
-    title: 'Available Not Charged',
-    data: 'availableNotCharged',
-    render: (data: number) => data.toLocaleString()
-  },
-  {
-    title: 'Available Charged',
-    data: 'availableCharged',
-    render: (data: number) => data.toLocaleString()
-  },
-  {
-    title: 'Actions',
-    data: null,
-    orderable: false,
-    searchable: false,
-    render: (data: any, type: string, row: SalesOrderMain) => {
-      return '<button class="btn-icon view-order" title="View Details">👁️</button>'
-    }
-  }
-]
-
 const tableOptions = {
   responsive: true,
   pageLength: 15,
@@ -470,6 +554,7 @@ const tableOptions = {
   ordering: true,
   info: true,
   autoWidth: false,
+  scrollX: true, // Enable horizontal scrolling for dynamic columns
   language: {
     search: 'Search items in this week:',
     lengthMenu: 'Show _MENU_ items per page',
@@ -662,6 +747,37 @@ onMounted(() => {
 <style scoped>
 @import '@/styles/views/SalesOrder.css';
 
+/* Dynamic Columns Info Styling */
+.dynamic-columns-info {
+  background: var(--background-card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--border-radius-md);
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.dynamic-columns-info h4 {
+  margin: 0 0 12px 0;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.dynamic-keys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.dynamic-key-badge {
+  padding: 4px 8px;
+  background: var(--color-primary);
+  color: white;
+  border-radius: var(--border-radius-sm);
+  font-size: 12px;
+  font-weight: 500;
+}
+
 /* Delivery Week Tabs Styling */
 .delivery-week-tabs {
   margin-bottom: 5px;
@@ -751,11 +867,9 @@ onMounted(() => {
   border-radius: var(--border-radius-lg);
   box-shadow: var(--shadow-card);
   overflow: hidden;
-  /* margin-top: 32px; */
 }
 
 .week-table-header {
-  /* padding: 20px; */
   background: var(--background-secondary);
   border-bottom: 1px solid var(--border-light);
 }
@@ -880,7 +994,7 @@ onMounted(() => {
   color: white;
 }
 
-/* DataTables styling */
+/* DataTables styling with dynamic columns */
 .sales-orders-datatable {
   width: 100% !important;
 }
@@ -962,19 +1076,58 @@ onMounted(() => {
   background: var(--background-secondary);
   color: var(--text-primary);
   font-weight: 600;
-  padding: 12px 16px;
+  padding: 12px 8px;
   border-bottom: 2px solid var(--border-light);
   text-align: left;
+  white-space: nowrap;
+  font-size: 12px;
 }
 
 :deep(table.dataTable tbody td) {
-  padding: 12px 16px;
+  padding: 10px 8px;
   border-bottom: 1px solid var(--border-light);
   color: var(--text-primary);
+  font-size: 12px;
+  white-space: nowrap;
 }
 
 :deep(table.dataTable tbody tr:hover) {
   background: var(--background-secondary);
+}
+
+/* Dynamic column styling */
+:deep(.dynamic-col-qty) {
+  background-color: #f0f9ff;
+  font-weight: 600;
+  text-align: center;
+}
+
+:deep(.dynamic-col-planned) {
+  background-color: #f0fdf4;
+  font-family: monospace;
+  font-size: 11px;
+}
+
+:deep(.dynamic-col-production) {
+  background-color: #fefce8;
+  font-family: monospace;
+  font-size: 11px;
+}
+
+/* Dynamic column headers */
+:deep(table.dataTable thead th:contains("Qty")) {
+  background-color: #dbeafe !important;
+  color: #1e40af !important;
+}
+
+:deep(table.dataTable thead th:contains("Planned Order")) {
+  background-color: #dcfce7 !important;
+  color: #166534 !important;
+}
+
+:deep(table.dataTable thead th:contains("Production Order")) {
+  background-color: #fef3c7 !important;
+  color: #92400e !important;
 }
 
 :deep(.status-badge) {
@@ -1013,6 +1166,30 @@ onMounted(() => {
   font-weight: 600;
 }
 
+/* Scrollable table for many dynamic columns */
+:deep(.dataTables_scroll) {
+  border: 1px solid var(--border-light);
+  border-radius: var(--border-radius-md);
+}
+
+:deep(.dataTables_scrollHead) {
+  border-bottom: 2px solid var(--border-medium);
+}
+
+:deep(.dataTables_scrollBody) {
+  border-top: none;
+}
+
+/* Column group headers visual distinction */
+:deep(table.dataTable thead th) {
+  position: relative;
+}
+
+/* Add visual separators between dynamic column groups */
+:deep(table.dataTable thead th[data-group="new"]) {
+  border-left: 3px solid var(--color-primary);
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .delivery-week-tabs {
@@ -1046,6 +1223,15 @@ onMounted(() => {
     grid-template-columns: 1fr;
   }
 
+  .dynamic-columns-info {
+    padding: 12px;
+  }
+
+  .dynamic-keys {
+    flex-direction: column;
+    gap: 6px;
+  }
+
   :deep(.dataTables_wrapper) {
     padding: 15px;
   }
@@ -1057,8 +1243,8 @@ onMounted(() => {
   
   :deep(table.dataTable thead th),
   :deep(table.dataTable tbody td) {
-    padding: 8px 12px;
-    font-size: 14px;
+    padding: 6px 4px;
+    font-size: 11px;
   }
 
   .dynamic-item-row {
@@ -1068,11 +1254,33 @@ onMounted(() => {
   }
 
   .week-table-container {
-    margin-top: 24px; /* Reduced spacing on mobile */
+    margin-top: 24px;
   }
   
-  .week-table-header {
-    padding: 16px; /* Reduced padding on mobile */
+  /* Force horizontal scroll on mobile for dynamic columns */
+  :deep(.dataTables_wrapper) {
+    overflow-x: auto;
+  }
+  
+  :deep(table.dataTable) {
+    min-width: 800px;
+  }
+}
+
+/* Print styles for dynamic columns */
+@media print {
+  .dynamic-columns-info,
+  .delivery-week-tabs {
+    display: none;
+  }
+  
+  :deep(table.dataTable) {
+    font-size: 10px;
+  }
+  
+  :deep(table.dataTable thead th),
+  :deep(table.dataTable tbody td) {
+    padding: 4px 2px;
   }
 }
 </style>
