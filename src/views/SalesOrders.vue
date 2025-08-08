@@ -190,48 +190,32 @@
         </div>
       </div>
 
-      <!-- Plant Filter Section -->
-      <div v-if="activeWeekData && activeWeekData.salesOrderMainList.length > 0" class="table-filters">
-        <div class="filter-group">
-          <label for="plantFilter" class="filter-label">Филтър по завод:</label>
-          <select
-            id="plantFilter"
-            v-model="selectedPlant"
-            @change="applyPlantFilter"
-            class="filter-select"
-          >
-            <option value="All">Всички заводи</option>
-            <option 
-              v-for="plant in availablePlants" 
-              :key="plant" 
-              :value="plant"
-            >
-              {{ plant }}
-            </option>
-          </select>
-          <span class="filter-info">
-            Показване на {{ sortedAndFilteredData.length }} от {{ activeWeekData.salesOrderMainList.length }} записа
-          </span>
-        </div>
-      </div>
-
       <!-- Custom Table with Two-Row Header -->
       <div v-if="activeWeekData && activeWeekData.salesOrderMainList.length > 0" class="week-table-container">        
         <div class="custom-datatable-container">
           <div class="table-controls">
             <div class="controls-left">
-              <label>
-                Покажи 
-                <select v-model="pageLength" @change="updatePageLength" class="page-length-select">
-                  <option value="10">10</option>
-                  <option value="15">15</option>
-                  <option value="25">25</option>
-                  <option value="50">50</option>
-                  <option value="100">100</option>
+              <!-- Plant Filter moved here -->
+              <label class="plant-filter-label">
+                Филтър по завод:
+                <select
+                  id="plantFilter"
+                  v-model="selectedPlant"
+                  @change="applyPlantFilter"
+                  class="filter-select"
+                >
+                  <option value="All">Всички заводи</option>
+                  <option 
+                    v-for="plant in availablePlants" 
+                    :key="plant" 
+                    :value="plant"
+                  >
+                    {{ plant }}
+                  </option>
                 </select>
-                записа
               </label>
             </div>
+
             <div class="controls-right">
               <label>
                 Търсене: 
@@ -242,6 +226,17 @@
                   placeholder="Търсене в настоящата седмица ..."
                   class="search-input"
                 >
+              </label>
+              <label>
+                Покажи 
+                <select v-model="pageLength" @change="updatePageLength" class="page-length-select">
+                  <option value="10">10</option>
+                  <option value="15">15</option>
+                  <option value="25">25</option>
+                  <option value="50">50</option>
+                  <option value="100">100</option>
+                </select>
+                записа
               </label>
             </div>
           </div>
@@ -1211,6 +1206,30 @@ onMounted(() => {
   border-right: 2px solid var(--color-primary);
 }
 
+/* Plant filter in controls-left styling */
+.controls-left {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.plant-filter-label {
+  color: var(--text-primary) !important;
+  font-weight: 500 !important;
+  font-size: 14px !important;
+}
+
+.filter-info {
+  font-size: 12px;
+  color: var(--text-light);
+  white-space: nowrap;
+  padding: 6px 12px;
+  background: var(--background-card);
+  border-radius: var(--border-radius-sm);
+  border: 1px solid var(--border-light);
+}
+
 /* Responsive adjustments for sort indicators */
 @media (max-width: 1200px) {
   .sort-indicator {
@@ -1225,6 +1244,12 @@ onMounted(() => {
   
   .sort-arrows {
     font-size: 10px;
+  }
+  
+  .controls-left {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
   }
 }
 
@@ -1247,6 +1272,22 @@ onMounted(() => {
   .header-columns .sort-active {
     border-left: 1px solid var(--color-primary);
     border-right: 1px solid var(--color-primary);
+  }
+  
+  .controls-left {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  
+  .controls-left label {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+  
+  .filter-info {
+    text-align: center;
+    width: 100%;
   }
 }
 
