@@ -1,4 +1,4 @@
-<!-- SalesOrders.vue - Updated with Column Sorting on Second Header Row -->
+<!-- SalesOrders.vue - Updated with PrimeVue DatePicker -->
 <template>
   <div class="sales-orders">
     <div class="page-header">
@@ -89,34 +89,70 @@
       </div>
     </div>
 
-    <!-- API Parameters Section -->
+    <!-- API Parameters Section with PrimeVue DatePickers -->
     <div v-if="hasCredentials" class="api-parameters-section">
       <h3>Времеви период</h3>
       <div class="parameters-grid">
-        <div class="parameter-group">
-          <label for="dateFrom">Дата от</label>
-          <input
-            id="dateFrom"
-            v-model="apiDateFrom"
-            type="datetime-local"
-            class="parameter-input"
+        <div class="parameter-group-datepicker">
+          <label for="dateFromPicker">Дата от</label>
+          <DatePicker
+            id="dateFromPicker"
+            v-model="apiDateFromDate"
+            dateFormat="dd.mm.yy"
+            :firstDayOfWeek="1"
+            :showWeek="true"
+            :manualInput="true"
+            placeholder="Изберете начална дата"
+            class="parameter-datepicker"
+            :class="{ 'p-invalid': dateFromError }"
+            @date-select="onDateFromSelect"
+            @blur="validateDateFrom"
+            showButtonBar
+            :showIcon="true"
+            locale="bg"
           />
         </div>
 
-        <div class="parameter-group">
-          <label for="dateTo">Дата до</label>
-          <input
-            id="dateTo"
-            v-model="apiDateTo"
-            type="datetime-local"
-            class="parameter-input"
+        <div class="parameter-group-datepicker">
+          <label for="dateToPicker">Дата до</label>
+          <DatePicker
+            id="dateToPicker"
+            v-model="apiDateToDate"
+            dateFormat="dd.mm.yy"
+            :firstDayOfWeek="1"
+            :showWeek="true"
+            :manualInput="true"
+            placeholder="Изберете крайна дата"
+            class="parameter-datepicker"
+            :class="{ 'p-invalid': dateToError }"
+            @date-select="onDateToSelect"
+            @blur="validateDateTo"
+            showButtonBar
+            :showIcon="true"
+            locale="bg"
           />
         </div>
 
         <div class="parameter-actions">
-          <button class="btn btn-primary" @click="loadDataFromAPI" :disabled="loading">
+          <button 
+            class="btn btn-primary" 
+            @click="loadDataFromAPI" 
+            :disabled="loading || hasDateErrors"
+          >
             {{ loading ? 'Зареждане...' : '📊 Зареди' }}
           </button>
+        </div>
+      </div>
+      
+      <!-- Date validation errors -->
+      <div v-if="hasDateErrors" class="date-errors">
+        <div v-if="dateFromError" class="date-error">
+          <i class="pi pi-exclamation-triangle"></i>
+          {{ dateFromError }}
+        </div>
+        <div v-if="dateToError" class="date-error">
+          <i class="pi pi-exclamation-triangle"></i>
+          {{ dateToError }}
         </div>
       </div>
     </div>
@@ -161,7 +197,7 @@
         <h3>Батерии за седмица {{ activeWeekData?.reqDlvWeek }} - {{ filteredData.length }} записа</h3>
         <div class="table-info">
           <span class="data-range">
-            Дати: {{ formatDateDisplay(apiDateFrom) }} - {{ formatDateDisplay(apiDateTo) }}
+            Дати: {{ formatDateDisplay(apiDateFromDate) }} - {{ formatDateDisplay(apiDateToDate) }}
           </span>
         </div>
       </div>
@@ -627,12 +663,16 @@ const credentialsForm = ref({
   password: ''
 })
 
-// API parameters
-const apiDateFrom = ref('')
-const apiDateTo = ref('')
+// API parameters with PrimeVue Date objects
+const apiDateFromDate = ref<Date | null>(null)
+const apiDateToDate = ref<Date | null>(null)
 const activeWeekTab = ref<string>('')
 const activeWeekIndex = ref<number>(0)
 const selectedPlant = ref('All')
+
+// Date validation
+const dateFromError = ref('')
+const dateToError = ref('')
 
 // Custom table state
 const searchTerm = ref('')
@@ -646,6 +686,10 @@ const sortDirection = ref<'asc' | 'desc'>('asc')
 // Computed properties
 const hasCredentials = computed(() => {
   return salesOrderService.hasCredentials()
+})
+
+const hasDateErrors = computed(() => {
+  return !!(dateFromError.value || dateToError.value)
 })
 
 const activeWeekData = computed(() => {
@@ -842,6 +886,48 @@ const totalColumns = computed(() => {
   return 5 + (dynamicColumnKeys.value.length * 3) // Basic(2) + Inventory(3) + Dynamic(keys*3)
 })
 
+// Date validation methods
+const validateDateFrom = () => {
+  dateFromError.value = ''
+  
+  if (!apiDateFromDate.value) {
+    dateFromError.value = 'Началната дата е задължителна'
+    return
+  }
+  
+  if (apiDateToDate.value && apiDateFromDate.value > apiDateToDate.value) {
+    dateFromError.value = 'Началната дата не може да бъде след крайната дата'
+  }
+}
+
+const validateDateTo = () => {
+  dateToError.value = ''
+  
+  if (!apiDateToDate.value) {
+    dateToError.value = 'Крайната дата е задължителна'
+    return
+  }
+  
+  if (apiDateFromDate.value && apiDateToDate.value < apiDateFromDate.value) {
+    dateToError.value = 'Крайната дата не може да бъде преди началната дата'
+  }
+}
+
+// Date selection handlers
+const onDateFromSelect = () => {
+  validateDateFrom()
+  if (apiDateToDate.value) {
+    validateDateTo()
+  }
+}
+
+const onDateToSelect = () => {
+  validateDateTo()
+  if (apiDateFromDate.value) {
+    validateDateFrom()
+  }
+}
+
 // Sorting methods
 const sortBy = (column: string) => {
   if (sortColumn.value === column) {
@@ -950,54 +1036,44 @@ const applyPlantFilter = () => {
 const initializeDateInputs = () => {
   const now = new Date()
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59)
+  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0) // Remove time for date-only
   
-  apiDateFrom.value = formatDateTimeLocal(startOfMonth)
-  apiDateTo.value = formatDateTimeLocal(endOfMonth)
+  apiDateFromDate.value = startOfMonth
+  apiDateToDate.value = endOfMonth
 }
 
-const formatDateTimeLocal = (date: Date): string => {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  const hours = String(date.getHours()).padStart(2, '0')
-  const minutes = String(date.getMinutes()).padStart(2, '0')
-  
-  return `${year}-${month}-${day}T${hours}:${minutes}`
-}
-
-const formatDateDisplay = (datetimeLocal: string) => {
-  if (!datetimeLocal) return ''
+const formatDateDisplay = (date: Date | null) => {
+  if (!date) return ''
   try {
-    const date = new Date(datetimeLocal)
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
+    return date.toLocaleDateString('bg-BG', {
       day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit'
+      month: '2-digit',
+      year: 'numeric'
     })
   } catch {
-    return datetimeLocal
+    return date.toString()
   }
 }
 
 const loadDataFromAPI = async () => {
-  if (!apiDateFrom.value || !apiDateTo.value) {
-    alert('Please select both date from and date to')
+  if (!apiDateFromDate.value || !apiDateToDate.value) {
+    dateFromError.value = !apiDateFromDate.value ? 'Началната дата е задължителна' : ''
+    dateToError.value = !apiDateToDate.value ? 'Крайната дата е задължителна' : ''
+    return
+  }
+
+  if (hasDateErrors.value) {
+    console.warn('⚠️ Cannot load data with date validation errors')
     return
   }
 
   try {
-    const startDate = new Date(apiDateFrom.value)
-    const endDate = new Date(apiDateTo.value)
-    
-    filters.reqDelDateBegin = formatDateForBackend(startDate)
-    filters.reqDelDateEnd = formatDateForBackend(endDate)
+    filters.reqDelDateBegin = formatDateForBackend(apiDateFromDate.value)
+    filters.reqDelDateEnd = formatDateForBackend(apiDateToDate.value)
     
     console.log('🔍 Setting date filters:', {
-      fromInput: apiDateFrom.value,
-      toInput: apiDateTo.value,
+      fromDate: apiDateFromDate.value.toISOString(),
+      toDate: apiDateToDate.value.toISOString(),
       backendFormat: {
         begin: filters.reqDelDateBegin,
         end: filters.reqDelDateEnd
@@ -1116,9 +1192,15 @@ watch([selectedPlant, searchTerm], () => {
   currentPage.value = 1
 })
 
+// Watch for date changes to validate
+watch([apiDateFromDate, apiDateToDate], () => {
+  if (apiDateFromDate.value) validateDateFrom()
+  if (apiDateToDate.value) validateDateTo()
+})
+
 // Initialize component
 onMounted(() => {
-  console.log('🔍 SalesOrders component mounted with two-row header and sorting')
+  console.log('🔍 SalesOrders component mounted with PrimeVue DatePicker')
   initializeDateInputs()
   
   if (!hasCredentials.value) {
@@ -1133,6 +1215,50 @@ onMounted(() => {
 
 /* Import two-row header specific styles */
 @import '@/styles/views/salesOrder/SalesOrdersTwoRowHeader.css';
+
+/* PrimeVue DatePicker integration styles */
+.parameter-datepicker {
+  min-width: 220px;
+}
+
+.parameter-group-datepicker {
+  display: contents;
+}
+
+.parameter-group-datepicker label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  text-align: right;
+  padding-right: 8px;
+  align-self: center;
+}
+
+/* Date validation errors styling */
+.date-errors {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.date-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #fee2e2;
+  border: 1px solid #fca5a5;
+  border-radius: var(--border-radius-md);
+  color: var(--color-error);
+  font-size: 14px;
+}
+
+.date-error i {
+  font-size: 16px;
+  color: var(--color-error);
+}
 
 /* Additional sorting styles */
 .sortable {
@@ -1230,8 +1356,24 @@ onMounted(() => {
   border: 1px solid var(--border-light);
 }
 
-/* Responsive adjustments for sort indicators */
+/* Responsive adjustments for sort indicators and date pickers */
 @media (max-width: 1200px) {
+  .parameters-grid {
+    grid-template-columns: auto 1fr;
+    gap: 12px;
+  }
+  
+  .parameter-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+    margin-left: 0;
+    margin-top: 12px;
+  }
+  
+  .parameter-datepicker {
+    min-width: 180px;
+  }
+  
   .sort-indicator {
     margin-left: 3px;
     font-size: 10px;
@@ -1254,6 +1396,32 @@ onMounted(() => {
 }
 
 @media (max-width: 768px) {
+  .parameters-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  
+  .parameter-group-datepicker {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  
+  .parameter-group-datepicker label {
+    text-align: left;
+    padding-right: 0;
+  }
+  
+  .parameter-actions {
+    justify-content: flex-start;
+    margin-left: 0;
+  }
+  
+  .parameter-datepicker {
+    min-width: auto;
+    width: 100%;
+  }
+  
   .sort-indicator {
     display: block;
     margin-left: 0;
@@ -1289,6 +1457,15 @@ onMounted(() => {
     text-align: center;
     width: 100%;
   }
+  
+  .date-errors {
+    margin-top: 8px;
+  }
+  
+  .date-error {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
 }
 
 /* Print styles - hide sort indicators when printing */
@@ -1299,6 +1476,10 @@ onMounted(() => {
   
   .sortable {
     cursor: default;
+  }
+  
+  .date-errors {
+    display: none;
   }
 }
 </style>

@@ -1,0 +1,368 @@
+/* src/styles/components/primevue-custom.css - Custom PrimeVue styling */
+
+/* Base PrimeVue DatePicker customizations - Force Light Theme */
+.p-datepicker {
+  font-family: inherit;
+  border-radius: var(--border-radius-md);
+  box-shadow: var(--shadow-card);
+  border: 1px solid var(--border-medium);
+  background: var(--background-card) !important;
+  color: var(--text-primary) !important;
+}
+
+/* DatePicker input field styling */
+.p-datepicker-input {
+  padding: 8px 12px;
+  border: 2px solid var(--color-primary);
+  border-radius: var(--border-radius-md);
+  font-size: 14px;
+  background: var(--background-primary) !important;
+  color: var(--text-primary) !important;
+  min-width: 200px;
+  font-family: inherit;
+  transition: all 0.2s ease;
+}
+
+.p-datepicker-input:focus {
+  outline: none;
+  border-color: var(--color-primary-dark);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.p-datepicker-input::placeholder {
+  color: var(--text-secondary);
+  opacity: 0.7;
+}
+
+/* Calendar panel styling - Force white background */
+.p-datepicker-panel {
+  background: var(--background-card) !important;
+  border: 1px solid var(--border-medium) !important;
+  border-radius: var(--border-radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: 16px;
+  margin-top: 4px;
+  color: var(--text-primary) !important;
+}
+
+/* Override any dark theme classes */
+.p-datepicker-panel * {
+  color: inherit !important;
+}
+
+/* Header with month/year navigation */
+.p-datepicker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding: 8px 0;
+  background: transparent !important;
+}
+
+.p-datepicker-title {
+  font-weight: 600;
+  color: var(--text-primary) !important;
+  font-size: 16px;
+  margin: 0;
+  background: transparent !important;
+}
+
+/* Navigation buttons */
+.p-datepicker-prev-button,
+.p-datepicker-next-button {
+  background: var(--background-secondary) !important;
+  border: 1px solid var(--border-light) !important;
+  border-radius: var(--border-radius-sm);
+  color: var(--text-secondary) !important;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.p-datepicker-prev-button:hover,
+.p-datepicker-next-button:hover {
+  background: var(--color-primary) !important;
+  color: white !important;
+  border-color: var(--color-primary) !important;
+}
+
+/* Week numbers column styling */
+.p-datepicker-weeknumber {
+  background: var(--background-secondary) !important;
+  color: var(--text-secondary) !important;
+  font-weight: 600 !important;
+  font-size: 12px !important;
+  border-right: 2px solid var(--border-medium) !important;
+  text-align: center !important;
+  vertical-align: middle !important;
+  padding: 8px 6px !important;
+}
+
+/* Week header (shows "Week" text) */
+.p-datepicker-weekheader {
+  background: var(--color-primary) !important;
+  color: white !important;
+  font-weight: 600 !important;
+  font-size: 11px !important;
+  text-align: center !important;
+  padding: 6px 4px !important;
+  border-radius: var(--border-radius-sm) var(--border-radius-sm) 0 0 !important;
+}
+
+/* Calendar table styling */
+.p-datepicker-calendar {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 2px;
+  background: transparent !important;
+}
+
+/* Day headers (Mon, Tue, etc.) - Force light styling with Monday first */
+.p-datepicker-calendar th {
+  background: var(--background-secondary) !important;
+  color: var(--text-primary) !important;
+  font-weight: 600;
+  font-size: 12px;
+  text-align: center;
+  padding: 8px 6px;
+  border-radius: var(--border-radius-sm);
+}
+
+/* Ensure Monday is first day - styling for first day column (after week number) */
+.p-datepicker-calendar th:nth-child(2) { /* Monday will be second column (after week number) */
+  background: var(--color-primary) !important;
+  color: white !important;
+}
+
+/* Day cells */
+.p-datepicker-calendar td {
+  text-align: center;
+  padding: 2px;
+  background: transparent !important;
+}
+
+/* Day buttons - Force light theme */
+.p-datepicker-calendar td > span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--border-radius-sm);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: var(--text-primary) !important;
+  background: transparent !important;
+  border: 1px solid transparent;
+}
+
+/* Hover state for days */
+.p-datepicker-calendar td > span:hover {
+  background: var(--background-secondary) !important;
+  border-color: var(--border-light) !important;
+  color: var(--text-primary) !important;
+}
+
+/* Today's date */
+.p-datepicker-calendar td.p-datepicker-today > span {
+  background: var(--color-warning) !important;
+  color: white !important;
+  font-weight: 600;
+  border: 2px solid var(--color-warning) !important;
+}
+
+.p-datepicker-calendar td.p-datepicker-today > span:hover {
+  background: #d97706 !important;
+  border-color: #d97706 !important;
+  color: white !important;
+}
+
+/* Selected date */
+.p-datepicker-calendar td.p-datepicker-selected > span {
+  background: var(--color-primary) !important;
+  color: white !important;
+  font-weight: 600;
+  border: 2px solid var(--color-primary) !important;
+}
+
+.p-datepicker-calendar td.p-datepicker-selected > span:hover {
+  background: var(--color-primary-dark) !important;
+  border-color: var(--color-primary-dark) !important;
+  color: white !important;
+}
+
+/* Other month dates (grayed out) */
+.p-datepicker-calendar td.p-datepicker-other-month > span {
+  color: var(--text-light) !important;
+  opacity: 0.5;
+  background: transparent !important;
+}
+
+/* Disabled dates */
+.p-datepicker-calendar td.p-datepicker-disabled > span {
+  color: var(--text-light) !important;
+  background: var(--background-secondary) !important;
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+/* Range selection styling */
+.p-datepicker-calendar td.p-datepicker-range > span {
+  background: rgba(59, 130, 246, 0.1) !important;
+  color: var(--color-primary) !important;
+  border: 1px solid rgba(59, 130, 246, 0.3) !important;
+}
+
+/* Button panel (Clear, Today buttons) */
+.p-datepicker-buttonbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 12px;
+  margin-top: 12px;
+  border-top: 1px solid var(--border-light);
+  background: transparent !important;
+}
+
+.p-datepicker-buttonbar button {
+  padding: 6px 12px;
+  border-radius: var(--border-radius-md);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid var(--border-medium);
+  background: var(--background-secondary) !important;
+  color: var(--text-secondary) !important;
+}
+
+.p-datepicker-buttonbar button:hover {
+  background: var(--color-primary) !important;
+  color: white !important;
+  border-color: var(--color-primary) !important;
+}
+
+/* Clear button specific styling */
+.p-datepicker-buttonbar .p-button-secondary {
+  background: var(--background-card) !important;
+  border-color: var(--border-medium) !important;
+  color: var(--text-secondary) !important;
+}
+
+/* Today button specific styling */
+.p-datepicker-buttonbar .p-button-primary {
+  background: var(--color-primary) !important;
+  border-color: var(--color-primary) !important;
+  color: white !important;
+}
+
+/* Force override any dark theme that might be applied */
+.p-datepicker-panel,
+.p-datepicker-panel *,
+.p-datepicker-calendar,
+.p-datepicker-calendar *,
+.p-datepicker-header,
+.p-datepicker-header * {
+  background-color: inherit !important;
+}
+
+/* Ensure proper contrast */
+.p-datepicker-panel {
+  background: white !important;
+  color: #1f2937 !important;
+}
+
+/* Override PrimeVue's built-in dark theme classes if they exist */
+.p-datepicker.p-component {
+  background: white !important;
+  color: #1f2937 !important;
+}
+
+/* Responsive design for smaller screens */
+@media (max-width: 768px) {
+  .p-datepicker-input {
+    min-width: auto;
+    width: 100%;
+  }
+  
+  .p-datepicker-panel {
+    padding: 12px;
+  }
+  
+  .p-datepicker-calendar td > span {
+    width: 32px;
+    height: 32px;
+    font-size: 12px;
+  }
+  
+  .p-datepicker-weeknumber {
+    padding: 6px 4px !important;
+    font-size: 10px !important;
+  }
+  
+  .p-datepicker-calendar th {
+    padding: 6px 4px;
+    font-size: 10px;
+  }
+}
+
+/* Custom parameter group styling for the new date pickers */
+.parameter-group-datepicker {
+  display: contents;
+}
+
+.parameter-group-datepicker label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  text-align: right;
+  padding-right: 8px;
+  align-self: center;
+}
+
+/* Error state for date picker */
+.p-datepicker-input.p-invalid {
+  border-color: var(--color-error);
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+}
+
+/* Focus state enhancement */
+.p-datepicker-input:focus {
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  border-color: var(--color-primary-dark);
+}
+
+/* Animation for panel show/hide */
+.p-datepicker-panel {
+  animation: fadeInDown 0.15s ease-out;
+}
+
+@keyframes fadeInDown {
+  0% {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Custom styling for week number header */
+.p-datepicker-weekheader::before {
+  content: "Седм";
+  font-size: 10px;
+}
+
+/* Ensure proper spacing for Bulgarian date format */
+.p-datepicker-input {
+  letter-spacing: 0.5px;
+}

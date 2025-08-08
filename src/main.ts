@@ -1,4 +1,4 @@
-// src/main.ts - Updated main application file without mock data
+// src/main.ts - Updated main application file with PrimeVue
 
 import { createApp } from 'vue'
 import App from './App.vue'
@@ -6,6 +6,15 @@ import router from './router'
 import { env, isDevelopment, isFeatureEnabled } from '@/config/env'
 import { checkApiHealth } from '@/services/apiClient'
 import './styles/main.css'
+
+// PrimeVue imports
+import PrimeVue from 'primevue/config'
+import Aura from '@primevue/themes/aura'
+import DatePicker from 'primevue/datepicker'
+import 'primeicons/primeicons.css'
+
+// Import PrimeVue specific styles
+import './styles/components/primevue-custom.css'
 
 import 'datatables.net-dt/css/dataTables.dataTables.css'
 
@@ -57,6 +66,39 @@ async function initializeApp() {
 
     // Create and mount Vue app
     const app = createApp(App)
+    
+    // Configure PrimeVue
+    app.use(PrimeVue, {
+      theme: {
+        preset: Aura,
+        options: {
+          prefix: 'p',
+          darkModeSelector: 'system',
+          cssLayer: false
+        }
+      },
+      locale: {
+        firstDayOfWeek: 1, // Monday as first day
+        dayNames: ['Неделя', 'Понеделник', 'Вторник', 'Сряда', 'Четвъртък', 'Петък', 'Събота'],
+        dayNamesShort: ['Нед', 'Пон', 'Вто', 'Сря', 'Чет', 'Пет', 'Съб'],
+        dayNamesMin: ['Н', 'П', 'В', 'С', 'Ч', 'П', 'С'],
+        monthNames: [
+          'Януари', 'Февруари', 'Март', 'Април', 'Май', 'Юни',
+          'Юли', 'Август', 'Септември', 'Октомври', 'Ноември', 'Декември'
+        ],
+        monthNamesShort: [
+          'Ян', 'Фев', 'Мар', 'Апр', 'Май', 'Юни',
+          'Юли', 'Авг', 'Сеп', 'Окт', 'Ное', 'Дек'
+        ],
+        today: 'Днес',
+        clear: 'Изчисти',
+        weekHeader: 'Седм'
+      }
+    })
+
+    // Register PrimeVue components globally
+    app.component('DatePicker', DatePicker)
+    
     app.use(router)
 
     // Add global properties for environment access
@@ -82,10 +124,11 @@ async function initializeApp() {
 
     // Log successful initialization
     if (isFeatureEnabled('DEBUG_MODE')) {
-      console.log(`✅ ${env.APP_NAME} v${env.APP_VERSION} initialized successfully`)
+      console.log(`✅ ${env.APP_NAME} v${env.APP_VERSION} initialized successfully with PrimeVue`)
       console.log('Environment:', env.MODE)
       console.log('Mock Data:', env.FEATURES.MOCK_DATA) // Should be false
       console.log('API Base URL:', env.API.BASE_URL)
+      console.log('PrimeVue Theme:', 'Aura')
       console.log('Features enabled:', Object.entries(env.FEATURES)
         .filter(([_, enabled]) => enabled)
         .map(([feature]) => feature)
@@ -163,6 +206,7 @@ async function initializeDevelopmentMode() {
     'Mock Data': env.FEATURES.MOCK_DATA, // Should be false
     'Debug Mode': env.FEATURES.DEBUG_MODE,
     'SAP Connection': env.FEATURES.SAP_CONNECTION,
+    'PrimeVue': 'Enabled with Aura theme'
   })
 
   console.groupEnd()
@@ -170,7 +214,7 @@ async function initializeDevelopmentMode() {
 
 // Production mode initialization
 async function initializeProductionMode() {
-  console.log(`🚀 Initializing ${env.APP_NAME} v${env.APP_VERSION} in production mode`)
+  console.log(`🚀 Initializing ${env.APP_NAME} v${env.APP_VERSION} in production mode with PrimeVue`)
 
   // Disable console logs in production (except errors)
   if (!isFeatureEnabled('DEBUG_MODE')) {
