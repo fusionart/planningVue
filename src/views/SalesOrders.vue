@@ -1,4 +1,4 @@
-<!-- SalesOrders.vue - Complete Clean Version with Two-Row Header -->
+<!-- SalesOrders.vue - Updated with Column Sorting on Second Header Row -->
 <template>
   <div class="sales-orders">
     <div class="page-header">
@@ -210,7 +210,7 @@
             </option>
           </select>
           <span class="filter-info">
-            Показване на {{ filteredData.length }} от {{ activeWeekData.salesOrderMainList.length }} записа
+            Показване на {{ sortedAndFilteredData.length }} от {{ activeWeekData.salesOrderMainList.length }} записа
           </span>
         </div>
       </div>
@@ -221,7 +221,7 @@
           <div class="table-controls">
             <div class="controls-left">
               <label>
-                Show 
+                Покажи 
                 <select v-model="pageLength" @change="updatePageLength" class="page-length-select">
                   <option value="10">10</option>
                   <option value="15">15</option>
@@ -229,17 +229,17 @@
                   <option value="50">50</option>
                   <option value="100">100</option>
                 </select>
-                entries
+                записа
               </label>
             </div>
             <div class="controls-right">
               <label>
-                Search: 
+                Търсене: 
                 <input 
                   type="text" 
                   v-model="searchTerm" 
                   @input="filterData"
-                  placeholder="Search in current week..."
+                  placeholder="Търсене в настоящата седмица ..."
                   class="search-input"
                 >
               </label>
@@ -256,27 +256,122 @@
                   <!-- Dynamic Sales Order + Customer Groups -->
                   <template v-for="key in dynamicColumnKeys" :key="key">
                     <th colspan="3" class="header-dynamic">
-                      {{ key }} + {{ getPlannedOrderForKey(key) }}
+                      {{ key }} / {{ getPlannedOrderForKey(key) }}
                     </th>
                   </template>
                 </tr>
                 
-                <!-- Second Header Row - Column Names -->
+                <!-- Second Header Row - Column Names with Sorting -->
                 <tr class="header-columns">
                   <!-- Basic Information Columns -->
-                  <th class="col-material">Материал</th>
-                  <th class="col-plant">Завод</th>
+                  <th 
+                    class="col-material sortable" 
+                    @click="sortBy('material')"
+                    :class="{ 'sort-active': sortColumn === 'material' }"
+                  >
+                    Материал
+                    <span class="sort-indicator">
+                      <span v-if="sortColumn === 'material'" class="sort-arrow">
+                        {{ sortDirection === 'asc' ? '↑' : '↓' }}
+                      </span>
+                      <span v-else class="sort-arrows">↕</span>
+                    </span>
+                  </th>
+                  <th 
+                    class="col-plant sortable" 
+                    @click="sortBy('plant')"
+                    :class="{ 'sort-active': sortColumn === 'plant' }"
+                  >
+                    Завод
+                    <span class="sort-indicator">
+                      <span v-if="sortColumn === 'plant'" class="sort-arrow">
+                        {{ sortDirection === 'asc' ? '↑' : '↓' }}
+                      </span>
+                      <span v-else class="sort-arrows">↕</span>
+                    </span>
+                  </th>
                   
                   <!-- Inventory Data Columns -->
-                  <th class="col-requested">Заявено количество</th>
-                  <th class="col-available">НФ</th>
-                  <th class="col-charged">МЗ</th>
+                  <th 
+                    class="col-requested sortable" 
+                    @click="sortBy('requestedQuantity')"
+                    :class="{ 'sort-active': sortColumn === 'requestedQuantity' }"
+                  >
+                    Заявено количество
+                    <span class="sort-indicator">
+                      <span v-if="sortColumn === 'requestedQuantity'" class="sort-arrow">
+                        {{ sortDirection === 'asc' ? '↑' : '↓' }}
+                      </span>
+                      <span v-else class="sort-arrows">↕</span>
+                    </span>
+                  </th>
+                  <th 
+                    class="col-available sortable" 
+                    @click="sortBy('availableNotCharged')"
+                    :class="{ 'sort-active': sortColumn === 'availableNotCharged' }"
+                  >
+                    НФ
+                    <span class="sort-indicator">
+                      <span v-if="sortColumn === 'availableNotCharged'" class="sort-arrow">
+                        {{ sortDirection === 'asc' ? '↑' : '↓' }}
+                      </span>
+                      <span v-else class="sort-arrows">↕</span>
+                    </span>
+                  </th>
+                  <th 
+                    class="col-charged sortable" 
+                    @click="sortBy('availableCharged')"
+                    :class="{ 'sort-active': sortColumn === 'availableCharged' }"
+                  >
+                    МЗ
+                    <span class="sort-indicator">
+                      <span v-if="sortColumn === 'availableCharged'" class="sort-arrow">
+                        {{ sortDirection === 'asc' ? '↑' : '↓' }}
+                      </span>
+                      <span v-else class="sort-arrows">↕</span>
+                    </span>
+                  </th>
                   
                   <!-- Dynamic Columns - Each Sales Order + Customer group -->
                   <template v-for="(key, keyIndex) in dynamicColumnKeys" :key="key">
-                    <th :class="['col-dynamic-qty', { 'first-dynamic-group': keyIndex === 0 }]">Количество</th>
-                    <th class="col-dynamic-planned">П-ва поръчка</th>
-                    <th class="col-dynamic-production">Пр-на поръчка</th>
+                    <th 
+                      :class="['col-dynamic-qty sortable', { 'first-dynamic-group': keyIndex === 0, 'sort-active': sortColumn === `dynamic-${key}-quantity` }]"
+                      @click="sortBy(`dynamic-${key}-quantity`)"
+                    >
+                      Количество
+                      <span class="sort-indicator">
+                        <span v-if="sortColumn === `dynamic-${key}-quantity`" class="sort-arrow">
+                          {{ sortDirection === 'asc' ? '↑' : '↓' }}
+                        </span>
+                        <span v-else class="sort-arrows">↕</span>
+                      </span>
+                    </th>
+                    <th 
+                      class="col-dynamic-planned sortable"
+                      @click="sortBy(`dynamic-${key}-plannedOrder`)"
+                      :class="{ 'sort-active': sortColumn === `dynamic-${key}-plannedOrder` }"
+                    >
+                      П-ва поръчка
+                      <span class="sort-indicator">
+                        <span v-if="sortColumn === `dynamic-${key}-plannedOrder`" class="sort-arrow">
+                          {{ sortDirection === 'asc' ? '↑' : '↓' }}
+                        </span>
+                        <span v-else class="sort-arrows">↕</span>
+                      </span>
+                    </th>
+                    <th 
+                      class="col-dynamic-production sortable"
+                      @click="sortBy(`dynamic-${key}-productionOrder`)"
+                      :class="{ 'sort-active': sortColumn === `dynamic-${key}-productionOrder` }"
+                    >
+                      Пр-на поръчка
+                      <span class="sort-indicator">
+                        <span v-if="sortColumn === `dynamic-${key}-productionOrder`" class="sort-arrow">
+                          {{ sortDirection === 'asc' ? '↑' : '↓' }}
+                        </span>
+                        <span v-else class="sort-arrows">↕</span>
+                      </span>
+                    </th>
                   </template>
                 </tr>
               </thead>
@@ -312,7 +407,7 @@
                 </tr>
                 
                 <!-- No data row -->
-                <tr v-if="filteredData.length === 0" class="no-data-row">
+                <tr v-if="sortedAndFilteredData.length === 0" class="no-data-row">
                   <td :colspan="totalColumns" class="no-data-cell">
                     {{ searchTerm ? 'No matching records found' : 'No data available' }}
                   </td>
@@ -323,19 +418,19 @@
               <tfoot>
                 <tr class="footer-totals">
                   <!-- Basic Information Totals -->
-                  <td class="footer-material">{{ filteredData.length }} items</td>
-                  <td class="footer-plant">{{ getUniquePlants() }} plants</td>
+                  <td class="footer-material">{{ sortedAndFilteredData.length }} записа</td>
+                  <td class="footer-plant">{{ getUniquePlants() }} завода</td>
                   
                   <!-- Inventory Totals -->
-                  <td class="footer-requested">Total: {{ formatNumber(getTotalRequested()) }}</td>
-                  <td class="footer-available">Total: {{ formatNumber(getTotalAvailableNotCharged()) }}</td>
-                  <td class="footer-charged">Total: {{ formatNumber(getTotalAvailableCharged()) }}</td>
+                  <td class="footer-requested">Общо: {{ formatNumber(getTotalRequested()) }} бр.</td>
+                  <td class="footer-available">Общо: {{ formatNumber(getTotalAvailableNotCharged()) }} бр.</td>
+                  <td class="footer-charged">Общо: {{ formatNumber(getTotalAvailableCharged()) }} бр.</td>
                   
                   <!-- Dynamic Column Totals - Each Sales Order + Customer group -->
                   <template v-for="(key, keyIndex) in dynamicColumnKeys" :key="key">
-                    <td :class="['footer-dynamic-qty', { 'first-dynamic-group': keyIndex === 0 }]">Total: {{ formatNumber(getDynamicTotal(key, 'quantity')) }}</td>
-                    <td class="footer-dynamic-planned">{{ getDynamicCount(key, 'plannedOrder') }} orders</td>
-                    <td class="footer-dynamic-production">{{ getDynamicCount(key, 'productionOrder') }} orders</td>
+                    <td :class="['footer-dynamic-qty', { 'first-dynamic-group': keyIndex === 0 }]">Общо: {{ formatNumber(getDynamicTotal(key, 'quantity')) }} бр.</td>
+                    <td class="footer-dynamic-planned">{{ getDynamicCount(key, 'plannedOrder') }} поръчки</td>
+                    <td class="footer-dynamic-production">{{ getDynamicCount(key, 'productionOrder') }} поръчки</td>
                   </template>
                 </tr>
               </tfoot>
@@ -345,7 +440,7 @@
           <!-- Pagination Controls -->
           <div class="pagination-controls">
             <div class="pagination-info">
-              Showing {{ startIndex + 1 }} to {{ endIndex }} of {{ filteredData.length }} entries
+              Показване {{ startIndex + 1 }} до {{ endIndex }} от {{ sortedAndFilteredData.length }} записа
               <span v-if="searchTerm">(filtered from {{ activeWeekData.salesOrderMainList.length }} total entries)</span>
             </div>
             <div class="pagination-buttons">
@@ -354,31 +449,31 @@
                 :disabled="currentPage === 1"
                 @click="goToPage(1)"
               >
-                First
+                Първа
               </button>
               <button 
                 class="btn btn-secondary pagination-btn"
                 :disabled="currentPage === 1"
                 @click="goToPage(currentPage - 1)"
               >
-                Previous
+                Предишна
               </button>
               <span class="page-numbers">
-                Page {{ currentPage }} of {{ totalPages }}
+                Страница {{ currentPage }} от {{ totalPages }}
               </span>
               <button 
                 class="btn btn-secondary pagination-btn"
                 :disabled="currentPage === totalPages"
                 @click="goToPage(currentPage + 1)"
               >
-                Next
+                Следваща
               </button>
               <button 
                 class="btn btn-secondary pagination-btn"
                 :disabled="currentPage === totalPages"
                 @click="goToPage(totalPages)"
               >
-                Last
+                Последна
               </button>
             </div>
           </div>
@@ -549,6 +644,10 @@ const searchTerm = ref('')
 const pageLength = ref(15)
 const currentPage = ref(1)
 
+// Sorting state
+const sortColumn = ref<string>('')
+const sortDirection = ref<'asc' | 'desc'>('asc')
+
 // Computed properties
 const hasCredentials = computed(() => {
   return salesOrderService.hasCredentials()
@@ -613,11 +712,11 @@ const availablePlants = computed(() => {
   return Array.from(plants).sort()
 })
 
-// Custom table computed properties
-const filteredData = computed(() => {
+// Updated filteredData computed property that includes sorting
+const sortedAndFilteredData = computed(() => {
   if (!activeWeekData.value) return []
   
-  let data = activeWeekData.value.salesOrderMainList
+  let data = [...activeWeekData.value.salesOrderMainList] // Create a copy to avoid mutations
   
   // Apply plant filter
   if (selectedPlant.value !== 'All') {
@@ -639,11 +738,97 @@ const filteredData = computed(() => {
     )
   }
   
+  // Apply sorting
+  if (sortColumn.value) {
+    try {
+      data = data.sort((a, b) => {
+        let valueA: any = ''
+        let valueB: any = ''
+        
+        // Handle different column types
+        if (sortColumn.value.startsWith('dynamic-')) {
+          // Dynamic column sorting
+          const parts = sortColumn.value.split('-')
+          if (parts.length >= 3) {
+            const key = parts[1] // Extract key from 'dynamic-{key}-{field}'
+            const field = parts[2] // Extract field from 'dynamic-{key}-{field}'
+            
+            const itemA = a.dynamicSoItems?.[key]
+            const itemB = b.dynamicSoItems?.[key]
+            
+            if (field === 'quantity') {
+              valueA = Number(itemA?.quantity) || 0
+              valueB = Number(itemB?.quantity) || 0
+            } else if (field === 'plannedOrder') {
+              valueA = itemA?.plannedOrder || ''
+              valueB = itemB?.plannedOrder || ''
+            } else if (field === 'productionOrder') {
+              valueA = itemA?.productionOrder || ''
+              valueB = itemB?.productionOrder || ''
+            }
+          }
+        } else {
+          // Standard column sorting
+          switch (sortColumn.value) {
+            case 'material':
+              valueA = a.material || ''
+              valueB = b.material || ''
+              break
+            case 'plant':
+              valueA = a.plant || ''
+              valueB = b.plant || ''
+              break
+            case 'requestedQuantity':
+              valueA = Number(a.requestedQuantity) || 0
+              valueB = Number(b.requestedQuantity) || 0
+              break
+            case 'availableNotCharged':
+              valueA = Number(a.availableNotCharged) || 0
+              valueB = Number(b.availableNotCharged) || 0
+              break
+            case 'availableCharged':
+              valueA = Number(a.availableCharged) || 0
+              valueB = Number(b.availableCharged) || 0
+              break
+            default:
+              valueA = ''
+              valueB = ''
+          }
+        }
+        
+        // Handle different data types
+        if (typeof valueA === 'number' && typeof valueB === 'number') {
+          return sortDirection.value === 'asc' ? valueA - valueB : valueB - valueA
+        } else {
+          // String comparison
+          const strA = String(valueA).toLowerCase()
+          const strB = String(valueB).toLowerCase()
+          
+          if (sortDirection.value === 'asc') {
+            return strA < strB ? -1 : strA > strB ? 1 : 0
+          } else {
+            return strA > strB ? -1 : strA < strB ? 1 : 0
+          }
+        }
+      })
+    } catch (error) {
+      console.error('Error in sorting:', error)
+      // Return unsorted data if sorting fails
+      return data
+    }
+  }
+  
   return data
 })
 
+// Updated computed properties to use sorted data
+const filteredData = computed(() => {
+  // Keep this for backward compatibility with template references
+  return sortedAndFilteredData.value
+})
+
 const totalPages = computed(() => {
-  return Math.ceil(filteredData.value.length / pageLength.value)
+  return Math.ceil(sortedAndFilteredData.value.length / pageLength.value)
 })
 
 const startIndex = computed(() => {
@@ -651,16 +836,39 @@ const startIndex = computed(() => {
 })
 
 const endIndex = computed(() => {
-  return Math.min(startIndex.value + pageLength.value, filteredData.value.length)
+  return Math.min(startIndex.value + pageLength.value, sortedAndFilteredData.value.length)
 })
 
 const paginatedData = computed(() => {
-  return filteredData.value.slice(startIndex.value, endIndex.value)
+  return sortedAndFilteredData.value.slice(startIndex.value, endIndex.value)
 })
 
 const totalColumns = computed(() => {
-  return 5 + (dynamicColumnKeys.value.length * 3) // Basic(2) + Inventory(3) + Dynamic(keys*3) - Actions removed
+  return 5 + (dynamicColumnKeys.value.length * 3) // Basic(2) + Inventory(3) + Dynamic(keys*3)
 })
+
+// Sorting methods
+const sortBy = (column: string) => {
+  if (sortColumn.value === column) {
+    // Same column - toggle direction
+    sortDirection.value = sortDirection.value === 'asc' ? 'desc' : 'asc'
+  } else {
+    // New column - start with ascending
+    sortColumn.value = column
+    sortDirection.value = 'asc'
+  }
+  
+  // Reset to first page when sorting
+  currentPage.value = 1
+  
+  console.log(`🔄 Sorting by ${column} in ${sortDirection.value} order`)
+}
+
+const resetSort = () => {
+  sortColumn.value = ''
+  sortDirection.value = 'asc'
+  currentPage.value = 1
+}
 
 // Methods
 const filterData = () => {
@@ -677,35 +885,35 @@ const goToPage = (page: number) => {
   }
 }
 
-// Footer calculation methods
+// Footer calculation methods - updated to use sorted data
 const getTotalRequested = () => {
-  return filteredData.value.reduce((total, order) => total + order.requestedQuantity, 0)
+  return sortedAndFilteredData.value.reduce((total, order) => total + order.requestedQuantity, 0)
 }
 
 const getTotalAvailableNotCharged = () => {
-  return filteredData.value.reduce((total, order) => total + order.availableNotCharged, 0)
+  return sortedAndFilteredData.value.reduce((total, order) => total + order.availableNotCharged, 0)
 }
 
 const getTotalAvailableCharged = () => {
-  return filteredData.value.reduce((total, order) => total + order.availableCharged, 0)
+  return sortedAndFilteredData.value.reduce((total, order) => total + order.availableCharged, 0)
 }
 
 const getDynamicTotal = (key: string, field: 'quantity') => {
-  return filteredData.value.reduce((total, order) => {
+  return sortedAndFilteredData.value.reduce((total, order) => {
     const item = order.dynamicSoItems?.[key]
     return total + (item?.[field] || 0)
   }, 0)
 }
 
 const getDynamicCount = (key: string, field: 'plannedOrder' | 'productionOrder') => {
-  return filteredData.value.filter(order => {
+  return sortedAndFilteredData.value.filter(order => {
     const item = order.dynamicSoItems?.[key]
     return item?.[field] && item[field] !== '-' && item[field].trim() !== ''
   }).length
 }
 
 const getUniquePlants = () => {
-  const plants = new Set(filteredData.value.map(order => order.plant))
+  const plants = new Set(sortedAndFilteredData.value.map(order => order.plant))
   return plants.size
 }
 
@@ -733,6 +941,7 @@ const setActiveWeekTab = (weekName: string, index: number) => {
   selectedPlant.value = 'All'
   searchTerm.value = ''
   currentPage.value = 1
+  resetSort() // Reset sorting when changing weeks
   
   console.log(`🔄 Switching to week ${weekName} with ${dynamicColumnKeys.value.length} dynamic column groups`)
 }
@@ -807,6 +1016,7 @@ const loadDataFromAPI = async () => {
     activeWeekIndex.value = 0
     searchTerm.value = ''
     currentPage.value = 1
+    resetSort() // Reset sorting when loading new data
     
     await fetchSalesOrders()
   } catch (error) {
@@ -913,7 +1123,7 @@ watch([selectedPlant, searchTerm], () => {
 
 // Initialize component
 onMounted(() => {
-  console.log('🔍 SalesOrders component mounted with two-row header')
+  console.log('🔍 SalesOrders component mounted with two-row header and sorting')
   initializeDateInputs()
   
   if (!hasCredentials.value) {
@@ -928,4 +1138,126 @@ onMounted(() => {
 
 /* Import two-row header specific styles */
 @import '@/styles/views/SalesOrdersTwoRowHeader.css';
+
+/* Additional sorting styles */
+.sortable {
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.sortable:hover {
+  background-color: rgba(59, 130, 246, 0.1) !important;
+  color: var(--color-primary) !important;
+}
+
+.sort-active {
+  background-color: rgba(59, 130, 246, 0.15) !important;
+  font-weight: 700 !important;
+  color: var(--color-primary) !important;
+}
+
+.sort-indicator {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 11px;
+  min-width: 14px;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.sort-arrow {
+  color: var(--color-primary);
+  font-weight: bold;
+  font-size: 14px;
+  text-shadow: 0 0 2px rgba(59, 130, 246, 0.3);
+}
+
+.sort-arrows {
+  color: var(--text-light);
+  opacity: 0.5;
+  font-size: 12px;
+  transition: all 0.2s ease;
+}
+
+.sortable:hover .sort-arrows {
+  opacity: 1;
+  color: var(--color-primary);
+  transform: scale(1.1);
+}
+
+/* Enhanced header column styling for sortable columns */
+.header-columns .sortable {
+  background-image: linear-gradient(transparent, transparent);
+  background-repeat: no-repeat;
+}
+
+.header-columns .sortable:hover {
+  background-image: linear-gradient(
+    to bottom, 
+    rgba(59, 130, 246, 0.05), 
+    rgba(59, 130, 246, 0.15)
+  );
+}
+
+.header-columns .sort-active {
+  background-image: linear-gradient(
+    to bottom, 
+    rgba(59, 130, 246, 0.1), 
+    rgba(59, 130, 246, 0.2)
+  );
+  border-left: 2px solid var(--color-primary);
+  border-right: 2px solid var(--color-primary);
+}
+
+/* Responsive adjustments for sort indicators */
+@media (max-width: 1200px) {
+  .sort-indicator {
+    margin-left: 3px;
+    font-size: 10px;
+    min-width: 12px;
+  }
+  
+  .sort-arrow {
+    font-size: 12px;
+  }
+  
+  .sort-arrows {
+    font-size: 10px;
+  }
+}
+
+@media (max-width: 768px) {
+  .sort-indicator {
+    display: block;
+    margin-left: 0;
+    margin-top: 2px;
+    font-size: 9px;
+  }
+  
+  .sort-arrow {
+    font-size: 10px;
+  }
+  
+  .sort-arrows {
+    font-size: 8px;
+  }
+  
+  .header-columns .sort-active {
+    border-left: 1px solid var(--color-primary);
+    border-right: 1px solid var(--color-primary);
+  }
+}
+
+/* Print styles - hide sort indicators when printing */
+@media print {
+  .sort-indicator {
+    display: none;
+  }
+  
+  .sortable {
+    cursor: default;
+  }
+}
 </style>
