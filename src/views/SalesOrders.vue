@@ -1129,10 +1129,10 @@ onMounted(() => {
 
 <style scoped>
 /* Import base SalesOrder styles */
-@import '@/styles/views/SalesOrder.css';
+@import '@/styles/views/salesOrder/SalesOrder.css';
 
 /* Import two-row header specific styles */
-@import '@/styles/views/SalesOrdersTwoRowHeader.css';
+@import '@/styles/views/salesOrder/SalesOrdersTwoRowHeader.css';
 
 /* Additional sorting styles */
 .sortable {
