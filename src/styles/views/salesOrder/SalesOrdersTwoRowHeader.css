@@ -39,13 +39,13 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  color: var(--text-primary);
+  color: var(--text-primary) !important; /* Force primary text color */
   font-weight: 500;
   font-size: 14px;
   white-space: nowrap;
 }
 
-/* Plant filter specific styling */
+/* Specific override for plant filter label to ensure black text */
 .plant-filter-label {
   color: var(--text-primary) !important;
   font-weight: 500 !important;
@@ -60,6 +60,7 @@
   border-radius: var(--border-radius-sm);
   font-size: 14px;
   background: var(--background-card);
+  color: #1f2937 !important;
 }
 
 .filter-select {
