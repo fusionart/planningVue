@@ -472,7 +472,7 @@
           <div class="pagination-controls">
             <div class="pagination-info">
               Показване {{ paginationDisplay.start }} до {{ paginationDisplay.end }} от {{ paginationDisplay.total }} записа
-              <span v-if="searchTerm">(filtered from {{ activeWeekData.salesOrderMainList.length }} total entries)</span>
+              <span v-if="searchTerm">(филтрирани от {{ activeWeekData.salesOrderMainList.length }} записа)</span>
             </div>
             <div class="pagination-buttons">
               <button 
