@@ -40,9 +40,8 @@
 /* UPDATED: Horizontal layout for parameters - single button only */
 .parameters-grid {
   display: grid;
-  grid-template-columns: auto 1fr auto 1fr auto;
-  gap: 16px;
-  align-items: center;
+  grid-template-columns: auto auto auto auto auto;
+  max-width: 1200px;
 }
 
 .parameter-group {

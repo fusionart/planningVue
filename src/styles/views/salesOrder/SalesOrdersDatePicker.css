@@ -1,266 +1,57 @@
-/* PrimeVue DatePicker integration styles */
+/* PrimeVue DatePicker integration styles - Compact Version */
 .parameter-datepicker {
-  min-width: 220px;
+  min-width: 300px;
+  max-width: 400px;
+  font-size: 13px;
 }
 
-.parameter-group-datepicker {
-  display: contents;
+/* Make PrimeVue DatePicker more compact */
+.parameter-datepicker :deep(.p-inputtext) {
+  padding: 6px 8px !important;
+  font-size: 13px !important;
+  height: 32px !important;
+  line-height: 1.2 !important;
 }
 
-.parameter-group-datepicker label {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  white-space: nowrap;
-  text-align: right;
-  padding-right: 8px;
-  align-self: center;
+.parameter-datepicker :deep(.p-datepicker-trigger) {
+  width: 28px !important;
+  height: 28px !important;
+  padding: 4px !important;
 }
 
-/* Date validation errors styling */
-.date-errors {
-  margin-top: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+.parameter-datepicker :deep(.p-datepicker-trigger .p-button-icon) {
+  font-size: 12px !important;
 }
 
-.date-error {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  background: #fee2e2;
-  border: 1px solid #fca5a5;
-  border-radius: var(--border-radius-md);
-  color: var(--color-error);
-  font-size: 14px;
+/* Compact the dropdown calendar */
+.parameter-datepicker :deep(.p-datepicker) {
+  font-size: 12px !important;
+  min-width: 250px !important;
 }
 
-.date-error i {
-  font-size: 16px;
-  color: var(--color-error);
+.parameter-datepicker :deep(.p-datepicker .p-datepicker-header) {
+  padding: 8px !important;
 }
 
-/* Additional sorting styles */
-.sortable {
-  cursor: pointer;
-  user-select: none;
-  position: relative;
-  transition: all 0.2s ease;
+.parameter-datepicker :deep(.p-datepicker .p-datepicker-title) {
+  font-size: 13px !important;
+  margin: 0 4px !important;
 }
 
-.sortable:hover {
-  background-color: rgba(59, 130, 246, 0.1) !important;
-  color: var(--color-primary) !important;
+.parameter-datepicker :deep(.p-datepicker table td) {
+  padding: 2px !important;
 }
 
-.sort-active {
-  background-color: rgba(59, 130, 246, 0.15) !important;
-  font-weight: 700 !important;
-  color: var(--color-primary) !important;
+.parameter-datepicker :deep(.p-datepicker table td > span) {
+  width: 24px !important;
+  height: 24px !important;
+  font-size: 11px !important;
+  line-height: 22px !important;
 }
 
-.sort-indicator {
-  display: inline-block;
-  margin-left: 6px;
-  font-size: 11px;
-  min-width: 14px;
-  text-align: center;
-  vertical-align: middle;
-}
-
-.sort-arrow {
-  color: var(--color-primary);
-  font-weight: bold;
-  font-size: 14px;
-  text-shadow: 0 0 2px rgba(59, 130, 246, 0.3);
-}
-
-.sort-arrows {
-  color: var(--text-light);
-  opacity: 0.5;
-  font-size: 12px;
-  transition: all 0.2s ease;
-}
-
-.sortable:hover .sort-arrows {
-  opacity: 1;
-  color: var(--color-primary);
-  transform: scale(1.1);
-}
-
-/* Enhanced header column styling for sortable columns */
-.header-columns .sortable {
-  background-image: linear-gradient(transparent, transparent);
-  background-repeat: no-repeat;
-}
-
-.header-columns .sortable:hover {
-  background-image: linear-gradient(
-    to bottom, 
-    rgba(59, 130, 246, 0.05), 
-    rgba(59, 130, 246, 0.15)
-  );
-}
-
-.header-columns .sort-active {
-  background-image: linear-gradient(
-    to bottom, 
-    rgba(59, 130, 246, 0.1), 
-    rgba(59, 130, 246, 0.2)
-  );
-  border-left: 2px solid var(--color-primary);
-  border-right: 2px solid var(--color-primary);
-}
-
-/* Plant filter in controls-left styling */
-.controls-left {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  flex-wrap: wrap;
-}
-
-.plant-filter-label {
-  color: var(--text-primary) !important;
-  font-weight: 500 !important;
-  font-size: 14px !important;
-}
-
-.filter-info {
-  font-size: 12px;
-  color: var(--text-light);
-  white-space: nowrap;
-  padding: 6px 12px;
-  background: var(--background-card);
-  border-radius: var(--border-radius-sm);
-  border: 1px solid var(--border-light);
-}
-
-/* Responsive adjustments for sort indicators and date pickers */
-@media (max-width: 1200px) {
-  .parameters-grid {
-    grid-template-columns: auto 1fr;
-    gap: 12px;
-  }
-  
-  .parameter-actions {
-    grid-column: 1 / -1;
-    justify-content: flex-start;
-    margin-left: 0;
-    margin-top: 12px;
-  }
-  
-  .parameter-datepicker {
-    min-width: 180px;
-  }
-  
-  .sort-indicator {
-    margin-left: 3px;
-    font-size: 10px;
-    min-width: 12px;
-  }
-  
-  .sort-arrow {
-    font-size: 12px;
-  }
-  
-  .sort-arrows {
-    font-size: 10px;
-  }
-  
-  .controls-left {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
-  }
-}
-
-@media (max-width: 768px) {
-  .parameters-grid {
-    grid-template-columns: 1fr;
-    gap: 16px;
-  }
-  
-  .parameter-group-datepicker {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-  
-  .parameter-group-datepicker label {
-    text-align: left;
-    padding-right: 0;
-  }
-  
-  .parameter-actions {
-    justify-content: flex-start;
-    margin-left: 0;
-  }
-  
-  .parameter-datepicker {
-    min-width: auto;
-    width: 100%;
-  }
-  
-  .sort-indicator {
-    display: block;
-    margin-left: 0;
-    margin-top: 2px;
-    font-size: 9px;
-  }
-  
-  .sort-arrow {
-    font-size: 10px;
-  }
-  
-  .sort-arrows {
-    font-size: 8px;
-  }
-  
-  .header-columns .sort-active {
-    border-left: 1px solid var(--color-primary);
-    border-right: 1px solid var(--color-primary);
-  }
-  
-  .controls-left {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 12px;
-  }
-  
-  .controls-left label {
-    justify-content: flex-start;
-    flex-wrap: wrap;
-  }
-  
-  .filter-info {
-    text-align: center;
-    width: 100%;
-  }
-  
-  .date-errors {
-    margin-top: 8px;
-  }
-  
-  .date-error {
-    padding: 6px 10px;
-    font-size: 12px;
-  }
-}
-
-/* Print styles - hide sort indicators when printing */
-@media print {
-  .sort-indicator {
-    display: none;
-  }
-  
-  .sortable {
-    cursor: default;
-  }
-  
-  .date-errors {
-    display: none;
-  }
+.parameter-datepicker :deep(.p-datepicker .p-button) {
+  width: 24px !important;
+  height: 24px !important;
+  padding: 0 !important;
+  font-size: 11px !important;
 }
