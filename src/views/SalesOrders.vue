@@ -471,7 +471,7 @@
           <!-- Pagination Controls -->
           <div class="pagination-controls">
             <div class="pagination-info">
-              Показване {{ startIndex + 1 }} до {{ endIndex }} от {{ sortedAndFilteredData.length }} записа
+              Показване {{ paginationDisplay.start }} до {{ paginationDisplay.end }} от {{ paginationDisplay.total }} записа
               <span v-if="searchTerm">(filtered from {{ activeWeekData.salesOrderMainList.length }} total entries)</span>
             </div>
             <div class="pagination-buttons">
@@ -866,20 +866,96 @@ const filteredData = computed(() => {
   return sortedAndFilteredData.value
 })
 
+// Fixed computed properties for proper pagination
+
+const totalRecords = computed(() => {
+  return sortedAndFilteredData.value.length
+})
+
 const totalPages = computed(() => {
-  return Math.ceil(sortedAndFilteredData.value.length / pageLength.value)
+  if (totalRecords.value === 0) return 1
+  return Math.ceil(totalRecords.value / pageLength.value)
 })
 
 const startIndex = computed(() => {
   return (currentPage.value - 1) * pageLength.value
 })
 
+const displayEndIndex = computed(() => {
+  const start = (currentPage.value - 1) * pageLength.value
+  const itemsPerPage = parseInt(pageLength.value)
+  const calculatedEnd = start + itemsPerPage
+  return Math.min(calculatedEnd, totalRecords.value)
+})
+
+// Keep this for backward compatibility but fix the calculation
 const endIndex = computed(() => {
-  return Math.min(startIndex.value + pageLength.value, sortedAndFilteredData.value.length)
+  return displayEndIndex.value
 })
 
 const paginatedData = computed(() => {
-  return sortedAndFilteredData.value.slice(startIndex.value, endIndex.value)
+  const data = sortedAndFilteredData.value
+  const start = startIndex.value
+  const itemsPerPage = parseInt(pageLength.value) // Ensure it's a number
+  const end = start + itemsPerPage
+  
+  console.log(`🔍 Pagination calc:`, {
+    currentPage: currentPage.value,
+    pageLength: itemsPerPage,
+    start: start,
+    calculatedEnd: end,
+    actualEnd: Math.min(end, data.length),
+    totalRecords: data.length,
+    displayStart: start + 1,
+    displayEnd: Math.min(end, data.length)
+  })
+  
+  // Slice the data correctly
+  const result = data.slice(start, end)
+  console.log(`📊 Paginated result: ${result.length} items (should be max ${itemsPerPage})`)
+  
+  return result
+})
+
+const paginationDisplay = computed(() => {
+  const start = (currentPage.value - 1) * parseInt(pageLength.value)
+  const itemsPerPage = parseInt(pageLength.value)
+  const total = totalRecords.value
+  const end = Math.min(start + itemsPerPage, total)
+  
+  return {
+    start: total === 0 ? 0 : start + 1,
+    end: end,
+    total: total,
+    currentPage: currentPage.value,
+    totalPages: totalPages.value
+  }
+})
+
+// Debugging computed to track what's happening
+const paginationDebug = computed(() => {
+  return {
+    currentPage: currentPage.value,
+    pageLength: pageLength.value,
+    totalRecords: totalRecords.value,
+    totalPages: totalPages.value,
+    startIndex: startIndex.value,
+    endIndex: endIndex.value,
+    paginatedCount: paginatedData.value.length
+  }
+})
+
+// Add watchers to reset pagination when data changes
+watch([sortedAndFilteredData, selectedPlant, searchTerm], () => {
+  // Reset to first page when data changes
+  if (currentPage.value > totalPages.value && totalPages.value > 0) {
+    currentPage.value = 1
+  }
+}, { deep: true })
+
+watch(pageLength, () => {
+  // When page length changes, recalculate current page
+  updatePageLength()
 })
 
 const totalColumns = computed(() => {
@@ -957,12 +1033,26 @@ const filterData = () => {
 }
 
 const updatePageLength = () => {
-  currentPage.value = 1 // Reset to first page when changing page length
+  const newPageLength = parseInt(pageLength.value)
+  console.log(`📏 Page length changed to: ${newPageLength}`)
+  
+  // Calculate what the new max page should be
+  const newMaxPage = Math.ceil(totalRecords.value / newPageLength)
+  
+  // If current page exceeds new max, go to the last valid page
+  if (currentPage.value > newMaxPage && newMaxPage > 0) {
+    console.log(`📍 Adjusting page from ${currentPage.value} to ${newMaxPage}`)
+    currentPage.value = newMaxPage
+  }
 }
 
-const goToPage = (page: number) => {
-  if (page >= 1 && page <= totalPages.value) {
+const goToPage = (page) => {
+  const maxPage = totalPages.value
+  if (page >= 1 && page <= maxPage) {
+    console.log(`🔄 Going to page ${page} of ${maxPage}`)
     currentPage.value = page
+  } else {
+    console.warn(`⚠️ Invalid page: ${page}, max is ${maxPage}`)
   }
 }
 
@@ -1184,6 +1274,16 @@ const getPlannedOrderForKey = (key: string) => {
 watch(salesOrdersByDate, (newData) => {
   if (newData.length > 0 && !activeWeekTab.value) {
     setActiveWeekTab(newData[0].reqDlvWeek, 0)
+  }
+}, { deep: true })
+
+watch(sortedAndFilteredData, () => {
+  const maxPage = Math.ceil(sortedAndFilteredData.value.length / pageLength.value)
+  if (maxPage === 0) {
+    currentPage.value = 1
+  } else if (currentPage.value > maxPage) {
+    console.log(`📍 Data changed, adjusting page from ${currentPage.value} to ${maxPage}`)
+    currentPage.value = maxPage
   }
 }, { deep: true })
 
