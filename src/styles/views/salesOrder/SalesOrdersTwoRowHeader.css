@@ -1,4 +1,4 @@
-/* SalesOrdersTwoRowHeader.css - Two-Row DataTable Header Styles with Final Battery */
+/* SalesOrdersTwoRowHeader.css - Two-Row DataTable Header Styles with Final Battery and Cumulative Quantity */
 
 /* Custom DataTable Container */
 .custom-datatable-container {
@@ -157,7 +157,14 @@
   z-index: 12 !important; /* Higher z-index for vertical borders */
 }
 
-/* NEW: Final Battery Column Styling */
+/* NEW: Cumulative Quantity Column Styling */
+.col-cumulative {
+  background: #fef3c7 !important; 
+  color: #d97706 !important;
+  font-weight: 600;
+}
+
+/* Final Battery Column Styling */
 .col-final-battery {
   background: #fef2f2 !important; 
   color: #991b1b !important;
@@ -211,7 +218,7 @@
   color: #991b1b !important;
 }
 
-/* NEW: Final Battery Column Header Styling */
+/* Final Battery Column Header Styling */
 .col-final-battery { 
   background: #fef2f2 !important; 
   color: #991b1b !important;
@@ -282,6 +289,13 @@
   color: #991b1b;
 }
 
+/* NEW: Cumulative Quantity Cell Styling */
+.cell-cumulative { 
+  background-color: #fef3c7; 
+  color: #d97706;
+  font-weight: 600;
+}
+
 .cell-available { 
   background-color: #fef2f2; 
   color: #991b1b;
@@ -292,7 +306,7 @@
   color: #991b1b;
 }
 
-/* NEW: Final Battery Cell Styling */
+/* Final Battery Cell Styling */
 .cell-final-battery { 
   background-color: #fef2f2; 
   color: #991b1b;
@@ -361,7 +375,15 @@
   color: var(--color-primary) !important;
 }
 
-/* NEW: Final Battery Footer Styling */
+/* NEW: Cumulative Quantity Footer Styling */
+.footer-cumulative {
+  background-color: #fef3c7 !important;
+  text-align: right !important;
+  font-weight: 700 !important;
+  color: #d97706 !important;
+}
+
+/* Final Battery Footer Styling */
 .footer-final-battery {
   background-color: #f0f9ff !important;
   text-align: right !important;
@@ -1118,7 +1140,7 @@
   
   .sales-orders-table-custom {
     font-size: 10px;
-    min-width: 1200px; /* Ensure horizontal scroll on mobile */
+    min-width: 1300px; /* Increase to accommodate cumulative quantity column */
   }
   
   .header-categories th,
@@ -1133,7 +1155,10 @@
     font-size: 10px;
   }
 
-  /* Final Battery responsive adjustments */
+  /* Cumulative quantity and final battery responsive adjustments */
+  .col-cumulative,
+  .cell-cumulative,
+  .footer-cumulative,
   .col-final-battery,
   .cell-final-battery,
   .footer-final-battery {
@@ -1227,6 +1252,9 @@
 }
 
 @media (max-width: 480px) {
+  .col-cumulative,
+  .cell-cumulative,
+  .footer-cumulative,
   .col-final-battery,
   .cell-final-battery,
   .footer-final-battery {
@@ -1236,7 +1264,7 @@
   }
   
   .sales-orders-table-custom {
-    min-width: 1000px; /* Slightly smaller but still scrollable */
+    min-width: 1200px; /* Adjust for very small screens but still scrollable */
   }
 }
 

@@ -1,4 +1,4 @@
-// src/composables/useSalesOrders.ts - Updated for SalesOrderByDate model with finalBattery
+// src/composables/useSalesOrders.ts - Updated for SalesOrderByDate model with finalBattery and cumulativeQuantity
 
 import { ref, reactive, computed, onMounted } from 'vue'
 import { salesOrderService } from '@/services/salesOrderService'
@@ -316,7 +316,7 @@ export function useSalesOrders() {
     fetchSalesOrders()
   }
 
-  // NEW: Get statistics including final battery totals
+  // Get statistics including final battery and cumulative quantity totals
   const getSalesOrdersStatistics = async () => {
     try {
       const stats = await salesOrderService.getSalesOrdersStats()
@@ -327,7 +327,7 @@ export function useSalesOrders() {
     }
   }
 
-  // NEW: Calculate final battery statistics from current data
+  // Calculate final battery statistics from current data
   const getFinalBatteryStatistics = computed(() => {
     const allOrders = allSalesOrders.value
     
@@ -357,7 +357,37 @@ export function useSalesOrders() {
     }
   })
 
-  // NEW: Helper function to calculate final battery statistics for a specific week
+  // NEW: Calculate cumulative quantity statistics from current data
+  const getCumulativeQuantityStatistics = computed(() => {
+    const allOrders = allSalesOrders.value
+    
+    if (allOrders.length === 0) {
+      return {
+        totalCumulativeQuantity: 0,
+        averageCumulativeQuantity: 0,
+        maxCumulativeQuantity: 0,
+        minCumulativeQuantity: 0,
+        cumulativeQuantityEfficiency: 0 // Percentage of cumulative quantity vs requested quantity
+      }
+    }
+
+    const cumulativeQuantityValues = allOrders
+      .map(order => order.cumulativeQuantity || 0)
+      .filter(value => value > 0)
+
+    const totalCumulativeQuantity = allOrders.reduce((sum, order) => sum + (order.cumulativeQuantity || 0), 0)
+    const totalRequested = allOrders.reduce((sum, order) => sum + order.requestedQuantity, 0)
+    
+    return {
+      totalCumulativeQuantity,
+      averageCumulativeQuantity: cumulativeQuantityValues.length > 0 ? totalCumulativeQuantity / cumulativeQuantityValues.length : 0,
+      maxCumulativeQuantity: cumulativeQuantityValues.length > 0 ? Math.max(...cumulativeQuantityValues) : 0,
+      minCumulativeQuantity: cumulativeQuantityValues.length > 0 ? Math.min(...cumulativeQuantityValues) : 0,
+      cumulativeQuantityEfficiency: totalRequested > 0 ? (totalCumulativeQuantity / totalRequested) * 100 : 0
+    }
+  })
+
+  // Helper function to calculate final battery statistics for a specific week
   const getWeekFinalBatteryStats = (weekData: SalesOrderByDate) => {
     const orders = weekData.salesOrderMainList
     
@@ -379,7 +409,29 @@ export function useSalesOrders() {
     }
   }
 
-  // NEW: Get orders sorted by final battery
+  // NEW: Helper function to calculate cumulative quantity statistics for a specific week
+  const getWeekCumulativeQuantityStats = (weekData: SalesOrderByDate) => {
+    const orders = weekData.salesOrderMainList
+    
+    if (orders.length === 0) {
+      return {
+        totalCumulativeQuantity: 0,
+        averageCumulativeQuantity: 0,
+        ordersWithCumulativeQuantity: 0
+      }
+    }
+
+    const ordersWithCumulativeQuantity = orders.filter(order => (order.cumulativeQuantity || 0) > 0)
+    const totalCumulativeQuantity = orders.reduce((sum, order) => sum + (order.cumulativeQuantity || 0), 0)
+    
+    return {
+      totalCumulativeQuantity,
+      averageCumulativeQuantity: ordersWithCumulativeQuantity.length > 0 ? totalCumulativeQuantity / ordersWithCumulativeQuantity.length : 0,
+      ordersWithCumulativeQuantity: ordersWithCumulativeQuantity.length
+    }
+  }
+
+  // Get orders sorted by final battery
   const getOrdersSortedByFinalBattery = (descending: boolean = true) => {
     const orders = [...allSalesOrders.value]
     return orders.sort((a, b) => {
@@ -389,7 +441,17 @@ export function useSalesOrders() {
     })
   }
 
-  // NEW: Get orders with specific final battery criteria
+  // NEW: Get orders sorted by cumulative quantity
+  const getOrdersSortedByCumulativeQuantity = (descending: boolean = true) => {
+    const orders = [...allSalesOrders.value]
+    return orders.sort((a, b) => {
+      const aValue = a.cumulativeQuantity || 0
+      const bValue = b.cumulativeQuantity || 0
+      return descending ? bValue - aValue : aValue - bValue
+    })
+  }
+
+  // Get orders with specific final battery criteria
   const getOrdersByFinalBatteryCriteria = (criteria: {
     minFinalBattery?: number
     maxFinalBattery?: number
@@ -406,7 +468,24 @@ export function useSalesOrders() {
     })
   }
 
-  // NEW: Calculate final battery vs availability comparison
+  // NEW: Get orders with specific cumulative quantity criteria
+  const getOrdersByCumulativeQuantityCriteria = (criteria: {
+    minCumulativeQuantity?: number
+    maxCumulativeQuantity?: number
+    hasCumulativeOnly?: boolean
+  }) => {
+    return allSalesOrders.value.filter(order => {
+      const cumulativeQuantity = order.cumulativeQuantity || 0
+      
+      if (criteria.hasCumulativeOnly && cumulativeQuantity === 0) return false
+      if (criteria.minCumulativeQuantity !== undefined && cumulativeQuantity < criteria.minCumulativeQuantity) return false
+      if (criteria.maxCumulativeQuantity !== undefined && cumulativeQuantity > criteria.maxCumulativeQuantity) return false
+      
+      return true
+    })
+  }
+
+  // Calculate final battery vs availability comparison
   const getFinalBatteryAvailabilityComparison = computed(() => {
     const orders = allSalesOrders.value
     
@@ -449,6 +528,49 @@ export function useSalesOrders() {
     }
   })
 
+  // NEW: Calculate cumulative quantity vs availability comparison
+  const getCumulativeQuantityAvailabilityComparison = computed(() => {
+    const orders = allSalesOrders.value
+    
+    if (orders.length === 0) {
+      return {
+        ordersWithHigherCumulativeQuantity: 0,
+        ordersWithLowerCumulativeQuantity: 0,
+        ordersWithEqualCumulativeQuantity: 0,
+        averageCumulativeQuantityRatio: 0
+      }
+    }
+
+    let higherCount = 0
+    let lowerCount = 0
+    let equalCount = 0
+    let totalRatio = 0
+
+    orders.forEach(order => {
+      const cumulativeQuantity = order.cumulativeQuantity || 0
+      const totalAvailable = order.availableNotCharged + order.availableCharged
+      
+      if (cumulativeQuantity > totalAvailable) {
+        higherCount++
+      } else if (cumulativeQuantity < totalAvailable) {
+        lowerCount++
+      } else {
+        equalCount++
+      }
+      
+      if (totalAvailable > 0) {
+        totalRatio += cumulativeQuantity / totalAvailable
+      }
+    })
+
+    return {
+      ordersWithHigherCumulativeQuantity: higherCount,
+      ordersWithLowerCumulativeQuantity: lowerCount,
+      ordersWithEqualCumulativeQuantity: equalCount,
+      averageCumulativeQuantityRatio: orders.length > 0 ? (totalRatio / orders.length) * 100 : 0
+    }
+  })
+
   return {
     // State - Updated for new structure
     salesOrdersByDate, // New: SalesOrderByDate[]
@@ -464,9 +586,13 @@ export function useSalesOrders() {
     hasError,
     isEmpty,
     
-    // NEW: Final Battery Computed Properties
+    // Final Battery Computed Properties
     finalBatteryStatistics: getFinalBatteryStatistics,
     finalBatteryAvailabilityComparison: getFinalBatteryAvailabilityComparison,
+    
+    // NEW: Cumulative Quantity Computed Properties
+    cumulativeQuantityStatistics: getCumulativeQuantityStatistics,
+    cumulativeQuantityAvailabilityComparison: getCumulativeQuantityAvailabilityComparison,
     
     // Methods
     fetchSalesOrders,
@@ -488,11 +614,16 @@ export function useSalesOrders() {
     setCredentials,
     clearCredentials,
     
-    // NEW: Final Battery Methods
+    // Final Battery Methods
     getSalesOrdersStatistics,
     getWeekFinalBatteryStats,
     getOrdersSortedByFinalBattery,
     getOrdersByFinalBatteryCriteria,
+    
+    // NEW: Cumulative Quantity Methods
+    getWeekCumulativeQuantityStats,
+    getOrdersSortedByCumulativeQuantity,
+    getOrdersByCumulativeQuantityCriteria,
     
     // Utility methods
     formatDateForBackend: (date: Date) => {

@@ -1,4 +1,4 @@
-// src/services/salesOrderService.ts - Updated for SalesOrderByDate with finalBattery
+// src/services/salesOrderService.ts - Updated for SalesOrderByDate with finalBattery and cumulativeQuantity
 
 import { apiClient } from './apiClient'
 import type { SalesOrderByDate, SalesOrderMain, SalesOrderItemsRequest } from '@/types/api'
@@ -231,14 +231,15 @@ class SalesOrderService {
 
   /**
    * Get sales orders statistics (calculated client-side across all weeks)
-   * UPDATED: Now includes finalBattery totals
+   * UPDATED: Now includes finalBattery and cumulativeQuantity totals
    */
   async getSalesOrdersStats(): Promise<{
     totalOrders: number
     totalRequestedQuantity: number
+    totalCumulativeQuantity: number  // NEW: Total cumulative quantity
     totalAvailableNotCharged: number
     totalAvailableCharged: number
-    totalFinalBattery: number  // NEW: Total final battery
+    totalFinalBattery: number  // Total final battery
     uniquePlants: number
     uniqueMaterials: number
     weekCount: number
@@ -254,9 +255,10 @@ class SalesOrderService {
       
       const totalOrders = allOrders.length
       const totalRequestedQuantity = allOrders.reduce((sum, order) => sum + order.requestedQuantity, 0)
+      const totalCumulativeQuantity = allOrders.reduce((sum, order) => sum + (order.cumulativeQuantity || 0), 0) // NEW
       const totalAvailableNotCharged = allOrders.reduce((sum, order) => sum + order.availableNotCharged, 0)
       const totalAvailableCharged = allOrders.reduce((sum, order) => sum + order.availableCharged, 0)
-      const totalFinalBattery = allOrders.reduce((sum, order) => sum + (order.finalBattery || 0), 0) // NEW
+      const totalFinalBattery = allOrders.reduce((sum, order) => sum + (order.finalBattery || 0), 0)
       
       const uniquePlants = new Set(allOrders.map(order => order.plant)).size
       const uniqueMaterials = new Set(allOrders.map(order => order.material)).size
@@ -266,9 +268,10 @@ class SalesOrderService {
         console.log('📈 Sales orders statistics calculated:', {
           totalOrders,
           totalRequestedQuantity,
+          totalCumulativeQuantity,  // NEW
           totalAvailableNotCharged,
           totalAvailableCharged,
-          totalFinalBattery,  // NEW
+          totalFinalBattery,
           uniquePlants,
           uniqueMaterials,
           weekCount
@@ -278,9 +281,10 @@ class SalesOrderService {
       return {
         totalOrders,
         totalRequestedQuantity,
+        totalCumulativeQuantity,  // NEW
         totalAvailableNotCharged,
         totalAvailableCharged,
-        totalFinalBattery,  // NEW
+        totalFinalBattery,
         uniquePlants,
         uniqueMaterials,
         weekCount

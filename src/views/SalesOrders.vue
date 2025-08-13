@@ -1,4 +1,4 @@
-<!-- SalesOrders.vue - Updated with PrimeVue DatePicker and Final Battery Column -->
+<!-- SalesOrders.vue - Updated with PrimeVue DatePicker, Final Battery, and Cumulative Quantity Columns -->
 <template>
   <div class="sales-orders">
     <div class="page-header">
@@ -283,7 +283,7 @@
                 <!-- First Header Row - Category Groups -->
                 <tr class="header-categories">
                   <th colspan="2" class="header-basic">Основни данни</th>
-                  <th colspan="4" class="header-inventory">Складови данни</th>
+                  <th colspan="5" class="header-inventory">Складови данни</th>
                   <!-- Dynamic Sales Order + Customer Groups -->
                   <template v-for="key in dynamicColumnKeys" :key="key">
                     <th colspan="3" class="header-dynamic">
@@ -336,6 +336,20 @@
                       <span v-else class="sort-arrows">↕</span>
                     </span>
                   </th>
+                  <!-- NEW: Cumulative Quantity Column -->
+                  <th 
+                    class="col-cumulative sortable" 
+                    @click="sortBy('cumulativeQuantity')"
+                    :class="{ 'sort-active': sortColumn === 'cumulativeQuantity' }"
+                  >
+                    Натрупано количество
+                    <span class="sort-indicator">
+                      <span v-if="sortColumn === 'cumulativeQuantity'" class="sort-arrow">
+                        {{ sortDirection === 'asc' ? '↑' : '↓' }}
+                      </span>
+                      <span v-else class="sort-arrows">↕</span>
+                    </span>
+                  </th>
                   <th 
                     class="col-available sortable" 
                     @click="sortBy('availableNotCharged')"
@@ -362,7 +376,7 @@
                       <span v-else class="sort-arrows">↕</span>
                     </span>
                   </th>
-                  <!-- NEW: Final Battery Column -->
+                  <!-- Final Battery Column -->
                   <th 
                     class="col-final-battery sortable" 
                     @click="sortBy('finalBattery')"
@@ -434,9 +448,11 @@
                   
                   <!-- Inventory Data -->
                   <td class="cell-requested">{{ formatQuantity(order.requestedQuantity, order.requestedQuantityUnit) }}</td>
+                  <!-- NEW: Cumulative Quantity Cell -->
+                  <td class="cell-cumulative">{{ formatNumber(order.cumulativeQuantity || 0) }}</td>
                   <td class="cell-available">{{ formatNumber(order.availableNotCharged) }}</td>
                   <td class="cell-charged">{{ formatNumber(order.availableCharged) }}</td>
-                  <!-- NEW: Final Battery Cell -->
+                  <!-- Final Battery Cell -->
                   <td class="cell-final-battery">{{ formatNumber(order.finalBattery || 0) }}</td>
                   
                   <!-- Dynamic Columns - Each Sales Order + Customer group -->
@@ -470,9 +486,11 @@
                   
                   <!-- Inventory Totals -->
                   <td class="footer-requested">Общо: {{ formatNumber(getTotalRequested()) }} бр.</td>
+                  <!-- NEW: Cumulative Quantity Total -->
+                  <td class="footer-cumulative">Общо: {{ formatNumber(getTotalCumulativeQuantity()) }} бр.</td>
                   <td class="footer-available">Общо: {{ formatNumber(getTotalAvailableNotCharged()) }} бр.</td>
                   <td class="footer-charged">Общо: {{ formatNumber(getTotalAvailableCharged()) }} бр.</td>
-                  <!-- NEW: Final Battery Total -->
+                  <!-- Final Battery Total -->
                   <td class="footer-final-battery">Общо: {{ formatNumber(getTotalFinalBattery()) }} бр.</td>
                   
                   <!-- Dynamic Column Totals - Each Sales Order + Customer group -->
@@ -559,6 +577,12 @@
               <label>Requested Quantity:</label>
               <span class="detail-value">{{ selectedOrder.requestedQuantity }} {{ selectedOrder.requestedQuantityUnit }}</span>
             </div>
+
+            <!-- NEW: Cumulative Quantity Detail -->
+            <div class="detail-group">
+              <label>Cumulative Quantity:</label>
+              <span class="detail-value">{{ selectedOrder.cumulativeQuantity || 0 }}</span>
+            </div>
             
             <div class="detail-group">
               <label>Available Not Charged:</label>
@@ -570,7 +594,7 @@
               <span class="detail-value">{{ selectedOrder.availableCharged }}</span>
             </div>
 
-            <!-- NEW: Final Battery Detail -->
+            <!-- Final Battery Detail -->
             <div class="detail-group">
               <label>Final Battery:</label>
               <span class="detail-value">{{ selectedOrder.finalBattery || 0 }}</span>
@@ -593,6 +617,10 @@
               <div class="availability-item">
                 <span class="availability-label">Fulfillment Rate:</span>
                 <span class="availability-value">{{ getFulfillmentRate(selectedOrder) }}%</span>
+              </div>
+              <div class="availability-item">
+                <span class="availability-label">Cumulative Quantity:</span>
+                <span class="availability-value">{{ selectedOrder.cumulativeQuantity || 0 }}</span>
               </div>
               <div class="availability-item">
                 <span class="availability-label">Final Battery:</span>
@@ -849,6 +877,10 @@ const sortedAndFilteredData = computed(() => {
               valueA = Number(a.requestedQuantity) || 0
               valueB = Number(b.requestedQuantity) || 0
               break
+            case 'cumulativeQuantity':  // NEW: Cumulative quantity sorting
+              valueA = Number(a.cumulativeQuantity) || 0
+              valueB = Number(b.cumulativeQuantity) || 0
+              break
             case 'availableNotCharged':
               valueA = Number(a.availableNotCharged) || 0
               valueB = Number(b.availableNotCharged) || 0
@@ -857,7 +889,7 @@ const sortedAndFilteredData = computed(() => {
               valueA = Number(a.availableCharged) || 0
               valueB = Number(b.availableCharged) || 0
               break
-            case 'finalBattery':  // NEW: Final battery sorting
+            case 'finalBattery':  // Final battery sorting
               valueA = Number(a.finalBattery) || 0
               valueB = Number(b.finalBattery) || 0
               break
@@ -978,7 +1010,7 @@ watch(pageLength, () => {
 })
 
 const totalColumns = computed(() => {
-  return 6 + (dynamicColumnKeys.value.length * 3) // Basic(2) + Inventory(4) + Dynamic(keys*3)
+  return 7 + (dynamicColumnKeys.value.length * 3) // Basic(2) + Inventory(5: requested, cumulative, available, charged, final) + Dynamic(keys*3)
 })
 
 // Date validation methods
@@ -1080,6 +1112,11 @@ const getTotalRequested = () => {
   return sortedAndFilteredData.value.reduce((total, order) => total + order.requestedQuantity, 0)
 }
 
+// NEW: Cumulative quantity total calculation
+const getTotalCumulativeQuantity = () => {
+  return sortedAndFilteredData.value.reduce((total, order) => total + (order.cumulativeQuantity || 0), 0)
+}
+
 const getTotalAvailableNotCharged = () => {
   return sortedAndFilteredData.value.reduce((total, order) => total + order.availableNotCharged, 0)
 }
@@ -1088,7 +1125,7 @@ const getTotalAvailableCharged = () => {
   return sortedAndFilteredData.value.reduce((total, order) => total + order.availableCharged, 0)
 }
 
-// NEW: Final battery total calculation
+// Final battery total calculation
 const getTotalFinalBattery = () => {
   return sortedAndFilteredData.value.reduce((total, order) => total + (order.finalBattery || 0), 0)
 }
@@ -1324,7 +1361,7 @@ watch([apiDateFromDate, apiDateToDate], () => {
 
 // Initialize component
 onMounted(() => {
-  console.log('🔍 SalesOrders component mounted with PrimeVue DatePicker')
+  console.log('🔍 SalesOrders component mounted with PrimeVue DatePicker and Cumulative Quantity')
   initializeDateInputs()
   
   if (!hasCredentials.value) {
@@ -1342,7 +1379,27 @@ onMounted(() => {
 
 @import '@/styles/views/salesOrder/SalesOrdersDatePicker.css';
 
-/* NEW: Final Battery Column Styles */
+/* NEW: Cumulative Quantity Column Styles */
+.col-cumulative { 
+  background: #fef3c7 !important; 
+  color: #d97706 !important;
+  font-weight: 600;
+}
+
+.cell-cumulative { 
+  background-color: #fef3c7; 
+  color: #d97706;
+  font-weight: 600;
+}
+
+.footer-cumulative {
+  background-color: #fef3c7 !important;
+  text-align: right !important;
+  font-weight: 700 !important;
+  color: #d97706 !important;
+}
+
+/* Final Battery Column Styles */
 .col-final-battery { 
   background: #fef2f2 !important; 
   color: #991b1b !important;
@@ -1429,9 +1486,12 @@ onMounted(() => {
 /* Responsive adjustments for new column */
 @media (max-width: 768px) {
   .sales-orders-table-custom {
-    min-width: 1200px; /* Increase minimum width to accommodate new column */
+    min-width: 1300px; /* Increase minimum width to accommodate new cumulative column */
   }
   
+  .col-cumulative,
+  .cell-cumulative,
+  .footer-cumulative,
   .col-final-battery,
   .cell-final-battery,
   .footer-final-battery {
@@ -1441,12 +1501,19 @@ onMounted(() => {
 }
 
 @media (max-width: 480px) {
+  .col-cumulative,
+  .cell-cumulative,
+  .footer-cumulative,
   .col-final-battery,
   .cell-final-battery,
   .footer-final-battery {
     min-width: 60px;
     font-size: 10px;
     padding: 4px 2px;
+  }
+  
+  .sales-orders-table-custom {
+    min-width: 1100px; /* Adjust for mobile */
   }
 }
 </style>

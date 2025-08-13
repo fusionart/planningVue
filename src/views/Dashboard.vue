@@ -1,4 +1,4 @@
-<!-- src/views/Dashboard.vue - Updated for SalesOrderMain model with finalBattery -->
+<!-- src/views/Dashboard.vue - Updated for SalesOrderMain model with finalBattery and cumulativeQuantity -->
 <template>
   <div class="dashboard">
     <h2 class="page-title">Dashboard</h2>
@@ -47,6 +47,19 @@
           </p>
         </div>
 
+        <!-- NEW: Cumulative Quantity Statistics Card -->
+        <div class="stat-card">
+          <div class="stat-header">
+            <h3>Total Cumulative Quantity</h3>
+            <span class="stat-icon">📈</span>
+          </div>
+          <p class="stat-number" v-if="!loadingStats">{{ formatNumber(salesStats.totalCumulativeQuantity || 0) }}</p>
+          <div v-else class="stat-loading">Loading...</div>
+          <p class="stat-description" v-if="!loadingStats">
+            Total cumulative quantity across all items
+          </p>
+        </div>
+
         <div class="stat-card">
           <div class="stat-header">
             <h3>Available Not Charged</h3>
@@ -71,7 +84,7 @@
           </p>
         </div>
 
-        <!-- NEW: Final Battery Statistics Card -->
+        <!-- Final Battery Statistics Card -->
         <div class="stat-card">
           <div class="stat-header">
             <h3>Total Final Battery</h3>
@@ -167,6 +180,7 @@
             </div>
             <div class="order-meta">
               <span class="order-quantity">{{ formatNumber(order.requestedQuantity) }} {{ order.requestedQuantityUnit }}</span>
+              <span class="order-cumulative">📈 {{ formatNumber(order.cumulativeQuantity || 0) }}</span>
               <span class="order-final-battery">🔋 {{ formatNumber(order.finalBattery || 0) }}</span>
               <span
                 class="order-status"
@@ -174,6 +188,35 @@
               >
                 {{ getAvailabilityStatus(order) }}
               </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- NEW: Cumulative Quantity Analysis Overview -->
+      <div class="cumulative-analysis-overview" v-if="hasCredentials && hasData">
+        <div class="section-header">
+          <h3>Cumulative Quantity Analysis Overview</h3>
+        </div>
+        <div class="cumulative-stats">
+          <div class="cumulative-stat">
+            <div class="stat-label">Average Cumulative Quantity per Item</div>
+            <div class="stat-value">{{ getAverageCumulativeQuantity() }}</div>
+            <div class="stat-description">Average cumulative quantity across all items</div>
+          </div>
+          
+          <div class="cumulative-comparison">
+            <div class="comparison-item">
+              <span class="comparison-label">Total Requested:</span>
+              <span class="comparison-value">{{ formatNumber(salesStats.totalRequestedQuantity || 0) }}</span>
+            </div>
+            <div class="comparison-item">
+              <span class="comparison-label">Total Cumulative:</span>
+              <span class="comparison-value">{{ formatNumber(salesStats.totalCumulativeQuantity || 0) }}</span>
+            </div>
+            <div class="comparison-item">
+              <span class="comparison-label">Cumulative Efficiency:</span>
+              <span class="comparison-value">{{ getCumulativeEfficiency() }}%</span>
             </div>
           </div>
         </div>
@@ -270,9 +313,10 @@ import type { SalesOrderMain } from '@/types/api'
 const salesStats = ref({
   totalOrders: 0,
   totalRequestedQuantity: 0,
+  totalCumulativeQuantity: 0,  // NEW: Cumulative quantity total
   totalAvailableNotCharged: 0,
   totalAvailableCharged: 0,
-  totalFinalBattery: 0,  // NEW: Final battery total
+  totalFinalBattery: 0,  // Final battery total
   uniquePlants: 0,
   uniqueMaterials: 0
 })
@@ -357,7 +401,7 @@ const getAvailabilityStatusClass = (order: SalesOrderMain) => {
   }
 }
 
-// NEW: Battery analysis functions
+// Battery analysis functions
 const getAverageFinalBattery = () => {
   if (salesStats.value.totalOrders === 0) return '0'
   const average = salesStats.value.totalFinalBattery / salesStats.value.totalOrders
@@ -367,6 +411,18 @@ const getAverageFinalBattery = () => {
 const getBatteryEfficiency = () => {
   if (salesStats.value.totalRequestedQuantity === 0) return 0
   return Math.round((salesStats.value.totalFinalBattery / salesStats.value.totalRequestedQuantity) * 100)
+}
+
+// NEW: Cumulative quantity analysis functions
+const getAverageCumulativeQuantity = () => {
+  if (salesStats.value.totalOrders === 0) return '0'
+  const average = salesStats.value.totalCumulativeQuantity / salesStats.value.totalOrders
+  return formatNumber(Math.round(average))
+}
+
+const getCumulativeEfficiency = () => {
+  if (salesStats.value.totalRequestedQuantity === 0) return 0
+  return Math.round((salesStats.value.totalCumulativeQuantity / salesStats.value.totalRequestedQuantity) * 100)
 }
 
 // Overall fulfillment rate calculation
@@ -675,7 +731,8 @@ onMounted(() => {
 
 .recent-orders,
 .availability-overview,
-.battery-analysis-overview {
+.battery-analysis-overview,
+.cumulative-analysis-overview {
   background: var(--background-card);
   border-radius: var(--border-radius-lg);
   box-shadow: var(--shadow-card);
@@ -746,10 +803,15 @@ onMounted(() => {
 }
 
 .order-quantity,
+.order-cumulative,
 .order-final-battery {
   font-size: 14px;
   color: var(--text-secondary);
   font-weight: 500;
+}
+
+.order-cumulative {
+  color: #f59e0b;
 }
 
 .order-final-battery {
@@ -779,19 +841,22 @@ onMounted(() => {
 }
 
 /* Battery Analysis Styles */
-.battery-stats {
+.battery-stats,
+.cumulative-stats {
   display: flex;
   flex-direction: column;
   gap: 20px;
 }
 
-.battery-stat {
+.battery-stat,
+.cumulative-stat {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-.battery-comparison {
+.battery-comparison,
+.cumulative-comparison {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 16px;
@@ -959,7 +1024,8 @@ onMounted(() => {
   }
 
   .availability-breakdown,
-  .battery-comparison {
+  .battery-comparison,
+  .cumulative-comparison {
     grid-template-columns: 1fr;
   }
 

@@ -1,20 +1,21 @@
-// src/types/api.ts - Updated for SalesOrderByDate model with finalBattery
+// src/types/api.ts - Updated for SalesOrderByDate model with finalBattery and cumulativeQuantity
 
 export interface SalesOrderMainItem {
   quantity?: number;
   plannedOrder?: string;
   productionOrder?: string;
-  customer?: string;           // NEW: Customer field
-  completeDelivery?: boolean;  // NEW: Complete delivery flag
+  customer?: string;           // Customer field
+  completeDelivery?: boolean;  // Complete delivery flag
 }
 
 // Main model that matches your SalesOrderMain Java class
 export interface SalesOrderMain {
   material: string;
   requestedQuantity: number;
+  cumulativeQuantity: number;   // NEW: Cumulative quantity field
   availableNotCharged: number;
   availableCharged: number;
-  finalBattery: number;        // NEW: Final battery field
+  finalBattery: number;        // Final battery field
   requestedQuantityUnit: string;
   plant: string;
   // Now including dynamicSoItems
