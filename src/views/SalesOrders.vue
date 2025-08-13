@@ -1,4 +1,4 @@
-<!-- SalesOrders.vue - Updated with PrimeVue DatePicker -->
+<!-- SalesOrders.vue - Updated with PrimeVue DatePicker and Final Battery Column -->
 <template>
   <div class="sales-orders">
     <div class="page-header">
@@ -283,7 +283,7 @@
                 <!-- First Header Row - Category Groups -->
                 <tr class="header-categories">
                   <th colspan="2" class="header-basic">Основни данни</th>
-                  <th colspan="3" class="header-inventory">Складови данни</th>
+                  <th colspan="4" class="header-inventory">Складови данни</th>
                   <!-- Dynamic Sales Order + Customer Groups -->
                   <template v-for="key in dynamicColumnKeys" :key="key">
                     <th colspan="3" class="header-dynamic">
@@ -362,6 +362,20 @@
                       <span v-else class="sort-arrows">↕</span>
                     </span>
                   </th>
+                  <!-- NEW: Final Battery Column -->
+                  <th 
+                    class="col-final-battery sortable" 
+                    @click="sortBy('finalBattery')"
+                    :class="{ 'sort-active': sortColumn === 'finalBattery' }"
+                  >
+                    10-ки
+                    <span class="sort-indicator">
+                      <span v-if="sortColumn === 'finalBattery'" class="sort-arrow">
+                        {{ sortDirection === 'asc' ? '↑' : '↓' }}
+                      </span>
+                      <span v-else class="sort-arrows">↕</span>
+                    </span>
+                  </th>
                   
                   <!-- Dynamic Columns - Each Sales Order + Customer group -->
                   <template v-for="(key, keyIndex) in dynamicColumnKeys" :key="key">
@@ -422,6 +436,8 @@
                   <td class="cell-requested">{{ formatQuantity(order.requestedQuantity, order.requestedQuantityUnit) }}</td>
                   <td class="cell-available">{{ formatNumber(order.availableNotCharged) }}</td>
                   <td class="cell-charged">{{ formatNumber(order.availableCharged) }}</td>
+                  <!-- NEW: Final Battery Cell -->
+                  <td class="cell-final-battery">{{ formatNumber(order.finalBattery || 0) }}</td>
                   
                   <!-- Dynamic Columns - Each Sales Order + Customer group -->
                   <template v-for="(key, keyIndex) in dynamicColumnKeys" :key="key">
@@ -456,6 +472,8 @@
                   <td class="footer-requested">Общо: {{ formatNumber(getTotalRequested()) }} бр.</td>
                   <td class="footer-available">Общо: {{ formatNumber(getTotalAvailableNotCharged()) }} бр.</td>
                   <td class="footer-charged">Общо: {{ formatNumber(getTotalAvailableCharged()) }} бр.</td>
+                  <!-- NEW: Final Battery Total -->
+                  <td class="footer-final-battery">Общо: {{ formatNumber(getTotalFinalBattery()) }} бр.</td>
                   
                   <!-- Dynamic Column Totals - Each Sales Order + Customer group -->
                   <template v-for="(key, keyIndex) in dynamicColumnKeys" :key="key">
@@ -552,6 +570,12 @@
               <span class="detail-value">{{ selectedOrder.availableCharged }}</span>
             </div>
 
+            <!-- NEW: Final Battery Detail -->
+            <div class="detail-group">
+              <label>Final Battery:</label>
+              <span class="detail-value">{{ selectedOrder.finalBattery || 0 }}</span>
+            </div>
+
             <div class="detail-group">
               <label>Quantity Unit:</label>
               <span class="detail-value">{{ selectedOrder.requestedQuantityUnit }}</span>
@@ -569,6 +593,10 @@
               <div class="availability-item">
                 <span class="availability-label">Fulfillment Rate:</span>
                 <span class="availability-value">{{ getFulfillmentRate(selectedOrder) }}%</span>
+              </div>
+              <div class="availability-item">
+                <span class="availability-label">Final Battery:</span>
+                <span class="availability-value">{{ selectedOrder.finalBattery || 0 }}</span>
               </div>
               <div class="availability-item">
                 <span class="availability-label">Status:</span>
@@ -829,6 +857,10 @@ const sortedAndFilteredData = computed(() => {
               valueA = Number(a.availableCharged) || 0
               valueB = Number(b.availableCharged) || 0
               break
+            case 'finalBattery':  // NEW: Final battery sorting
+              valueA = Number(a.finalBattery) || 0
+              valueB = Number(b.finalBattery) || 0
+              break
             default:
               valueA = ''
               valueB = ''
@@ -932,19 +964,6 @@ const paginationDisplay = computed(() => {
   }
 })
 
-// Debugging computed to track what's happening
-const paginationDebug = computed(() => {
-  return {
-    currentPage: currentPage.value,
-    pageLength: pageLength.value,
-    totalRecords: totalRecords.value,
-    totalPages: totalPages.value,
-    startIndex: startIndex.value,
-    endIndex: endIndex.value,
-    paginatedCount: paginatedData.value.length
-  }
-})
-
 // Add watchers to reset pagination when data changes
 watch([sortedAndFilteredData, selectedPlant, searchTerm], () => {
   // Reset to first page when data changes
@@ -959,7 +978,7 @@ watch(pageLength, () => {
 })
 
 const totalColumns = computed(() => {
-  return 5 + (dynamicColumnKeys.value.length * 3) // Basic(2) + Inventory(3) + Dynamic(keys*3)
+  return 6 + (dynamicColumnKeys.value.length * 3) // Basic(2) + Inventory(4) + Dynamic(keys*3)
 })
 
 // Date validation methods
@@ -1067,6 +1086,11 @@ const getTotalAvailableNotCharged = () => {
 
 const getTotalAvailableCharged = () => {
   return sortedAndFilteredData.value.reduce((total, order) => total + order.availableCharged, 0)
+}
+
+// NEW: Final battery total calculation
+const getTotalFinalBattery = () => {
+  return sortedAndFilteredData.value.reduce((total, order) => total + (order.finalBattery || 0), 0)
 }
 
 const getDynamicTotal = (key: string, field: 'quantity') => {
@@ -1318,5 +1342,111 @@ onMounted(() => {
 
 @import '@/styles/views/salesOrder/SalesOrdersDatePicker.css';
 
+/* NEW: Final Battery Column Styles */
+.col-final-battery { 
+  background: #fef2f2 !important; 
+  color: #991b1b !important;
+  border-right: 2px solid #1f2937 !important; /* Border after Final Battery */
+  position: relative;
+  z-index: 12 !important; /* Higher z-index for vertical borders */
+}
 
+.cell-final-battery { 
+  background-color: #fef2f2; 
+  color: #991b1b;
+  font-weight: 600;
+  border-right: 2px solid #1f2937 !important; /* Border after Final Battery */
+  position: relative;
+  z-index: 3 !important; /* Higher z-index for vertical borders in body */
+}
+
+.footer-final-battery {
+  background-color: #f0f9ff !important;
+  text-align: right !important;
+  font-weight: 700 !important;
+  color: var(--color-primary) !important;
+  border-right: 2px solid #1f2937 !important; /* Border after Final Battery in footer */
+}
+
+/* Update first dynamic group styling to account for new column */
+.first-dynamic-group {
+  border-left: 2px solid #7c3aed !important;
+}
+
+/* Ensure proper sorting indicator styling */
+.sortable {
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+}
+
+.sortable:hover {
+  background-color: rgba(59, 130, 246, 0.1) !important;
+}
+
+.sort-indicator {
+  display: inline-block;
+  margin-left: 4px;
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+.sort-active .sort-indicator {
+  opacity: 1;
+  color: var(--color-primary) !important;
+}
+
+.sort-arrow {
+  font-weight: bold;
+}
+
+.sort-arrows {
+  opacity: 0.5;
+}
+
+/* Date error styling */
+.date-errors {
+  margin-top: 12px;
+  padding: 12px;
+  background: #fef2f2;
+  border: 1px solid #fca5a5;
+  border-radius: var(--border-radius-md);
+}
+
+.date-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-error);
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.date-error:last-child {
+  margin-bottom: 0;
+}
+
+/* Responsive adjustments for new column */
+@media (max-width: 768px) {
+  .sales-orders-table-custom {
+    min-width: 1200px; /* Increase minimum width to accommodate new column */
+  }
+  
+  .col-final-battery,
+  .cell-final-battery,
+  .footer-final-battery {
+    min-width: 80px;
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 480px) {
+  .col-final-battery,
+  .cell-final-battery,
+  .footer-final-battery {
+    min-width: 60px;
+    font-size: 10px;
+    padding: 4px 2px;
+  }
+}
 </style>

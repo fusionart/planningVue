@@ -1,4 +1,4 @@
-// src/composables/useSalesOrders.ts - Updated for SalesOrderByDate model
+// src/composables/useSalesOrders.ts - Updated for SalesOrderByDate model with finalBattery
 
 import { ref, reactive, computed, onMounted } from 'vue'
 import { salesOrderService } from '@/services/salesOrderService'
@@ -316,6 +316,139 @@ export function useSalesOrders() {
     fetchSalesOrders()
   }
 
+  // NEW: Get statistics including final battery totals
+  const getSalesOrdersStatistics = async () => {
+    try {
+      const stats = await salesOrderService.getSalesOrdersStats()
+      return stats
+    } catch (err) {
+      console.error('Failed to get sales orders statistics:', err)
+      throw err
+    }
+  }
+
+  // NEW: Calculate final battery statistics from current data
+  const getFinalBatteryStatistics = computed(() => {
+    const allOrders = allSalesOrders.value
+    
+    if (allOrders.length === 0) {
+      return {
+        totalFinalBattery: 0,
+        averageFinalBattery: 0,
+        maxFinalBattery: 0,
+        minFinalBattery: 0,
+        finalBatteryEfficiency: 0 // Percentage of final battery vs requested quantity
+      }
+    }
+
+    const finalBatteryValues = allOrders
+      .map(order => order.finalBattery || 0)
+      .filter(value => value > 0)
+
+    const totalFinalBattery = allOrders.reduce((sum, order) => sum + (order.finalBattery || 0), 0)
+    const totalRequested = allOrders.reduce((sum, order) => sum + order.requestedQuantity, 0)
+    
+    return {
+      totalFinalBattery,
+      averageFinalBattery: finalBatteryValues.length > 0 ? totalFinalBattery / finalBatteryValues.length : 0,
+      maxFinalBattery: finalBatteryValues.length > 0 ? Math.max(...finalBatteryValues) : 0,
+      minFinalBattery: finalBatteryValues.length > 0 ? Math.min(...finalBatteryValues) : 0,
+      finalBatteryEfficiency: totalRequested > 0 ? (totalFinalBattery / totalRequested) * 100 : 0
+    }
+  })
+
+  // NEW: Helper function to calculate final battery statistics for a specific week
+  const getWeekFinalBatteryStats = (weekData: SalesOrderByDate) => {
+    const orders = weekData.salesOrderMainList
+    
+    if (orders.length === 0) {
+      return {
+        totalFinalBattery: 0,
+        averageFinalBattery: 0,
+        ordersWithFinalBattery: 0
+      }
+    }
+
+    const ordersWithFinalBattery = orders.filter(order => (order.finalBattery || 0) > 0)
+    const totalFinalBattery = orders.reduce((sum, order) => sum + (order.finalBattery || 0), 0)
+    
+    return {
+      totalFinalBattery,
+      averageFinalBattery: ordersWithFinalBattery.length > 0 ? totalFinalBattery / ordersWithFinalBattery.length : 0,
+      ordersWithFinalBattery: ordersWithFinalBattery.length
+    }
+  }
+
+  // NEW: Get orders sorted by final battery
+  const getOrdersSortedByFinalBattery = (descending: boolean = true) => {
+    const orders = [...allSalesOrders.value]
+    return orders.sort((a, b) => {
+      const aValue = a.finalBattery || 0
+      const bValue = b.finalBattery || 0
+      return descending ? bValue - aValue : aValue - bValue
+    })
+  }
+
+  // NEW: Get orders with specific final battery criteria
+  const getOrdersByFinalBatteryCriteria = (criteria: {
+    minFinalBattery?: number
+    maxFinalBattery?: number
+    hasFinalsOnly?: boolean
+  }) => {
+    return allSalesOrders.value.filter(order => {
+      const finalBattery = order.finalBattery || 0
+      
+      if (criteria.hasFinalsOnly && finalBattery === 0) return false
+      if (criteria.minFinalBattery !== undefined && finalBattery < criteria.minFinalBattery) return false
+      if (criteria.maxFinalBattery !== undefined && finalBattery > criteria.maxFinalBattery) return false
+      
+      return true
+    })
+  }
+
+  // NEW: Calculate final battery vs availability comparison
+  const getFinalBatteryAvailabilityComparison = computed(() => {
+    const orders = allSalesOrders.value
+    
+    if (orders.length === 0) {
+      return {
+        ordersWithHigherFinalBattery: 0,
+        ordersWithLowerFinalBattery: 0,
+        ordersWithEqualFinalBattery: 0,
+        averageFinalBatteryRatio: 0
+      }
+    }
+
+    let higherCount = 0
+    let lowerCount = 0
+    let equalCount = 0
+    let totalRatio = 0
+
+    orders.forEach(order => {
+      const finalBattery = order.finalBattery || 0
+      const totalAvailable = order.availableNotCharged + order.availableCharged
+      
+      if (finalBattery > totalAvailable) {
+        higherCount++
+      } else if (finalBattery < totalAvailable) {
+        lowerCount++
+      } else {
+        equalCount++
+      }
+      
+      if (totalAvailable > 0) {
+        totalRatio += finalBattery / totalAvailable
+      }
+    })
+
+    return {
+      ordersWithHigherFinalBattery: higherCount,
+      ordersWithLowerFinalBattery: lowerCount,
+      ordersWithEqualFinalBattery: equalCount,
+      averageFinalBatteryRatio: orders.length > 0 ? (totalRatio / orders.length) * 100 : 0
+    }
+  })
+
   return {
     // State - Updated for new structure
     salesOrdersByDate, // New: SalesOrderByDate[]
@@ -330,6 +463,10 @@ export function useSalesOrders() {
     hasData,
     hasError,
     isEmpty,
+    
+    // NEW: Final Battery Computed Properties
+    finalBatteryStatistics: getFinalBatteryStatistics,
+    finalBatteryAvailabilityComparison: getFinalBatteryAvailabilityComparison,
     
     // Methods
     fetchSalesOrders,
@@ -350,6 +487,14 @@ export function useSalesOrders() {
     setCurrentMonthRange,
     setCredentials,
     clearCredentials,
+    
+    // NEW: Final Battery Methods
+    getSalesOrdersStatistics,
+    getWeekFinalBatteryStats,
+    getOrdersSortedByFinalBattery,
+    getOrdersByFinalBatteryCriteria,
+    
+    // Utility methods
     formatDateForBackend: (date: Date) => {
       const year = date.getFullYear()
       const month = String(date.getMonth() + 1).padStart(2, '0')

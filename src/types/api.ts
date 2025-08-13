@@ -1,4 +1,4 @@
-// src/types/api.ts - Updated for SalesOrderByDate model
+// src/types/api.ts - Updated for SalesOrderByDate model with finalBattery
 
 export interface SalesOrderMainItem {
   quantity?: number;
@@ -14,6 +14,7 @@ export interface SalesOrderMain {
   requestedQuantity: number;
   availableNotCharged: number;
   availableCharged: number;
+  finalBattery: number;        // NEW: Final battery field
   requestedQuantityUnit: string;
   plant: string;
   // Now including dynamicSoItems

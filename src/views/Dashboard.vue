@@ -1,4 +1,4 @@
-<!-- src/views/Dashboard.vue - Updated for SalesOrderMain model -->
+<!-- src/views/Dashboard.vue - Updated for SalesOrderMain model with finalBattery -->
 <template>
   <div class="dashboard">
     <h2 class="page-title">Dashboard</h2>
@@ -68,6 +68,19 @@
           <div v-else class="stat-loading">Loading...</div>
           <p class="stat-description" v-if="!loadingStats">
             Total available inventory charged
+          </p>
+        </div>
+
+        <!-- NEW: Final Battery Statistics Card -->
+        <div class="stat-card">
+          <div class="stat-header">
+            <h3>Total Final Battery</h3>
+            <span class="stat-icon">🔋</span>
+          </div>
+          <p class="stat-number" v-if="!loadingStats">{{ formatNumber(salesStats.totalFinalBattery || 0) }}</p>
+          <div v-else class="stat-loading">Loading...</div>
+          <p class="stat-description" v-if="!loadingStats">
+            Total final battery quantity
           </p>
         </div>
 
@@ -154,12 +167,42 @@
             </div>
             <div class="order-meta">
               <span class="order-quantity">{{ formatNumber(order.requestedQuantity) }} {{ order.requestedQuantityUnit }}</span>
+              <span class="order-final-battery">🔋 {{ formatNumber(order.finalBattery || 0) }}</span>
               <span
                 class="order-status"
                 :class="getAvailabilityStatusClass(order)"
               >
                 {{ getAvailabilityStatus(order) }}
               </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Battery Analysis Overview -->
+      <div class="battery-analysis-overview" v-if="hasCredentials && hasData">
+        <div class="section-header">
+          <h3>Battery Analysis Overview</h3>
+        </div>
+        <div class="battery-stats">
+          <div class="battery-stat">
+            <div class="stat-label">Average Final Battery per Item</div>
+            <div class="stat-value">{{ getAverageFinalBattery() }}</div>
+            <div class="stat-description">Average final battery quantity across all items</div>
+          </div>
+          
+          <div class="battery-comparison">
+            <div class="comparison-item">
+              <span class="comparison-label">Total Requested:</span>
+              <span class="comparison-value">{{ formatNumber(salesStats.totalRequestedQuantity || 0) }}</span>
+            </div>
+            <div class="comparison-item">
+              <span class="comparison-label">Total Final Battery:</span>
+              <span class="comparison-value">{{ formatNumber(salesStats.totalFinalBattery || 0) }}</span>
+            </div>
+            <div class="comparison-item">
+              <span class="comparison-label">Battery Efficiency:</span>
+              <span class="comparison-value">{{ getBatteryEfficiency() }}%</span>
             </div>
           </div>
         </div>
@@ -229,6 +272,7 @@ const salesStats = ref({
   totalRequestedQuantity: 0,
   totalAvailableNotCharged: 0,
   totalAvailableCharged: 0,
+  totalFinalBattery: 0,  // NEW: Final battery total
   uniquePlants: 0,
   uniqueMaterials: 0
 })
@@ -313,6 +357,18 @@ const getAvailabilityStatusClass = (order: SalesOrderMain) => {
   }
 }
 
+// NEW: Battery analysis functions
+const getAverageFinalBattery = () => {
+  if (salesStats.value.totalOrders === 0) return '0'
+  const average = salesStats.value.totalFinalBattery / salesStats.value.totalOrders
+  return formatNumber(Math.round(average))
+}
+
+const getBatteryEfficiency = () => {
+  if (salesStats.value.totalRequestedQuantity === 0) return 0
+  return Math.round((salesStats.value.totalFinalBattery / salesStats.value.totalRequestedQuantity) * 100)
+}
+
 // Overall fulfillment rate calculation
 const getOverallFulfillmentRate = () => {
   if (salesStats.value.totalRequestedQuantity === 0) return 0
@@ -369,11 +425,19 @@ const loadDashboardData = async () => {
   // Load recent orders (first 10)
   loadingOrders.value = true
   try {
-    const response = await salesOrderService.getSalesOrdersItems({}, { 
+    const response = await salesOrderService.getSalesOrdersByDate({}, { 
       page: 0, 
       size: 10
     })
-    recentOrders.value = response.content
+    
+    // Flatten recent orders from all weeks
+    const allRecentOrders: SalesOrderMain[] = []
+    response.content.forEach(weekData => {
+      allRecentOrders.push(...weekData.salesOrderMainList)
+    })
+    
+    // Take first 10 orders
+    recentOrders.value = allRecentOrders.slice(0, 10)
     console.log('✅ Recent orders loaded successfully')
   } catch (err) {
     console.error('❌ Failed to load recent orders:', err)
@@ -610,7 +674,8 @@ onMounted(() => {
 }
 
 .recent-orders,
-.availability-overview {
+.availability-overview,
+.battery-analysis-overview {
   background: var(--background-card);
   border-radius: var(--border-radius-lg);
   box-shadow: var(--shadow-card);
@@ -680,10 +745,15 @@ onMounted(() => {
   gap: 4px;
 }
 
-.order-quantity {
+.order-quantity,
+.order-final-battery {
   font-size: 14px;
   color: var(--text-secondary);
   font-weight: 500;
+}
+
+.order-final-battery {
+  color: var(--color-primary);
 }
 
 .order-status {
@@ -706,6 +776,47 @@ onMounted(() => {
 .status-low {
   background: var(--color-error);
   color: white;
+}
+
+/* Battery Analysis Styles */
+.battery-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.battery-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.battery-comparison {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.comparison-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  background: var(--background-secondary);
+  border-radius: var(--border-radius-md);
+  border: 1px solid var(--border-light);
+}
+
+.comparison-label {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.comparison-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
 }
 
 /* Availability Overview Styles */
@@ -847,11 +958,13 @@ onMounted(() => {
     align-items: flex-start;
   }
 
-  .availability-breakdown {
+  .availability-breakdown,
+  .battery-comparison {
     grid-template-columns: 1fr;
   }
 
-  .breakdown-item {
+  .breakdown-item,
+  .comparison-item {
     flex-direction: column;
     align-items: flex-start;
     gap: 4px;

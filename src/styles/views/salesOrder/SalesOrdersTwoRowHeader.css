@@ -1,4 +1,4 @@
-/* SalesOrdersTwoRowHeader.css - Two-Row DataTable Header Styles */
+/* SalesOrdersTwoRowHeader.css - Two-Row DataTable Header Styles with Final Battery */
 
 /* Custom DataTable Container */
 .custom-datatable-container {
@@ -157,8 +157,11 @@
   z-index: 12 !important; /* Higher z-index for vertical borders */
 }
 
-.col-charged {
-  border-right: 2px solid #1f2937 !important; /* Border after Available Charged (end of Inventory) */
+/* NEW: Final Battery Column Styling */
+.col-final-battery {
+  background: #fef2f2 !important; 
+  color: #991b1b !important;
+  border-right: 2px solid #1f2937 !important; /* Border after Final Battery (end of Inventory) */
   position: relative;
   z-index: 12 !important; /* Higher z-index for vertical borders */
 }
@@ -206,7 +209,13 @@
 .col-charged { 
   background: #fef2f2 !important; 
   color: #991b1b !important;
-  border-right: 2px solid #1f2937 !important; /* Border after Available Charged */
+}
+
+/* NEW: Final Battery Column Header Styling */
+.col-final-battery { 
+  background: #fef2f2 !important; 
+  color: #991b1b !important;
+  border-right: 2px solid #1f2937 !important; /* Border after Final Battery */
   position: relative;
   z-index: 12 !important; /* Higher z-index for vertical borders */
 }
@@ -281,7 +290,14 @@
 .cell-charged { 
   background-color: #fef2f2; 
   color: #991b1b;
-  border-right: 2px solid #1f2937 !important; /* Border after Available Charged */
+}
+
+/* NEW: Final Battery Cell Styling */
+.cell-final-battery { 
+  background-color: #fef2f2; 
+  color: #991b1b;
+  font-weight: 600;
+  border-right: 2px solid #1f2937 !important; /* Border after Final Battery */
   position: relative;
   z-index: 3 !important; /* Higher z-index for vertical borders in body */
 }
@@ -345,8 +361,13 @@
   color: var(--color-primary) !important;
 }
 
-.footer-charged {
-  border-right: 2px solid #1f2937 !important; /* Border after Available Charged in footer */
+/* NEW: Final Battery Footer Styling */
+.footer-final-battery {
+  background-color: #f0f9ff !important;
+  text-align: right !important;
+  font-weight: 700 !important;
+  color: var(--color-primary) !important;
+  border-right: 2px solid #1f2937 !important; /* Border after Final Battery in footer */
 }
 
 .footer-dynamic-qty {
@@ -363,6 +384,44 @@
 
 .footer-dynamic-production {
   border-right: 2px solid #1f2937 !important; /* Border after each dynamic group in footer */
+}
+
+/* Sorting Styles */
+.sortable {
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+  transition: background-color 0.2s ease;
+}
+
+.sortable:hover {
+  background-color: rgba(59, 130, 246, 0.1) !important;
+}
+
+.sort-indicator {
+  display: inline-block;
+  margin-left: 4px;
+  font-size: 10px;
+  opacity: 0.7;
+  transition: opacity 0.2s ease;
+}
+
+.sort-active .sort-indicator {
+  opacity: 1;
+  color: var(--color-primary) !important;
+}
+
+.sort-arrow {
+  font-weight: bold;
+  color: var(--color-primary) !important;
+}
+
+.sort-arrows {
+  opacity: 0.5;
+}
+
+.sort-active {
+  background-color: rgba(59, 130, 246, 0.05) !important;
 }
 
 /* Pagination Controls */
@@ -679,6 +738,28 @@
   display: flex;
   justify-content: center;
   margin-left: 20px;
+}
+
+/* Date Error Styling */
+.date-errors {
+  margin-top: 12px;
+  padding: 12px;
+  background: #fef2f2;
+  border: 1px solid #fca5a5;
+  border-radius: var(--border-radius-md);
+}
+
+.date-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-error);
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.date-error:last-child {
+  margin-bottom: 0;
 }
 
 /* Table Container and Header */
@@ -1037,6 +1118,7 @@
   
   .sales-orders-table-custom {
     font-size: 10px;
+    min-width: 1200px; /* Ensure horizontal scroll on mobile */
   }
   
   .header-categories th,
@@ -1049,6 +1131,14 @@
   .sales-orders-table-custom tfoot td {
     padding: 6px 4px;
     font-size: 10px;
+  }
+
+  /* Final Battery responsive adjustments */
+  .col-final-battery,
+  .cell-final-battery,
+  .footer-final-battery {
+    min-width: 80px;
+    font-size: 11px;
   }
 
   .modal {
@@ -1133,6 +1223,20 @@
   .parameter-actions {
     justify-content: flex-start;
     margin-left: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .col-final-battery,
+  .cell-final-battery,
+  .footer-final-battery {
+    min-width: 60px;
+    font-size: 10px;
+    padding: 4px 2px;
+  }
+  
+  .sales-orders-table-custom {
+    min-width: 1000px; /* Slightly smaller but still scrollable */
   }
 }
 

@@ -1,4 +1,4 @@
-// src/services/salesOrderService.ts - Updated for SalesOrderByDate
+// src/services/salesOrderService.ts - Updated for SalesOrderByDate with finalBattery
 
 import { apiClient } from './apiClient'
 import type { SalesOrderByDate, SalesOrderMain, SalesOrderItemsRequest } from '@/types/api'
@@ -231,12 +231,14 @@ class SalesOrderService {
 
   /**
    * Get sales orders statistics (calculated client-side across all weeks)
+   * UPDATED: Now includes finalBattery totals
    */
   async getSalesOrdersStats(): Promise<{
     totalOrders: number
     totalRequestedQuantity: number
     totalAvailableNotCharged: number
     totalAvailableCharged: number
+    totalFinalBattery: number  // NEW: Total final battery
     uniquePlants: number
     uniqueMaterials: number
     weekCount: number
@@ -254,6 +256,7 @@ class SalesOrderService {
       const totalRequestedQuantity = allOrders.reduce((sum, order) => sum + order.requestedQuantity, 0)
       const totalAvailableNotCharged = allOrders.reduce((sum, order) => sum + order.availableNotCharged, 0)
       const totalAvailableCharged = allOrders.reduce((sum, order) => sum + order.availableCharged, 0)
+      const totalFinalBattery = allOrders.reduce((sum, order) => sum + (order.finalBattery || 0), 0) // NEW
       
       const uniquePlants = new Set(allOrders.map(order => order.plant)).size
       const uniqueMaterials = new Set(allOrders.map(order => order.material)).size
@@ -265,6 +268,7 @@ class SalesOrderService {
           totalRequestedQuantity,
           totalAvailableNotCharged,
           totalAvailableCharged,
+          totalFinalBattery,  // NEW
           uniquePlants,
           uniqueMaterials,
           weekCount
@@ -276,6 +280,7 @@ class SalesOrderService {
         totalRequestedQuantity,
         totalAvailableNotCharged,
         totalAvailableCharged,
+        totalFinalBattery,  // NEW
         uniquePlants,
         uniqueMaterials,
         weekCount
