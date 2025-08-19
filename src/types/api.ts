@@ -12,6 +12,8 @@ export interface SalesOrderMainItem {
 export interface SalesOrderMain {
   material: string;
   requestedQuantity: number;
+  toProduce: number;            // NEW: To produce quantity field
+  totalAvailableQuantity: number; // NEW: Total available quantity field
   cumulativeQuantity: number;   // NEW: Cumulative quantity field
   availableNotCharged: number;
   availableCharged: number;

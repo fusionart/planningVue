@@ -1,6 +1,6 @@
-<!-- SalesOrders.vue - Updated with PrimeVue DatePicker, Final Battery, and Cumulative Quantity Columns -->
+<!-- SalesOrders.vue - Clean version without debug features -->
 <template>
-  <div class="sales-orders">
+  <div class="sales-orders" :key="componentKey">
     <div class="page-header">
       <h2 class="page-title">Клиентски поръчки по заявена дата на доставка</h2>
       <div class="header-actions">
@@ -15,7 +15,7 @@
     </div>
 
     <!-- Credentials Required Notice -->
-    <div v-if="!hasCredentials && !showCredentialsModal" class="credentials-notice">
+    <div v-if="!hasCredentials && !showCredentialsModal && !localCredentialsState" class="credentials-notice">
       <div class="notice-content">
         <div class="notice-icon">🔐</div>
         <div class="notice-text">
@@ -23,7 +23,7 @@
           <p>Моля въведете вашите потребителско име и парола за SAP.</p>
         </div>
         <button class="btn btn-primary" @click="showCredentialsModal = true">
-          Въведнете потребител и парола
+          Въведете потребител и парола
         </button>
       </div>
     </div>
@@ -90,7 +90,7 @@
     </div>
 
     <!-- API Parameters Section with PrimeVue DatePickers -->
-    <div v-if="hasCredentials" class="api-parameters-section">
+    <div v-if="hasCredentials || localCredentialsState" class="api-parameters-section">
       <h3>Времеви период</h3>
       <div class="parameters-grid">
         <div class="parameter-group-datepicker">
@@ -182,7 +182,7 @@
     </div>
 
     <!-- Empty State -->
-    <div v-else-if="isEmpty && hasCredentials" class="empty-state">
+    <div v-else-if="isEmpty && (hasCredentials || localCredentialsState)" class="empty-state">
       <div class="empty-icon">📋</div>
       <p>No sales orders found for the selected date range.</p>
       <p class="empty-sub">Try adjusting the date range or load data for a different period.</p>
@@ -231,7 +231,7 @@
         <div class="custom-datatable-container">
           <div class="table-controls">
             <div class="controls-left">
-              <!-- Plant Filter moved here -->
+              <!-- Plant Filter -->
               <label class="plant-filter-label">
                 Филтър по завод:
                 <select
@@ -283,7 +283,7 @@
                 <!-- First Header Row - Category Groups -->
                 <tr class="header-categories">
                   <th colspan="2" class="header-basic">Основни данни</th>
-                  <th colspan="5" class="header-inventory">Складови данни</th>
+                  <th colspan="7" class="header-inventory">Складови данни</th>
                   <!-- Dynamic Sales Order + Customer Groups -->
                   <template v-for="key in dynamicColumnKeys" :key="key">
                     <th colspan="3" class="header-dynamic">
@@ -322,7 +322,7 @@
                     </span>
                   </th>
                   
-                  <!-- Inventory Data Columns -->
+                  <!-- Inventory Data Columns - Now includes toProduce and totalAvailableQuantity -->
                   <th 
                     class="col-requested sortable" 
                     @click="sortBy('requestedQuantity')"
@@ -336,7 +336,35 @@
                       <span v-else class="sort-arrows">↕</span>
                     </span>
                   </th>
-                  <!-- NEW: Cumulative Quantity Column -->
+                  <!-- NEW: To Produce Column -->
+                  <th 
+                    class="col-to-produce sortable" 
+                    @click="sortBy('toProduce')"
+                    :class="{ 'sort-active': sortColumn === 'toProduce' }"
+                  >
+                    За производство
+                    <span class="sort-indicator">
+                      <span v-if="sortColumn === 'toProduce'" class="sort-arrow">
+                        {{ sortDirection === 'asc' ? '↑' : '↓' }}
+                      </span>
+                      <span v-else class="sort-arrows">↕</span>
+                    </span>
+                  </th>
+                  <!-- NEW: Total Available Quantity Column -->
+                  <th 
+                    class="col-total-available sortable" 
+                    @click="sortBy('totalAvailableQuantity')"
+                    :class="{ 'sort-active': sortColumn === 'totalAvailableQuantity' }"
+                  >
+                    Общо налично
+                    <span class="sort-indicator">
+                      <span v-if="sortColumn === 'totalAvailableQuantity'" class="sort-arrow">
+                        {{ sortDirection === 'asc' ? '↑' : '↓' }}
+                      </span>
+                      <span v-else class="sort-arrows">↕</span>
+                    </span>
+                  </th>
+                  <!-- Cumulative Quantity Column -->
                   <th 
                     class="col-cumulative sortable" 
                     @click="sortBy('cumulativeQuantity')"
@@ -446,9 +474,13 @@
                   <td class="cell-material">{{ order.material }}</td>
                   <td class="cell-plant">{{ order.plant }}</td>
                   
-                  <!-- Inventory Data -->
+                  <!-- Inventory Data - Now includes toProduce and totalAvailableQuantity -->
                   <td class="cell-requested">{{ formatQuantity(order.requestedQuantity, order.requestedQuantityUnit) }}</td>
-                  <!-- NEW: Cumulative Quantity Cell -->
+                  <!-- NEW: To Produce Cell -->
+                  <td class="cell-to-produce">{{ formatNumber(order.toProduce || 0) }}</td>
+                  <!-- NEW: Total Available Quantity Cell -->
+                  <td class="cell-total-available">{{ formatNumber(order.totalAvailableQuantity || 0) }}</td>
+                  <!-- Cumulative Quantity Cell -->
                   <td class="cell-cumulative">{{ formatNumber(order.cumulativeQuantity || 0) }}</td>
                   <td class="cell-available">{{ formatNumber(order.availableNotCharged) }}</td>
                   <td class="cell-charged">{{ formatNumber(order.availableCharged) }}</td>
@@ -484,9 +516,13 @@
                   <td class="footer-material">{{ sortedAndFilteredData.length }} записа</td>
                   <td class="footer-plant">{{ getUniquePlants() }} завода</td>
                   
-                  <!-- Inventory Totals -->
+                  <!-- Inventory Totals - Now includes toProduce and totalAvailableQuantity -->
                   <td class="footer-requested">Общо: {{ formatNumber(getTotalRequested()) }} бр.</td>
-                  <!-- NEW: Cumulative Quantity Total -->
+                  <!-- NEW: To Produce Total -->
+                  <td class="footer-to-produce">Общо: {{ formatNumber(getTotalToProduce()) }} бр.</td>
+                  <!-- NEW: Total Available Quantity Total -->
+                  <td class="footer-total-available">Общо: {{ formatNumber(getTotalAvailableQuantity()) }} бр.</td>
+                  <!-- Cumulative Quantity Total -->
                   <td class="footer-cumulative">Общо: {{ formatNumber(getTotalCumulativeQuantity()) }} бр.</td>
                   <td class="footer-available">Общо: {{ formatNumber(getTotalAvailableNotCharged()) }} бр.</td>
                   <td class="footer-charged">Общо: {{ formatNumber(getTotalAvailableCharged()) }} бр.</td>
@@ -578,7 +614,19 @@
               <span class="detail-value">{{ selectedOrder.requestedQuantity }} {{ selectedOrder.requestedQuantityUnit }}</span>
             </div>
 
-            <!-- NEW: Cumulative Quantity Detail -->
+            <!-- NEW: To Produce Detail -->
+            <div class="detail-group">
+              <label>To Produce:</label>
+              <span class="detail-value">{{ selectedOrder.toProduce || 0 }}</span>
+            </div>
+
+            <!-- NEW: Total Available Quantity Detail -->
+            <div class="detail-group">
+              <label>Total Available Quantity:</label>
+              <span class="detail-value">{{ selectedOrder.totalAvailableQuantity || 0 }}</span>
+            </div>
+
+            <!-- Cumulative Quantity Detail -->
             <div class="detail-group">
               <label>Cumulative Quantity:</label>
               <span class="detail-value">{{ selectedOrder.cumulativeQuantity || 0 }}</span>
@@ -617,6 +665,10 @@
               <div class="availability-item">
                 <span class="availability-label">Fulfillment Rate:</span>
                 <span class="availability-value">{{ getFulfillmentRate(selectedOrder) }}%</span>
+              </div>
+              <div class="availability-item">
+                <span class="availability-label">To Produce:</span>
+                <span class="availability-value">{{ selectedOrder.toProduce || 0 }}</span>
               </div>
               <div class="availability-item">
                 <span class="availability-label">Cumulative Quantity:</span>
@@ -682,7 +734,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useSalesOrders } from '@/composables/useSalesOrders'
 import { salesOrderService } from '@/services/salesOrderService'
 import type { SalesOrderMain, SalesOrderByDate } from '@/types/api'
@@ -739,9 +791,14 @@ const currentPage = ref(1)
 const sortColumn = ref<string>('')
 const sortDirection = ref<'asc' | 'desc'>('asc')
 
+// Force re-render state
+const componentKey = ref(0)
+const localCredentialsState = ref(false)
+
 // Computed properties
 const hasCredentials = computed(() => {
-  return salesOrderService.hasCredentials()
+  const serviceHasCredentials = salesOrderService.hasCredentials()
+  return serviceHasCredentials || localCredentialsState.value
 })
 
 const hasDateErrors = computed(() => {
@@ -811,7 +868,7 @@ const availablePlants = computed(() => {
 const sortedAndFilteredData = computed(() => {
   if (!activeWeekData.value) return []
   
-  let data = [...activeWeekData.value.salesOrderMainList] // Create a copy to avoid mutations
+  let data = [...activeWeekData.value.salesOrderMainList]
   
   // Apply plant filter
   if (selectedPlant.value !== 'All') {
@@ -825,7 +882,6 @@ const sortedAndFilteredData = computed(() => {
       order.material.toLowerCase().includes(search) ||
       order.plant.toLowerCase().includes(search) ||
       order.requestedQuantityUnit.toLowerCase().includes(search) ||
-      // Search in dynamic items
       (order.dynamicSoItems && Object.values(order.dynamicSoItems).some(item => 
         item.plannedOrder?.toLowerCase().includes(search) ||
         item.productionOrder?.toLowerCase().includes(search)
@@ -840,13 +896,11 @@ const sortedAndFilteredData = computed(() => {
         let valueA: any = ''
         let valueB: any = ''
         
-        // Handle different column types
         if (sortColumn.value.startsWith('dynamic-')) {
-          // Dynamic column sorting
           const parts = sortColumn.value.split('-')
           if (parts.length >= 3) {
-            const key = parts[1] // Extract key from 'dynamic-{key}-{field}'
-            const field = parts[2] // Extract field from 'dynamic-{key}-{field}'
+            const key = parts[1]
+            const field = parts[2]
             
             const itemA = a.dynamicSoItems?.[key]
             const itemB = b.dynamicSoItems?.[key]
@@ -863,7 +917,6 @@ const sortedAndFilteredData = computed(() => {
             }
           }
         } else {
-          // Standard column sorting
           switch (sortColumn.value) {
             case 'material':
               valueA = a.material || ''
@@ -877,7 +930,15 @@ const sortedAndFilteredData = computed(() => {
               valueA = Number(a.requestedQuantity) || 0
               valueB = Number(b.requestedQuantity) || 0
               break
-            case 'cumulativeQuantity':  // NEW: Cumulative quantity sorting
+            case 'toProduce':
+              valueA = Number(a.toProduce) || 0
+              valueB = Number(b.toProduce) || 0
+              break
+            case 'totalAvailableQuantity':
+              valueA = Number(a.totalAvailableQuantity) || 0
+              valueB = Number(b.totalAvailableQuantity) || 0
+              break
+            case 'cumulativeQuantity':
               valueA = Number(a.cumulativeQuantity) || 0
               valueB = Number(b.cumulativeQuantity) || 0
               break
@@ -889,7 +950,7 @@ const sortedAndFilteredData = computed(() => {
               valueA = Number(a.availableCharged) || 0
               valueB = Number(b.availableCharged) || 0
               break
-            case 'finalBattery':  // Final battery sorting
+            case 'finalBattery':
               valueA = Number(a.finalBattery) || 0
               valueB = Number(b.finalBattery) || 0
               break
@@ -899,11 +960,9 @@ const sortedAndFilteredData = computed(() => {
           }
         }
         
-        // Handle different data types
         if (typeof valueA === 'number' && typeof valueB === 'number') {
           return sortDirection.value === 'asc' ? valueA - valueB : valueB - valueA
         } else {
-          // String comparison
           const strA = String(valueA).toLowerCase()
           const strB = String(valueB).toLowerCase()
           
@@ -916,7 +975,6 @@ const sortedAndFilteredData = computed(() => {
       })
     } catch (error) {
       console.error('Error in sorting:', error)
-      // Return unsorted data if sorting fails
       return data
     }
   }
@@ -924,13 +982,9 @@ const sortedAndFilteredData = computed(() => {
   return data
 })
 
-// Updated computed properties to use sorted data
 const filteredData = computed(() => {
-  // Keep this for backward compatibility with template references
   return sortedAndFilteredData.value
 })
-
-// Fixed computed properties for proper pagination
 
 const totalRecords = computed(() => {
   return sortedAndFilteredData.value.length
@@ -952,7 +1006,6 @@ const displayEndIndex = computed(() => {
   return Math.min(calculatedEnd, totalRecords.value)
 })
 
-// Keep this for backward compatibility but fix the calculation
 const endIndex = computed(() => {
   return displayEndIndex.value
 })
@@ -960,24 +1013,10 @@ const endIndex = computed(() => {
 const paginatedData = computed(() => {
   const data = sortedAndFilteredData.value
   const start = startIndex.value
-  const itemsPerPage = parseInt(pageLength.value) // Ensure it's a number
+  const itemsPerPage = parseInt(pageLength.value)
   const end = start + itemsPerPage
   
-  console.log(`🔍 Pagination calc:`, {
-    currentPage: currentPage.value,
-    pageLength: itemsPerPage,
-    start: start,
-    calculatedEnd: end,
-    actualEnd: Math.min(end, data.length),
-    totalRecords: data.length,
-    displayStart: start + 1,
-    displayEnd: Math.min(end, data.length)
-  })
-  
-  // Slice the data correctly
   const result = data.slice(start, end)
-  console.log(`📊 Paginated result: ${result.length} items (should be max ${itemsPerPage})`)
-  
   return result
 })
 
@@ -996,22 +1035,14 @@ const paginationDisplay = computed(() => {
   }
 })
 
-// Add watchers to reset pagination when data changes
-watch([sortedAndFilteredData, selectedPlant, searchTerm], () => {
-  // Reset to first page when data changes
-  if (currentPage.value > totalPages.value && totalPages.value > 0) {
-    currentPage.value = 1
-  }
-}, { deep: true })
-
-watch(pageLength, () => {
-  // When page length changes, recalculate current page
-  updatePageLength()
-})
-
 const totalColumns = computed(() => {
-  return 7 + (dynamicColumnKeys.value.length * 3) // Basic(2) + Inventory(5: requested, cumulative, available, charged, final) + Dynamic(keys*3)
+  return 9 + (dynamicColumnKeys.value.length * 3)
 })
+
+// Force re-render method
+const forceRerender = () => {
+  componentKey.value++
+}
 
 // Date validation methods
 const validateDateFrom = () => {
@@ -1040,7 +1071,6 @@ const validateDateTo = () => {
   }
 }
 
-// Date selection handlers
 const onDateFromSelect = () => {
   validateDateFrom()
   if (apiDateToDate.value) {
@@ -1058,18 +1088,13 @@ const onDateToSelect = () => {
 // Sorting methods
 const sortBy = (column: string) => {
   if (sortColumn.value === column) {
-    // Same column - toggle direction
     sortDirection.value = sortDirection.value === 'asc' ? 'desc' : 'asc'
   } else {
-    // New column - start with ascending
     sortColumn.value = column
     sortDirection.value = 'asc'
   }
   
-  // Reset to first page when sorting
   currentPage.value = 1
-  
-  console.log(`🔄 Sorting by ${column} in ${sortDirection.value} order`)
 }
 
 const resetSort = () => {
@@ -1080,19 +1105,14 @@ const resetSort = () => {
 
 // Methods
 const filterData = () => {
-  currentPage.value = 1 // Reset to first page when searching
+  currentPage.value = 1
 }
 
 const updatePageLength = () => {
   const newPageLength = parseInt(pageLength.value)
-  console.log(`📏 Page length changed to: ${newPageLength}`)
-  
-  // Calculate what the new max page should be
   const newMaxPage = Math.ceil(totalRecords.value / newPageLength)
   
-  // If current page exceeds new max, go to the last valid page
   if (currentPage.value > newMaxPage && newMaxPage > 0) {
-    console.log(`📍 Adjusting page from ${currentPage.value} to ${newMaxPage}`)
     currentPage.value = newMaxPage
   }
 }
@@ -1100,19 +1120,23 @@ const updatePageLength = () => {
 const goToPage = (page) => {
   const maxPage = totalPages.value
   if (page >= 1 && page <= maxPage) {
-    console.log(`🔄 Going to page ${page} of ${maxPage}`)
     currentPage.value = page
-  } else {
-    console.warn(`⚠️ Invalid page: ${page}, max is ${maxPage}`)
   }
 }
 
-// Footer calculation methods - updated to use sorted data
+// Footer calculation methods
 const getTotalRequested = () => {
   return sortedAndFilteredData.value.reduce((total, order) => total + order.requestedQuantity, 0)
 }
 
-// NEW: Cumulative quantity total calculation
+const getTotalToProduce = () => {
+  return sortedAndFilteredData.value.reduce((total, order) => total + (order.toProduce || 0), 0)
+}
+
+const getTotalAvailableQuantity = () => {
+  return sortedAndFilteredData.value.reduce((total, order) => total + (order.totalAvailableQuantity || 0), 0)
+}
+
 const getTotalCumulativeQuantity = () => {
   return sortedAndFilteredData.value.reduce((total, order) => total + (order.cumulativeQuantity || 0), 0)
 }
@@ -1125,7 +1149,6 @@ const getTotalAvailableCharged = () => {
   return sortedAndFilteredData.value.reduce((total, order) => total + order.availableCharged, 0)
 }
 
-// Final battery total calculation
 const getTotalFinalBattery = () => {
   return sortedAndFilteredData.value.reduce((total, order) => total + (order.finalBattery || 0), 0)
 }
@@ -1173,21 +1196,18 @@ const setActiveWeekTab = (weekName: string, index: number) => {
   selectedPlant.value = 'All'
   searchTerm.value = ''
   currentPage.value = 1
-  resetSort() // Reset sorting when changing weeks
-  
-  console.log(`🔄 Switching to week ${weekName} with ${dynamicColumnKeys.value.length} dynamic column groups`)
+  resetSort()
 }
 
 const applyPlantFilter = () => {
-  console.log(`🏭 Plant filter changed to: ${selectedPlant.value}`)
-  currentPage.value = 1 // Reset pagination when filter changes
+  currentPage.value = 1
 }
 
 // Date and API methods
 const initializeDateInputs = () => {
   const now = new Date()
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0) // Remove time for date-only
+  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0)
   
   apiDateFromDate.value = startOfMonth
   apiDateToDate.value = endOfMonth
@@ -1214,22 +1234,12 @@ const loadDataFromAPI = async () => {
   }
 
   if (hasDateErrors.value) {
-    console.warn('⚠️ Cannot load data with date validation errors')
     return
   }
 
   try {
     filters.reqDelDateBegin = formatDateForBackend(apiDateFromDate.value)
     filters.reqDelDateEnd = formatDateForBackend(apiDateToDate.value)
-    
-    console.log('🔍 Setting date filters:', {
-      fromDate: apiDateFromDate.value.toISOString(),
-      toDate: apiDateToDate.value.toISOString(),
-      backendFormat: {
-        begin: filters.reqDelDateBegin,
-        end: filters.reqDelDateEnd
-      }
-    })
     
     filters.material = ''
     filters.plant = ''
@@ -1238,7 +1248,7 @@ const loadDataFromAPI = async () => {
     activeWeekIndex.value = 0
     searchTerm.value = ''
     currentPage.value = 1
-    resetSort() // Reset sorting when loading new data
+    resetSort()
     
     await fetchSalesOrders()
   } catch (error) {
@@ -1263,14 +1273,31 @@ const saveCredentials = async () => {
   credentialsError.value = ''
 
   try {
+    // Save credentials
     setCredentials(credentialsForm.value.username, credentialsForm.value.password)
-    closeCredentialsModal()
     
+    // Force local state update
+    localCredentialsState.value = true
+    
+    // Wait for Vue to process
+    await nextTick()
+    
+    // Force re-render
+    forceRerender()
+    
+    // Close modal
+    showCredentialsModal.value = false
+    credentialsForm.value = { username: '', password: '' }
+    credentialsError.value = ''
+    
+    // Initialize dates
     initializeDateInputs()
-    console.log('✅ Credentials saved successfully')
     
   } catch (error) {
+    console.error('❌ Error saving credentials:', error)
     credentialsError.value = error instanceof Error ? error.message : 'Failed to save credentials'
+    localCredentialsState.value = false
+    showCredentialsModal.value = true
   } finally {
     savingCredentials.value = false
   }
@@ -1285,6 +1312,7 @@ const closeCredentialsModal = () => {
 
 const clearCredentialsAndReload = () => {
   clearCredentials()
+  localCredentialsState.value = false
   clearError()
   showCredentialsModal.value = true
 }
@@ -1317,43 +1345,39 @@ const getAvailabilityStatusClass = (order: SalesOrderMain) => {
   }
 }
 
-// Get planned order for a specific dynamic key (from first item that has this key)
 const getPlannedOrderForKey = (key: string) => {
   if (!activeWeekData.value) return 'N/A'
   
-  // Find the first order that has this dynamic key with a plannedOrder
   for (const order of activeWeekData.value.salesOrderMainList) {
     if (order.dynamicSoItems?.[key]?.plannedOrder) {
       return order.dynamicSoItems[key].plannedOrder
     }
   }
   
-  return 'N/A' // Return N/A if no plannedOrder found for this key
+  return 'N/A'
 }
 
 // Watchers
+watch([sortedAndFilteredData, selectedPlant, searchTerm], () => {
+  if (currentPage.value > totalPages.value && totalPages.value > 0) {
+    currentPage.value = 1
+  }
+}, { deep: true })
+
+watch(pageLength, () => {
+  updatePageLength()
+})
+
 watch(salesOrdersByDate, (newData) => {
   if (newData.length > 0 && !activeWeekTab.value) {
     setActiveWeekTab(newData[0].reqDlvWeek, 0)
   }
 }, { deep: true })
 
-watch(sortedAndFilteredData, () => {
-  const maxPage = Math.ceil(sortedAndFilteredData.value.length / pageLength.value)
-  if (maxPage === 0) {
-    currentPage.value = 1
-  } else if (currentPage.value > maxPage) {
-    console.log(`📍 Data changed, adjusting page from ${currentPage.value} to ${maxPage}`)
-    currentPage.value = maxPage
-  }
-}, { deep: true })
-
-// Reset page when filters change
 watch([selectedPlant, searchTerm], () => {
   currentPage.value = 1
 })
 
-// Watch for date changes to validate
 watch([apiDateFromDate, apiDateToDate], () => {
   if (apiDateFromDate.value) validateDateFrom()
   if (apiDateToDate.value) validateDateTo()
@@ -1361,11 +1385,13 @@ watch([apiDateFromDate, apiDateToDate], () => {
 
 // Initialize component
 onMounted(() => {
-  console.log('🔍 SalesOrders component mounted with PrimeVue DatePicker and Cumulative Quantity')
-  initializeDateInputs()
+  const initialHasCredentials = salesOrderService.hasCredentials()
+  localCredentialsState.value = initialHasCredentials
   
-  if (!hasCredentials.value) {
+  if (!initialHasCredentials) {
     showCredentialsModal.value = true
+  } else {
+    initializeDateInputs()
   }
 })
 </script>

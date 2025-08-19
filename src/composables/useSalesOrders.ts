@@ -387,6 +387,65 @@ export function useSalesOrders() {
     }
   })
 
+  const getToProduceStatistics = computed(() => {
+    const allOrders = allSalesOrders.value
+    
+    if (allOrders.length === 0) {
+      return {
+        totalToProduce: 0,
+        averageToProduce: 0,
+        maxToProduce: 0,
+        minToProduce: 0,
+        toProduceEfficiency: 0 // Percentage of to produce vs requested quantity
+      }
+    }
+
+    const toProduceValues = allOrders
+      .map(order => order.toProduce || 0)
+      .filter(value => value > 0)
+
+    const totalToProduce = allOrders.reduce((sum, order) => sum + (order.toProduce || 0), 0)
+    const totalRequested = allOrders.reduce((sum, order) => sum + order.requestedQuantity, 0)
+    
+    return {
+      totalToProduce,
+      averageToProduce: toProduceValues.length > 0 ? totalToProduce / toProduceValues.length : 0,
+      maxToProduce: toProduceValues.length > 0 ? Math.max(...toProduceValues) : 0,
+      minToProduce: toProduceValues.length > 0 ? Math.min(...toProduceValues) : 0,
+      toProduceEfficiency: totalRequested > 0 ? (totalToProduce / totalRequested) * 100 : 0
+    }
+  })
+
+  // NEW: Calculate totalAvailableQuantity statistics from current data
+  const getTotalAvailableQuantityStatistics = computed(() => {
+    const allOrders = allSalesOrders.value
+    
+    if (allOrders.length === 0) {
+      return {
+        totalAvailableQuantitySum: 0,
+        averageTotalAvailableQuantity: 0,
+        maxTotalAvailableQuantity: 0,
+        minTotalAvailableQuantity: 0,
+        totalAvailableEfficiency: 0 // Percentage of total available vs requested quantity
+      }
+    }
+
+    const totalAvailableValues = allOrders
+      .map(order => order.totalAvailableQuantity || 0)
+      .filter(value => value > 0)
+
+    const totalAvailableQuantitySum = allOrders.reduce((sum, order) => sum + (order.totalAvailableQuantity || 0), 0)
+    const totalRequested = allOrders.reduce((sum, order) => sum + order.requestedQuantity, 0)
+    
+    return {
+      totalAvailableQuantitySum,
+      averageTotalAvailableQuantity: totalAvailableValues.length > 0 ? totalAvailableQuantitySum / totalAvailableValues.length : 0,
+      maxTotalAvailableQuantity: totalAvailableValues.length > 0 ? Math.max(...totalAvailableValues) : 0,
+      minTotalAvailableQuantity: totalAvailableValues.length > 0 ? Math.min(...totalAvailableValues) : 0,
+      totalAvailableEfficiency: totalRequested > 0 ? (totalAvailableQuantitySum / totalRequested) * 100 : 0
+    }
+  })
+
   // Helper function to calculate final battery statistics for a specific week
   const getWeekFinalBatteryStats = (weekData: SalesOrderByDate) => {
     const orders = weekData.salesOrderMainList
@@ -451,6 +510,25 @@ export function useSalesOrders() {
     })
   }
 
+  const getOrdersSortedByToProduce = (descending: boolean = true) => {
+    const orders = [...allSalesOrders.value]
+    return orders.sort((a, b) => {
+      const aValue = a.toProduce || 0
+      const bValue = b.toProduce || 0
+      return descending ? bValue - aValue : aValue - bValue
+    })
+  }
+
+  // NEW: Get orders sorted by totalAvailableQuantity
+  const getOrdersSortedByTotalAvailableQuantity = (descending: boolean = true) => {
+    const orders = [...allSalesOrders.value]
+    return orders.sort((a, b) => {
+      const aValue = a.totalAvailableQuantity || 0
+      const bValue = b.totalAvailableQuantity || 0
+      return descending ? bValue - aValue : aValue - bValue
+    })
+  }
+
   // Get orders with specific final battery criteria
   const getOrdersByFinalBatteryCriteria = (criteria: {
     minFinalBattery?: number
@@ -480,6 +558,40 @@ export function useSalesOrders() {
       if (criteria.hasCumulativeOnly && cumulativeQuantity === 0) return false
       if (criteria.minCumulativeQuantity !== undefined && cumulativeQuantity < criteria.minCumulativeQuantity) return false
       if (criteria.maxCumulativeQuantity !== undefined && cumulativeQuantity > criteria.maxCumulativeQuantity) return false
+      
+      return true
+    })
+  }
+
+  // NEW: Get orders with specific toProduce criteria
+  const getOrdersByToProduceCriteria = (criteria: {
+    minToProduce?: number
+    maxToProduce?: number
+    hasToProduceOnly?: boolean
+  }) => {
+    return allSalesOrders.value.filter(order => {
+      const toProduce = order.toProduce || 0
+      
+      if (criteria.hasToProduceOnly && toProduce === 0) return false
+      if (criteria.minToProduce !== undefined && toProduce < criteria.minToProduce) return false
+      if (criteria.maxToProduce !== undefined && toProduce > criteria.maxToProduce) return false
+      
+      return true
+    })
+  }
+
+  // NEW: Get orders with specific totalAvailableQuantity criteria
+  const getOrdersByTotalAvailableCriteria = (criteria: {
+    minTotalAvailable?: number
+    maxTotalAvailable?: number
+    hasTotalAvailableOnly?: boolean
+  }) => {
+    return allSalesOrders.value.filter(order => {
+      const totalAvailable = order.totalAvailableQuantity || 0
+      
+      if (criteria.hasTotalAvailableOnly && totalAvailable === 0) return false
+      if (criteria.minTotalAvailable !== undefined && totalAvailable < criteria.minTotalAvailable) return false
+      if (criteria.maxTotalAvailable !== undefined && totalAvailable > criteria.maxTotalAvailable) return false
       
       return true
     })
@@ -571,6 +683,48 @@ export function useSalesOrders() {
     }
   })
 
+  const getToProduceRequestedComparison = computed(() => {
+    const orders = allSalesOrders.value
+    
+    if (orders.length === 0) {
+      return {
+        ordersWithHigherToProduce: 0,
+        ordersWithLowerToProduce: 0,
+        ordersWithEqualToProduce: 0,
+        averageToProduceRatio: 0
+      }
+    }
+
+    let higherCount = 0
+    let lowerCount = 0
+    let equalCount = 0
+    let totalRatio = 0
+
+    orders.forEach(order => {
+      const toProduce = order.toProduce || 0
+      const requested = order.requestedQuantity || 0
+      
+      if (toProduce > requested) {
+        higherCount++
+      } else if (toProduce < requested) {
+        lowerCount++
+      } else {
+        equalCount++
+      }
+      
+      if (requested > 0) {
+        totalRatio += toProduce / requested
+      }
+    })
+
+    return {
+      ordersWithHigherToProduce: higherCount,
+      ordersWithLowerToProduce: lowerCount,
+      ordersWithEqualToProduce: equalCount,
+      averageToProduceRatio: orders.length > 0 ? (totalRatio / orders.length) * 100 : 0
+    }
+  })
+
   return {
     // State - Updated for new structure
     salesOrdersByDate, // New: SalesOrderByDate[]
@@ -593,6 +747,13 @@ export function useSalesOrders() {
     // NEW: Cumulative Quantity Computed Properties
     cumulativeQuantityStatistics: getCumulativeQuantityStatistics,
     cumulativeQuantityAvailabilityComparison: getCumulativeQuantityAvailabilityComparison,
+
+      // NEW: ToProduce Computed Properties
+    toProduceStatistics: getToProduceStatistics,
+    toProduceRequestedComparison: getToProduceRequestedComparison,
+    
+    // NEW: TotalAvailableQuantity Computed Properties
+    totalAvailableQuantityStatistics: getTotalAvailableQuantityStatistics,
     
     // Methods
     fetchSalesOrders,
@@ -624,6 +785,14 @@ export function useSalesOrders() {
     getWeekCumulativeQuantityStats,
     getOrdersSortedByCumulativeQuantity,
     getOrdersByCumulativeQuantityCriteria,
+
+    // NEW: ToProduce Methods
+    getOrdersSortedByToProduce,
+    getOrdersByToProduceCriteria,
+    
+    // NEW: TotalAvailableQuantity Methods,
+    getOrdersSortedByTotalAvailableQuantity,
+    getOrdersByTotalAvailableCriteria,
     
     // Utility methods
     formatDateForBackend: (date: Date) => {

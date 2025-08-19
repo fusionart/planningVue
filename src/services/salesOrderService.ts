@@ -1,4 +1,4 @@
-// src/services/salesOrderService.ts - Updated for SalesOrderByDate with finalBattery and cumulativeQuantity
+// src/services/salesOrderService.ts - Updated with toProduce and totalAvailableQuantity fields
 
 import { apiClient } from './apiClient'
 import type { SalesOrderByDate, SalesOrderMain, SalesOrderItemsRequest } from '@/types/api'
@@ -231,15 +231,17 @@ class SalesOrderService {
 
   /**
    * Get sales orders statistics (calculated client-side across all weeks)
-   * UPDATED: Now includes finalBattery and cumulativeQuantity totals
+   * UPDATED: Now includes toProduce and totalAvailableQuantity totals
    */
   async getSalesOrdersStats(): Promise<{
     totalOrders: number
     totalRequestedQuantity: number
-    totalCumulativeQuantity: number  // NEW: Total cumulative quantity
+    totalToProduce: number              // NEW: Total to produce quantity
+    totalAvailableQuantity: number      // NEW: Total available quantity
+    totalCumulativeQuantity: number     // Total cumulative quantity
     totalAvailableNotCharged: number
     totalAvailableCharged: number
-    totalFinalBattery: number  // Total final battery
+    totalFinalBattery: number           // Total final battery
     uniquePlants: number
     uniqueMaterials: number
     weekCount: number
@@ -255,7 +257,9 @@ class SalesOrderService {
       
       const totalOrders = allOrders.length
       const totalRequestedQuantity = allOrders.reduce((sum, order) => sum + order.requestedQuantity, 0)
-      const totalCumulativeQuantity = allOrders.reduce((sum, order) => sum + (order.cumulativeQuantity || 0), 0) // NEW
+      const totalToProduce = allOrders.reduce((sum, order) => sum + (order.toProduce || 0), 0) // NEW
+      const totalAvailableQuantity = allOrders.reduce((sum, order) => sum + (order.totalAvailableQuantity || 0), 0) // NEW
+      const totalCumulativeQuantity = allOrders.reduce((sum, order) => sum + (order.cumulativeQuantity || 0), 0)
       const totalAvailableNotCharged = allOrders.reduce((sum, order) => sum + order.availableNotCharged, 0)
       const totalAvailableCharged = allOrders.reduce((sum, order) => sum + order.availableCharged, 0)
       const totalFinalBattery = allOrders.reduce((sum, order) => sum + (order.finalBattery || 0), 0)
@@ -268,7 +272,9 @@ class SalesOrderService {
         console.log('📈 Sales orders statistics calculated:', {
           totalOrders,
           totalRequestedQuantity,
-          totalCumulativeQuantity,  // NEW
+          totalToProduce,              // NEW
+          totalAvailableQuantity,      // NEW
+          totalCumulativeQuantity,
           totalAvailableNotCharged,
           totalAvailableCharged,
           totalFinalBattery,
@@ -281,7 +287,9 @@ class SalesOrderService {
       return {
         totalOrders,
         totalRequestedQuantity,
-        totalCumulativeQuantity,  // NEW
+        totalToProduce,              // NEW
+        totalAvailableQuantity,      // NEW
+        totalCumulativeQuantity,
         totalAvailableNotCharged,
         totalAvailableCharged,
         totalFinalBattery,
