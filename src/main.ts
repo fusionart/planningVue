@@ -10,7 +10,16 @@ import './styles/main.css'
 // PrimeVue imports
 import PrimeVue from 'primevue/config'
 import Aura from '@primevue/themes/aura'
+
+// Import all required PrimeVue components
 import DatePicker from 'primevue/datepicker'
+import DataTable from 'primevue/datatable'
+import Column from 'primevue/column'
+import ColumnGroup from 'primevue/columngroup'
+import Row from 'primevue/row'
+import Dropdown from 'primevue/dropdown'
+import InputText from 'primevue/inputtext'
+
 import 'primeicons/primeicons.css'
 
 // Import PrimeVue specific styles
@@ -96,8 +105,14 @@ async function initializeApp() {
       }
     })
 
-    // Register PrimeVue components globally
+    // Register all required PrimeVue components globally
     app.component('DatePicker', DatePicker)
+    app.component('DataTable', DataTable)
+    app.component('Column', Column)
+    app.component('ColumnGroup', ColumnGroup)
+    app.component('Row', Row)
+    app.component('Dropdown', Dropdown)
+    app.component('InputText', InputText)
     
     app.use(router)
 
@@ -129,6 +144,9 @@ async function initializeApp() {
       console.log('Mock Data:', env.FEATURES.MOCK_DATA) // Should be false
       console.log('API Base URL:', env.API.BASE_URL)
       console.log('PrimeVue Theme:', 'Aura')
+      console.log('PrimeVue Components Registered:', [
+        'DatePicker', 'DataTable', 'Column', 'ColumnGroup', 'Row', 'Dropdown', 'InputText'
+      ])
       console.log('Features enabled:', Object.entries(env.FEATURES)
         .filter(([_, enabled]) => enabled)
         .map(([feature]) => feature)
@@ -206,7 +224,7 @@ async function initializeDevelopmentMode() {
     'Mock Data': env.FEATURES.MOCK_DATA, // Should be false
     'Debug Mode': env.FEATURES.DEBUG_MODE,
     'SAP Connection': env.FEATURES.SAP_CONNECTION,
-    'PrimeVue': 'Enabled with Aura theme'
+    'PrimeVue': 'Enabled with Aura theme + DataTable'
   })
 
   console.groupEnd()

@@ -1,4 +1,4 @@
-<!-- SalesOrders.vue - Clean version without debug features -->
+<!-- SalesOrders.vue - Fixed with proper PrimeVue DataTable integration -->
 <template>
   <div class="sales-orders" :key="componentKey">
     <div class="page-header">
@@ -191,10 +191,10 @@
       </button>
     </div>
 
-    <!-- Data Display with Two-Row Header -->
+    <!-- Data Display with Custom Table and PrimeVue Features -->
     <div v-else-if="hasData" class="table-container">
       <div class="table-header">
-        <h3>Батерии за седмица {{ activeWeekData?.reqDlvWeek }} - {{ filteredData.length }} записа</h3>
+        <h3>Батерии за седмица {{ activeWeekData?.reqDlvWeek }} - {{ filteredDataLength }} записа</h3>
         <div class="table-info">
           <span class="data-range">
             Дати: {{ formatDateDisplay(apiDateFromDate) }} - {{ formatDateDisplay(apiDateToDate) }}
@@ -226,57 +226,93 @@
         </div>
       </div>
 
-      <!-- Custom Table with Two-Row Header -->
-      <div v-if="activeWeekData && activeWeekData.salesOrderMainList.length > 0" class="week-table-container">        
-        <div class="custom-datatable-container">
-          <div class="table-controls">
-            <div class="controls-left">
-              <!-- Plant Filter -->
+      <!-- Custom Table with PrimeVue DataTable functionality -->
+      <div v-if="activeWeekData && activeWeekData.salesOrderMainList.length > 0" class="week-table-container">
+        <div class="table-controls">
+          <div class="controls-left">
+            <!-- Plant Filter - Native Select -->
+            <div class="plant-filter-container">
               <label class="plant-filter-label">
                 Филтър по завод:
-                <select
-                  id="plantFilter"
-                  v-model="selectedPlant"
-                  @change="applyPlantFilter"
-                  class="filter-select"
+              </label>
+              <select
+                v-model="selectedPlant"
+                @change="applyPlantFilter"
+                class="plant-filter-select"
+              >
+                <option value="All">Всички заводи</option>
+                <option 
+                  v-for="plant in availablePlants" 
+                  :key="plant" 
+                  :value="plant"
                 >
-                  <option value="All">Всички заводи</option>
-                  <option 
-                    v-for="plant in availablePlants" 
-                    :key="plant" 
-                    :value="plant"
-                  >
-                    {{ plant }}
-                  </option>
-                </select>
-              </label>
-            </div>
-
-            <div class="controls-right">
-              <label>
-                Търсене: 
-                <input 
-                  type="text" 
-                  v-model="searchTerm" 
-                  @input="filterData"
-                  placeholder="Търсене в настоящата седмица ..."
-                  class="search-input"
-                >
-              </label>
-              <label>
-                Покажи 
-                <select v-model="pageLength" @change="updatePageLength" class="page-length-select">
-                  <option value="10">10</option>
-                  <option value="15">15</option>
-                  <option value="25">25</option>
-                  <option value="50">50</option>
-                  <option value="100">100</option>
-                </select>
-                записа
-              </label>
+                  {{ plant }}
+                </option>
+              </select>
             </div>
           </div>
 
+          <div class="controls-right">
+            <div class="search-container">
+              <label class="search-label">
+                Търсене: 
+              </label>
+              <input
+                type="text"
+                v-model="globalFilterValue" 
+                placeholder="Търсене в настоящата седмица ..."
+                class="search-input"
+              />
+            </div>
+            
+            <div class="page-size-container">
+              <label class="page-size-label">
+                Покажи 
+              </label>
+              <select
+                v-model="rows"
+                class="page-size-select"
+              >
+                <option :value="10">10</option>
+                <option :value="15">15</option>
+                <option :value="25">25</option>
+                <option :value="50">50</option>
+                <option :value="100">100</option>
+              </select>
+              <span class="page-size-suffix">записа</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Hidden PrimeVue DataTable for functionality only -->
+        <DataTable 
+          ref="dataTableRef"
+          :value="plantFilteredData"
+          v-model:filters="filters"
+          :globalFilterFields="globalFilterFields"
+          :paginator="true"
+          :rows="rows"
+          :totalRecords="plantFilteredData.length"
+          :sortMode="'multiple'"
+          :removableSort="true"
+          @sort="onSort"
+          @page="onPage"
+          class="hidden-datatable"
+          style="display: none;"
+        >
+          <Column field="material" :sortable="true" />
+          <Column field="plant" :sortable="true" />
+          <Column field="requestedQuantity" :sortable="true" />
+          <Column field="toProduce" :sortable="true" />
+          <Column field="totalAvailableQuantity" :sortable="true" />
+          <Column field="cumulativeQuantity" :sortable="true" />
+          <Column field="availableNotCharged" :sortable="true" />
+          <Column field="availableCharged" :sortable="true" />
+          <Column field="finalBattery" :sortable="true" />
+        </DataTable>
+
+        <!-- Custom Visual Table -->
+        <div class="custom-datatable-container">
           <div class="table-wrapper">
             <table class="sales-orders-table-custom">
               <thead>
@@ -322,7 +358,7 @@
                     </span>
                   </th>
                   
-                  <!-- Inventory Data Columns - Now includes toProduce and totalAvailableQuantity -->
+                  <!-- Inventory Data Columns -->
                   <th 
                     class="col-requested sortable" 
                     @click="sortBy('requestedQuantity')"
@@ -336,7 +372,6 @@
                       <span v-else class="sort-arrows">↕</span>
                     </span>
                   </th>
-                  <!-- NEW: To Produce Column -->
                   <th 
                     class="col-to-produce sortable" 
                     @click="sortBy('toProduce')"
@@ -350,7 +385,6 @@
                       <span v-else class="sort-arrows">↕</span>
                     </span>
                   </th>
-                  <!-- NEW: Total Available Quantity Column -->
                   <th 
                     class="col-total-available sortable" 
                     @click="sortBy('totalAvailableQuantity')"
@@ -364,7 +398,6 @@
                       <span v-else class="sort-arrows">↕</span>
                     </span>
                   </th>
-                  <!-- Cumulative Quantity Column -->
                   <th 
                     class="col-cumulative sortable" 
                     @click="sortBy('cumulativeQuantity')"
@@ -404,7 +437,6 @@
                       <span v-else class="sort-arrows">↕</span>
                     </span>
                   </th>
-                  <!-- Final Battery Column -->
                   <th 
                     class="col-final-battery sortable" 
                     @click="sortBy('finalBattery')"
@@ -419,7 +451,7 @@
                     </span>
                   </th>
                   
-                  <!-- Dynamic Columns - Each Sales Order + Customer group -->
+                  <!-- Dynamic Columns -->
                   <template v-for="(key, keyIndex) in dynamicColumnKeys" :key="key">
                     <th 
                       :class="['col-dynamic-qty sortable', { 'first-dynamic-group': keyIndex === 0, 'sort-active': sortColumn === `dynamic-${key}-quantity` }]"
@@ -474,20 +506,16 @@
                   <td class="cell-material">{{ order.material }}</td>
                   <td class="cell-plant">{{ order.plant }}</td>
                   
-                  <!-- Inventory Data - Now includes toProduce and totalAvailableQuantity -->
+                  <!-- Inventory Data -->
                   <td class="cell-requested">{{ formatQuantity(order.requestedQuantity, order.requestedQuantityUnit) }}</td>
-                  <!-- NEW: To Produce Cell -->
                   <td class="cell-to-produce">{{ formatNumber(order.toProduce || 0) }}</td>
-                  <!-- NEW: Total Available Quantity Cell -->
                   <td class="cell-total-available">{{ formatNumber(order.totalAvailableQuantity || 0) }}</td>
-                  <!-- Cumulative Quantity Cell -->
                   <td class="cell-cumulative">{{ formatNumber(order.cumulativeQuantity || 0) }}</td>
                   <td class="cell-available">{{ formatNumber(order.availableNotCharged) }}</td>
                   <td class="cell-charged">{{ formatNumber(order.availableCharged) }}</td>
-                  <!-- Final Battery Cell -->
                   <td class="cell-final-battery">{{ formatNumber(order.finalBattery || 0) }}</td>
                   
-                  <!-- Dynamic Columns - Each Sales Order + Customer group -->
+                  <!-- Dynamic Columns -->
                   <template v-for="(key, keyIndex) in dynamicColumnKeys" :key="key">
                     <td :class="['cell-dynamic-qty', { 'first-dynamic-group': keyIndex === 0 }]">
                       {{ order.dynamicSoItems?.[key]?.quantity ? formatNumber(order.dynamicSoItems[key].quantity) : '-' }}
@@ -504,7 +532,7 @@
                 <!-- No data row -->
                 <tr v-if="sortedAndFilteredData.length === 0" class="no-data-row">
                   <td :colspan="totalColumns" class="no-data-cell">
-                    {{ searchTerm ? 'No matching records found' : 'No data available' }}
+                    {{ globalFilterValue ? 'No matching records found' : 'No data available' }}
                   </td>
                 </tr>
               </tbody>
@@ -512,24 +540,17 @@
               <!-- Footer with Totals -->
               <tfoot>
                 <tr class="footer-totals">
-                  <!-- Basic Information Totals -->
                   <td class="footer-material">{{ sortedAndFilteredData.length }} записа</td>
                   <td class="footer-plant">{{ getUniquePlants() }} завода</td>
-                  
-                  <!-- Inventory Totals - Now includes toProduce and totalAvailableQuantity -->
                   <td class="footer-requested">Общо: {{ formatNumber(getTotalRequested()) }} бр.</td>
-                  <!-- NEW: To Produce Total -->
                   <td class="footer-to-produce">Общо: {{ formatNumber(getTotalToProduce()) }} бр.</td>
-                  <!-- NEW: Total Available Quantity Total -->
                   <td class="footer-total-available">Общо: {{ formatNumber(getTotalAvailableQuantity()) }} бр.</td>
-                  <!-- Cumulative Quantity Total -->
                   <td class="footer-cumulative">Общо: {{ formatNumber(getTotalCumulativeQuantity()) }} бр.</td>
                   <td class="footer-available">Общо: {{ formatNumber(getTotalAvailableNotCharged()) }} бр.</td>
                   <td class="footer-charged">Общо: {{ formatNumber(getTotalAvailableCharged()) }} бр.</td>
-                  <!-- Final Battery Total -->
                   <td class="footer-final-battery">Общо: {{ formatNumber(getTotalFinalBattery()) }} бр.</td>
                   
-                  <!-- Dynamic Column Totals - Each Sales Order + Customer group -->
+                  <!-- Dynamic Column Totals -->
                   <template v-for="(key, keyIndex) in dynamicColumnKeys" :key="key">
                     <td :class="['footer-dynamic-qty', { 'first-dynamic-group': keyIndex === 0 }]">Общо: {{ formatNumber(getDynamicTotal(key, 'quantity')) }} бр.</td>
                     <td class="footer-dynamic-planned">{{ getDynamicCount(key, 'plannedOrder') }} поръчки</td>
@@ -540,11 +561,11 @@
             </table>
           </div>
 
-          <!-- Pagination Controls -->
+          <!-- Custom Pagination Controls -->
           <div class="pagination-controls">
             <div class="pagination-info">
               Показване {{ paginationDisplay.start }} до {{ paginationDisplay.end }} от {{ paginationDisplay.total }} записа
-              <span v-if="searchTerm">(филтрирани от {{ activeWeekData.salesOrderMainList.length }} записа)</span>
+              <span v-if="globalFilterValue">(филтрирани от {{ activeWeekData.salesOrderMainList.length }} записа)</span>
             </div>
             <div class="pagination-buttons">
               <button 
@@ -614,19 +635,16 @@
               <span class="detail-value">{{ selectedOrder.requestedQuantity }} {{ selectedOrder.requestedQuantityUnit }}</span>
             </div>
 
-            <!-- NEW: To Produce Detail -->
             <div class="detail-group">
               <label>To Produce:</label>
               <span class="detail-value">{{ selectedOrder.toProduce || 0 }}</span>
             </div>
 
-            <!-- NEW: Total Available Quantity Detail -->
             <div class="detail-group">
               <label>Total Available Quantity:</label>
               <span class="detail-value">{{ selectedOrder.totalAvailableQuantity || 0 }}</span>
             </div>
 
-            <!-- Cumulative Quantity Detail -->
             <div class="detail-group">
               <label>Cumulative Quantity:</label>
               <span class="detail-value">{{ selectedOrder.cumulativeQuantity || 0 }}</span>
@@ -642,7 +660,6 @@
               <span class="detail-value">{{ selectedOrder.availableCharged }}</span>
             </div>
 
-            <!-- Final Battery Detail -->
             <div class="detail-group">
               <label>Final Battery:</label>
               <span class="detail-value">{{ selectedOrder.finalBattery || 0 }}</span>
@@ -746,7 +763,7 @@ const {
   loading,
   error,
   pagination,
-  filters,
+  filters: salesOrderFilters,
   hasData,
   hasError,
   isEmpty,
@@ -783,19 +800,70 @@ const dateFromError = ref('')
 const dateToError = ref('')
 
 // Custom table state
-const searchTerm = ref('')
-const pageLength = ref(15)
+const globalFilterValue = ref('')
+const rows = ref(15)
 const currentPage = ref(1)
 
 // Sorting state
 const sortColumn = ref<string>('')
 const sortDirection = ref<'asc' | 'desc'>('asc')
 
+// PrimeVue DataTable state
+const dataTableRef = ref()
+const filters = ref({
+  global: { value: null, matchMode: 'contains' }
+})
+
 // Force re-render state
 const componentKey = ref(0)
 const localCredentialsState = ref(false)
 
-// Computed properties
+// Row options for dropdown
+const rowOptions = ref([
+  { label: '10', value: 10 },
+  { label: '15', value: 15 },
+  { label: '25', value: 25 },
+  { label: '50', value: 50 },
+  { label: '100', value: 100 }
+])
+
+// PrimeVue specific computed properties
+const globalFilterFields = computed(() => [
+  'material',
+  'plant',
+  'requestedQuantityUnit',
+  ...dynamicColumnKeys.value.flatMap(key => [
+    `dynamicSoItems.${key}.plannedOrder`,
+    `dynamicSoItems.${key}.productionOrder`
+  ])
+])
+
+const plantOptions = computed(() => {
+  const options = [{ label: 'Всички заводи', value: 'All' }]
+  availablePlants.value.forEach(plant => {
+    options.push({ label: plant, value: plant })
+  })
+  return options
+})
+
+const plantFilteredData = computed(() => {
+  if (!activeWeekData.value) return []
+  
+  let data = [...activeWeekData.value.salesOrderMainList]
+  
+  // Apply plant filter
+  if (selectedPlant.value !== 'All') {
+    data = data.filter(order => order.plant === selectedPlant.value)
+  }
+  
+  return data
+})
+
+const filteredDataLength = computed(() => {
+  return sortedAndFilteredData.value.length
+})
+
+// Existing computed properties
 const hasCredentials = computed(() => {
   const serviceHasCredentials = salesOrderService.hasCredentials()
   return serviceHasCredentials || localCredentialsState.value
@@ -876,8 +944,8 @@ const sortedAndFilteredData = computed(() => {
   }
   
   // Apply search filter
-  if (searchTerm.value.trim()) {
-    const search = searchTerm.value.toLowerCase()
+  if (globalFilterValue.value.trim()) {
+    const search = globalFilterValue.value.toLowerCase()
     data = data.filter(order => 
       order.material.toLowerCase().includes(search) ||
       order.plant.toLowerCase().includes(search) ||
@@ -982,49 +1050,37 @@ const sortedAndFilteredData = computed(() => {
   return data
 })
 
-const filteredData = computed(() => {
-  return sortedAndFilteredData.value
-})
-
 const totalRecords = computed(() => {
   return sortedAndFilteredData.value.length
 })
 
 const totalPages = computed(() => {
   if (totalRecords.value === 0) return 1
-  return Math.ceil(totalRecords.value / pageLength.value)
+  return Math.ceil(totalRecords.value / rows.value)
 })
 
 const startIndex = computed(() => {
-  return (currentPage.value - 1) * pageLength.value
-})
-
-const displayEndIndex = computed(() => {
-  const start = (currentPage.value - 1) * pageLength.value
-  const itemsPerPage = parseInt(pageLength.value)
-  const calculatedEnd = start + itemsPerPage
-  return Math.min(calculatedEnd, totalRecords.value)
+  return (currentPage.value - 1) * rows.value
 })
 
 const endIndex = computed(() => {
-  return displayEndIndex.value
+  const start = startIndex.value
+  const end = start + rows.value
+  return Math.min(end, totalRecords.value)
 })
 
 const paginatedData = computed(() => {
   const data = sortedAndFilteredData.value
   const start = startIndex.value
-  const itemsPerPage = parseInt(pageLength.value)
-  const end = start + itemsPerPage
+  const end = start + rows.value
   
-  const result = data.slice(start, end)
-  return result
+  return data.slice(start, end)
 })
 
 const paginationDisplay = computed(() => {
-  const start = (currentPage.value - 1) * parseInt(pageLength.value)
-  const itemsPerPage = parseInt(pageLength.value)
+  const start = startIndex.value
   const total = totalRecords.value
-  const end = Math.min(start + itemsPerPage, total)
+  const end = endIndex.value
   
   return {
     start: total === 0 ? 0 : start + 1,
@@ -1103,82 +1159,26 @@ const resetSort = () => {
   currentPage.value = 1
 }
 
+// PrimeVue DataTable event handlers
+const onSort = (event: any) => {
+  // Handle PrimeVue sort events if needed
+}
+
+const onPage = (event: any) => {
+  currentPage.value = event.page + 1
+  rows.value = event.rows
+}
+
 // Methods
-const filterData = () => {
+const applyPlantFilter = () => {
   currentPage.value = 1
 }
 
-const updatePageLength = () => {
-  const newPageLength = parseInt(pageLength.value)
-  const newMaxPage = Math.ceil(totalRecords.value / newPageLength)
-  
-  if (currentPage.value > newMaxPage && newMaxPage > 0) {
-    currentPage.value = newMaxPage
-  }
-}
-
-const goToPage = (page) => {
+const goToPage = (page: number) => {
   const maxPage = totalPages.value
   if (page >= 1 && page <= maxPage) {
     currentPage.value = page
   }
-}
-
-// Footer calculation methods
-const getTotalRequested = () => {
-  return sortedAndFilteredData.value.reduce((total, order) => total + order.requestedQuantity, 0)
-}
-
-const getTotalToProduce = () => {
-  return sortedAndFilteredData.value.reduce((total, order) => total + (order.toProduce || 0), 0)
-}
-
-const getTotalAvailableQuantity = () => {
-  return sortedAndFilteredData.value.reduce((total, order) => total + (order.totalAvailableQuantity || 0), 0)
-}
-
-const getTotalCumulativeQuantity = () => {
-  return sortedAndFilteredData.value.reduce((total, order) => total + (order.cumulativeQuantity || 0), 0)
-}
-
-const getTotalAvailableNotCharged = () => {
-  return sortedAndFilteredData.value.reduce((total, order) => total + order.availableNotCharged, 0)
-}
-
-const getTotalAvailableCharged = () => {
-  return sortedAndFilteredData.value.reduce((total, order) => total + order.availableCharged, 0)
-}
-
-const getTotalFinalBattery = () => {
-  return sortedAndFilteredData.value.reduce((total, order) => total + (order.finalBattery || 0), 0)
-}
-
-const getDynamicTotal = (key: string, field: 'quantity') => {
-  return sortedAndFilteredData.value.reduce((total, order) => {
-    const item = order.dynamicSoItems?.[key]
-    return total + (item?.[field] || 0)
-  }, 0)
-}
-
-const getDynamicCount = (key: string, field: 'plannedOrder' | 'productionOrder') => {
-  return sortedAndFilteredData.value.filter(order => {
-    const item = order.dynamicSoItems?.[key]
-    return item?.[field] && item[field] !== '-' && item[field].trim() !== ''
-  }).length
-}
-
-const getUniquePlants = () => {
-  const plants = new Set(sortedAndFilteredData.value.map(order => order.plant))
-  return plants.size
-}
-
-// Utility methods
-const formatNumber = (value: number) => {
-  return value.toLocaleString()
-}
-
-const formatQuantity = (quantity: number, unit: string) => {
-  return `${formatNumber(quantity)} ${unit}`
 }
 
 // Order and tab management
@@ -1194,13 +1194,10 @@ const setActiveWeekTab = (weekName: string, index: number) => {
   activeWeekTab.value = weekName
   activeWeekIndex.value = index
   selectedPlant.value = 'All'
-  searchTerm.value = ''
+  globalFilterValue.value = ''
+  filters.value.global.value = null
   currentPage.value = 1
   resetSort()
-}
-
-const applyPlantFilter = () => {
-  currentPage.value = 1
 }
 
 // Date and API methods
@@ -1238,15 +1235,16 @@ const loadDataFromAPI = async () => {
   }
 
   try {
-    filters.reqDelDateBegin = formatDateForBackend(apiDateFromDate.value)
-    filters.reqDelDateEnd = formatDateForBackend(apiDateToDate.value)
+    salesOrderFilters.reqDelDateBegin = formatDateForBackend(apiDateFromDate.value)
+    salesOrderFilters.reqDelDateEnd = formatDateForBackend(apiDateToDate.value)
     
-    filters.material = ''
-    filters.plant = ''
+    salesOrderFilters.material = ''
+    salesOrderFilters.plant = ''
     pagination.page = 0
     activeWeekTab.value = ''
     activeWeekIndex.value = 0
-    searchTerm.value = ''
+    globalFilterValue.value = ''
+    filters.value.global.value = null
     currentPage.value = 1
     resetSort()
     
@@ -1317,6 +1315,63 @@ const clearCredentialsAndReload = () => {
   showCredentialsModal.value = true
 }
 
+// Utility methods
+const formatNumber = (value: number) => {
+  return value.toLocaleString()
+}
+
+const formatQuantity = (quantity: number, unit: string) => {
+  return `${formatNumber(quantity)} ${unit}`
+}
+
+// Footer calculation methods for summary
+const getTotalRequested = () => {
+  return sortedAndFilteredData.value.reduce((total, order) => total + order.requestedQuantity, 0)
+}
+
+const getTotalToProduce = () => {
+  return sortedAndFilteredData.value.reduce((total, order) => total + (order.toProduce || 0), 0)
+}
+
+const getTotalAvailableQuantity = () => {
+  return sortedAndFilteredData.value.reduce((total, order) => total + (order.totalAvailableQuantity || 0), 0)
+}
+
+const getTotalCumulativeQuantity = () => {
+  return sortedAndFilteredData.value.reduce((total, order) => total + (order.cumulativeQuantity || 0), 0)
+}
+
+const getTotalAvailableNotCharged = () => {
+  return sortedAndFilteredData.value.reduce((total, order) => total + order.availableNotCharged, 0)
+}
+
+const getTotalAvailableCharged = () => {
+  return sortedAndFilteredData.value.reduce((total, order) => total + order.availableCharged, 0)
+}
+
+const getTotalFinalBattery = () => {
+  return sortedAndFilteredData.value.reduce((total, order) => total + (order.finalBattery || 0), 0)
+}
+
+const getDynamicTotal = (key: string, field: 'quantity') => {
+  return sortedAndFilteredData.value.reduce((total, order) => {
+    const item = order.dynamicSoItems?.[key]
+    return total + (item?.[field] || 0)
+  }, 0)
+}
+
+const getDynamicCount = (key: string, field: 'plannedOrder' | 'productionOrder') => {
+  return sortedAndFilteredData.value.filter(order => {
+    const item = order.dynamicSoItems?.[key]
+    return item?.[field] && item[field] !== '-' && item[field].trim() !== ''
+  }).length
+}
+
+const getUniquePlants = () => {
+  const plants = new Set(sortedAndFilteredData.value.map(order => order.plant))
+  return plants.size
+}
+
 // Helper functions for availability calculations
 const getTotalAvailable = (order: SalesOrderMain) => {
   return order.availableNotCharged + order.availableCharged
@@ -1358,14 +1413,9 @@ const getPlannedOrderForKey = (key: string) => {
 }
 
 // Watchers
-watch([sortedAndFilteredData, selectedPlant, searchTerm], () => {
-  if (currentPage.value > totalPages.value && totalPages.value > 0) {
-    currentPage.value = 1
-  }
-}, { deep: true })
-
-watch(pageLength, () => {
-  updatePageLength()
+watch(globalFilterValue, (newValue) => {
+  filters.value.global.value = newValue
+  currentPage.value = 1
 })
 
 watch(salesOrdersByDate, (newData) => {
@@ -1374,13 +1424,20 @@ watch(salesOrdersByDate, (newData) => {
   }
 }, { deep: true })
 
-watch([selectedPlant, searchTerm], () => {
+watch([selectedPlant], () => {
   currentPage.value = 1
 })
 
 watch([apiDateFromDate, apiDateToDate], () => {
   if (apiDateFromDate.value) validateDateFrom()
   if (apiDateToDate.value) validateDateTo()
+})
+
+watch(rows, () => {
+  const newMaxPage = Math.ceil(totalRecords.value / rows.value)
+  if (currentPage.value > newMaxPage && newMaxPage > 0) {
+    currentPage.value = newMaxPage
+  }
 })
 
 // Initialize component
@@ -1405,7 +1462,160 @@ onMounted(() => {
 
 @import '@/styles/views/salesOrder/SalesOrdersDatePicker.css';
 
-/* NEW: Cumulative Quantity Column Styles */
+/* Hide the PrimeVue DataTable - we only use it for functionality */
+.hidden-datatable {
+  display: none !important;
+}
+
+/* Custom controls styling */
+.table-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding: 1rem;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  gap: 2rem;
+}
+
+.controls-left,
+.controls-right {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.plant-filter-container,
+.search-container,
+.page-size-container {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.plant-filter-label,
+.search-label,
+.page-size-label {
+  font-weight: 500;
+  color: #374151;
+  white-space: nowrap;
+}
+
+.page-size-suffix {
+  color: #374151;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.plant-filter-select,
+.page-size-select {
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  padding: 0.5rem 2rem 0.5rem 0.75rem;
+  background: white;
+  color: #374151;
+  font-size: 14px;
+  font-family: inherit;
+  height: 2.5rem;
+  box-sizing: border-box;
+  cursor: pointer;
+  
+  /* Custom dropdown arrow */
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+  background-position: right 0.75rem center;
+  background-repeat: no-repeat;
+  background-size: 1rem;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+}
+
+.plant-filter-select {
+  min-width: 180px;
+}
+
+.page-size-select {
+  min-width: 80px;
+}
+
+.plant-filter-select:hover,
+.page-size-select:hover {
+  border-color: #9ca3af;
+}
+
+.plant-filter-select:focus,
+.page-size-select:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 1px #3b82f6;
+  outline: none;
+}
+
+/* Search input styling */
+.search-input {
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  background: white;
+  color: #374151;
+  font-size: 14px;
+  font-family: inherit;
+  height: 2.5rem;
+  min-width: 300px;
+  box-sizing: border-box;
+}
+
+.search-input:hover {
+  border-color: #9ca3af;
+}
+
+.search-input:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 1px #3b82f6;
+  outline: none;
+}
+
+.search-input::placeholder {
+  color: #9ca3af;
+}
+
+/* Override any system/browser dark mode styling */
+.plant-filter-select option,
+.page-size-select option {
+  background: white !important;
+  color: #374151 !important;
+}
+
+/* Force white background for select dropdowns */
+.plant-filter-select,
+.page-size-select {
+  background-color: white !important;
+  color: #374151 !important;
+}
+
+/* For WebKit browsers (Chrome, Safari) */
+.plant-filter-select::-webkit-scrollbar,
+.page-size-select::-webkit-scrollbar {
+  width: 8px;
+}
+
+.plant-filter-select::-webkit-scrollbar-track,
+.page-size-select::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+.plant-filter-select::-webkit-scrollbar-thumb,
+.page-size-select::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.plant-filter-select::-webkit-scrollbar-thumb:hover,
+.page-size-select::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Cumulative Quantity Column Styles */
 .col-cumulative { 
   background: #fef3c7 !important; 
   color: #d97706 !important;
@@ -1425,22 +1635,62 @@ onMounted(() => {
   color: #d97706 !important;
 }
 
+/* To Produce Column Styles */
+.col-to-produce { 
+  background: #fef3c7 !important; 
+  color: #d97706 !important;
+  font-weight: 600;
+}
+
+.cell-to-produce { 
+  background-color: #fef3c7; 
+  color: #d97706;
+  font-weight: 600;
+}
+
+.footer-to-produce {
+  background-color: #fef3c7 !important;
+  text-align: right !important;
+  font-weight: 700 !important;
+  color: #d97706 !important;
+}
+
+/* Total Available Quantity Column Styles */
+.col-total-available { 
+  background: #fef3c7 !important; 
+  color: #d97706 !important;
+  font-weight: 600;
+}
+
+.cell-total-available { 
+  background-color: #fef3c7; 
+  color: #d97706;
+  font-weight: 600;
+}
+
+.footer-total-available {
+  background-color: #fef3c7 !important;
+  text-align: right !important;
+  font-weight: 700 !important;
+  color: #d97706 !important;
+}
+
 /* Final Battery Column Styles */
 .col-final-battery { 
   background: #fef2f2 !important; 
   color: #991b1b !important;
-  border-right: 2px solid #1f2937 !important; /* Border after Final Battery */
+  border-right: 2px solid #1f2937 !important;
   position: relative;
-  z-index: 12 !important; /* Higher z-index for vertical borders */
+  z-index: 12 !important;
 }
 
 .cell-final-battery { 
   background-color: #fef2f2; 
   color: #991b1b;
   font-weight: 600;
-  border-right: 2px solid #1f2937 !important; /* Border after Final Battery */
+  border-right: 2px solid #1f2937 !important;
   position: relative;
-  z-index: 3 !important; /* Higher z-index for vertical borders in body */
+  z-index: 3 !important;
 }
 
 .footer-final-battery {
@@ -1448,15 +1698,15 @@ onMounted(() => {
   text-align: right !important;
   font-weight: 700 !important;
   color: var(--color-primary) !important;
-  border-right: 2px solid #1f2937 !important; /* Border after Final Battery in footer */
+  border-right: 2px solid #1f2937 !important;
 }
 
-/* Update first dynamic group styling to account for new column */
+/* First dynamic group styling */
 .first-dynamic-group {
   border-left: 2px solid #7c3aed !important;
 }
 
-/* Ensure proper sorting indicator styling */
+/* Sorting styling */
 .sortable {
   cursor: pointer;
   user-select: none;
@@ -1509,20 +1759,41 @@ onMounted(() => {
   margin-bottom: 0;
 }
 
-/* Responsive adjustments for new column */
+/* Responsive adjustments */
 @media (max-width: 768px) {
   .sales-orders-table-custom {
-    min-width: 1300px; /* Increase minimum width to accommodate new cumulative column */
+    min-width: 1300px;
   }
   
   .col-cumulative,
   .cell-cumulative,
   .footer-cumulative,
+  .col-to-produce,
+  .cell-to-produce,
+  .footer-to-produce,
+  .col-total-available,
+  .cell-total-available,
+  .footer-total-available,
   .col-final-battery,
   .cell-final-battery,
   .footer-final-battery {
     min-width: 80px;
     font-size: 11px;
+  }
+  
+  .table-controls {
+    flex-direction: column;
+    gap: 1rem;
+  }
+  
+  .controls-left,
+  .controls-right {
+    flex-direction: column;
+    width: 100%;
+  }
+  
+  .search-input {
+    min-width: 100%;
   }
 }
 
@@ -1530,6 +1801,12 @@ onMounted(() => {
   .col-cumulative,
   .cell-cumulative,
   .footer-cumulative,
+  .col-to-produce,
+  .cell-to-produce,
+  .footer-to-produce,
+  .col-total-available,
+  .cell-total-available,
+  .footer-total-available,
   .col-final-battery,
   .cell-final-battery,
   .footer-final-battery {
@@ -1539,7 +1816,153 @@ onMounted(() => {
   }
   
   .sales-orders-table-custom {
-    min-width: 1100px; /* Adjust for mobile */
+    min-width: 1100px;
   }
+  
+  .table-controls {
+    padding: 0.5rem;
+  }
+  
+  .controls-left,
+  .controls-right {
+    gap: 0.5rem;
+  }
+}
+
+/* PrimeVue component overrides for better integration */
+.p-dropdown {
+  border: 1px solid #d1d5db !important;
+  border-radius: 6px !important;
+  background: white !important;
+  color: #374151 !important;
+  height: 2.5rem !important;
+  display: flex !important;
+  align-items: center !important;
+}
+
+.p-dropdown .p-dropdown-label {
+  color: #374151 !important;
+  background: transparent !important;
+  padding: 0.5rem 0.75rem !important;
+  flex: 1 !important;
+}
+
+.p-dropdown .p-dropdown-trigger {
+  color: #6b7280 !important;
+  background: transparent !important;
+  width: 2.5rem !important;
+  height: 2.5rem !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-left: 1px solid #e5e7eb !important;
+}
+
+.p-dropdown .p-dropdown-trigger .p-icon {
+  width: 1rem !important;
+  height: 1rem !important;
+}
+
+.p-dropdown-panel {
+  background: white !important;
+  border: 1px solid #d1d5db !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
+  border-radius: 6px !important;
+  z-index: 1000 !important;
+}
+
+.p-dropdown-panel .p-dropdown-items {
+  background: white !important;
+}
+
+.p-dropdown-panel .p-dropdown-item {
+  color: #374151 !important;
+  background: white !important;
+  padding: 0.5rem 0.75rem !important;
+  cursor: pointer !important;
+}
+
+.p-dropdown-panel .p-dropdown-item:not(.p-highlight):not(.p-disabled):hover {
+  background: #f3f4f6 !important;
+  color: #374151 !important;
+}
+
+.p-dropdown-panel .p-dropdown-item.p-highlight {
+  background: #3b82f6 !important;
+  color: white !important;
+}
+
+.p-inputtext {
+  border: 1px solid #d1d5db !important;
+  border-radius: 6px !important;
+  padding: 0.5rem 0.75rem !important;
+  background: white !important;
+  color: #374151 !important;
+  height: 2.5rem !important;
+  box-sizing: border-box !important;
+}
+
+.p-dropdown:not(.p-disabled):hover {
+  border-color: #9ca3af !important;
+}
+
+.p-inputtext:enabled:hover {
+  border-color: #9ca3af !important;
+}
+
+.p-dropdown:not(.p-disabled).p-focus {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 1px #3b82f6 !important;
+}
+
+.p-inputtext:enabled:focus {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 1px #3b82f6 !important;
+  outline: none !important;
+}
+
+/* Specific overrides for the plant filter and page size dropdowns */
+.plant-filter-dropdown,
+.page-length-select {
+  background: white !important;
+}
+
+.plant-filter-dropdown .p-dropdown-label,
+.page-length-select .p-dropdown-label {
+  color: #374151 !important;
+  background: white !important;
+}
+
+.plant-filter-dropdown .p-dropdown-trigger,
+.page-length-select .p-dropdown-trigger {
+  color: #6b7280 !important;
+  background: white !important;
+}
+
+/* Override any dark theme that might be applied */
+.p-component {
+  color: #374151 !important;
+}
+
+/* Search input specific styling */
+.search-input {
+  background: white !important;
+  color: #374151 !important;
+}
+
+.search-input::placeholder {
+  color: #9ca3af !important;
+}
+
+/* Ensure proper sizing and spacing */
+.p-dropdown,
+.p-inputtext {
+  font-size: 14px !important;
+  font-family: inherit !important;
+}
+
+/* Fix for dropdown arrow icon */
+.p-dropdown-trigger-icon {
+  color: #6b7280 !important;
 }
 </style>
