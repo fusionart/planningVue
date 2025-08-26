@@ -1,0 +1,127 @@
+/* TableControls.css */
+.table-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding: 1rem;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  gap: 2rem;
+}
+
+.controls-left,
+.controls-right {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.plant-filter-container,
+.search-container,
+.page-size-container {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.plant-filter-label,
+.search-label,
+.page-size-label {
+  font-weight: 500;
+  color: #374151;
+  white-space: nowrap;
+}
+
+.page-size-suffix {
+  color: #374151;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.plant-filter-select,
+.page-size-select {
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  padding: 0.5rem 2rem 0.5rem 0.75rem;
+  background: white;
+  color: #374151;
+  font-size: 14px;
+  font-family: inherit;
+  height: 2.5rem;
+  box-sizing: border-box;
+  cursor: pointer;
+  
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+  background-position: right 0.75rem center;
+  background-repeat: no-repeat;
+  background-size: 1rem;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+}
+
+.plant-filter-select {
+  min-width: 180px;
+}
+
+.page-size-select {
+  min-width: 80px;
+}
+
+.plant-filter-select:hover,
+.page-size-select:hover {
+  border-color: #9ca3af;
+}
+
+.plant-filter-select:focus,
+.page-size-select:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 1px #3b82f6;
+  outline: none;
+}
+
+.search-input {
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  background: white;
+  color: #374151;
+  font-size: 14px;
+  font-family: inherit;
+  height: 2.5rem;
+  min-width: 300px;
+  box-sizing: border-box;
+}
+
+.search-input:hover {
+  border-color: #9ca3af;
+}
+
+.search-input:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 1px #3b82f6;
+  outline: none;
+}
+
+.search-input::placeholder {
+  color: #9ca3af;
+}
+
+@media (max-width: 768px) {
+  .table-controls {
+    flex-direction: column;
+    gap: 1rem;
+  }
+  
+  .controls-left,
+  .controls-right {
+    flex-direction: column;
+    width: 100%;
+  }
+  
+  .search-input {
+    min-width: 100%;
+  }
+}

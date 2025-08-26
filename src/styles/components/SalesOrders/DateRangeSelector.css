@@ -1,0 +1,80 @@
+/* DateRangeSelector.css */
+.api-parameters-section {
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.75rem;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+}
+
+.api-parameters-section h3 {
+  margin: 0 0 1.5rem 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.parameters-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 1.5rem;
+  align-items: end;
+}
+
+.parameter-group-datepicker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.parameter-group-datepicker label {
+  font-weight: 500;
+  color: #374151;
+  font-size: 0.875rem;
+}
+
+.parameter-datepicker {
+  height: 2.5rem;
+}
+
+.parameter-actions {
+  display: flex;
+  justify-content: center;
+}
+
+.date-errors {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: #fef2f2;
+  border: 1px solid #fca5a5;
+  border-radius: 0.5rem;
+}
+
+.date-error {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #dc2626;
+  font-size: 0.875rem;
+  margin-bottom: 0.5rem;
+}
+
+.date-error:last-child {
+  margin-bottom: 0;
+}
+
+.date-error i {
+  color: #f59e0b;
+}
+
+@media (max-width: 768px) {
+  .parameters-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  .api-parameters-section {
+    padding: 1rem;
+  }
+}
