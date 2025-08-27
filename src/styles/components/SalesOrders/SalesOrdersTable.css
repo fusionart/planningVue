@@ -1,72 +1,237 @@
-/* SalesOrdersTable.css */
+/* SalesOrdersTable.css - Updated with content from SalesOrdersTwoRowHeader.css */
 .custom-datatable-container {
-  background: white;
-  border-radius: 0.5rem;
-  border: 1px solid #e5e7eb;
+  background: var(--background-card);
+  border-radius: var(--border-radius-lg);
+  box-shadow: var(--shadow-card);
   overflow: hidden;
 }
 
 .table-wrapper {
   overflow-x: auto;
+  max-height: 600px;
+  overflow-y: auto;
   -webkit-overflow-scrolling: touch;
 }
 
 .sales-orders-table-custom {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.875rem;
+  font-size: 12px;
   background: white;
   min-width: 1500px;
 }
 
-/* Header styles */
-.header-categories th,
-.header-columns th {
-  padding: 0.75rem 0.5rem;
-  text-align: center;
+/* First Header Row - Categories */
+.header-categories th {
+  background: var(--color-primary) !important;
+  color: white !important;
   font-weight: 600;
-  border: 1px solid #d1d5db;
-  background: #f9fafb;
-  color: #374151;
+  text-align: center;
+  border: 1px solid #2563eb;
+  padding: 12px 8px;
+  font-size: 13px;
+  vertical-align: middle;
+  position: sticky;
+  top: 0;
+  z-index: 15;
+  height: 45px;
 }
 
 .header-basic {
-  background: #dbeafe !important;
-  color: #1d4ed8 !important;
+  background: #059669 !important; /* Green for basic info */
+  border-right: 2px solid #1f2937 !important;
 }
 
 .header-inventory {
-  background: #fef3c7 !important;
-  color: #d97706 !important;
+  background: #dc2626 !important; /* Red for inventory - now spans 7 columns */
+  border-right: 2px solid #1f2937 !important;
 }
 
 .header-dynamic {
-  background: #f3e8ff !important;
-  color: #7c3aed !important;
+  background: #7c3aed !important; /* Purple for dynamic columns */
+  font-size: 12px !important;
+  border-right: 2px solid #1f2937 !important;
 }
 
+/* Second Header Row - Column Names */
+.header-columns th {
+  background: #e2e8f0 !important;
+  color: #334155 !important;
+  font-weight: 600;
+  text-align: center;
+  border: 1px solid #cbd5e1;
+  padding: 10px 6px;
+  font-size: 12px;
+  white-space: nowrap;
+  position: sticky;
+  top: 45px;
+  z-index: 14;
+  height: 40px;
+  border-bottom: 1px solid var(--border-medium);
+}
+
+/* Section separator borders in second header row */
+.col-plant {
+  border-right: 2px solid #1f2937 !important;
+  position: relative;
+  z-index: 16 !important;
+}
+
+/* To Produce Column Styling */
+.col-to-produce {
+  background: #e0e7ff !important; 
+  color: #4338ca !important;
+  font-weight: 600;
+}
+
+/* Total Available Quantity Column Styling */
+.col-total-available {
+  background: #d1fae5 !important; 
+  color: #065f46 !important;
+  font-weight: 600;
+}
+
+/* Cumulative Quantity Column Styling */
+.col-cumulative {
+  background: #fef3c7 !important; 
+  color: #d97706 !important;
+  font-weight: 600;
+}
+
+/* Final Battery Column Styling */
+.col-final-battery {
+  background: #fef2f2 !important; 
+  color: #991b1b !important;
+  border-right: 2px solid #1f2937 !important;
+  position: relative;
+  z-index: 16 !important;
+}
+
+.col-dynamic-production {
+  border-right: 2px solid #1f2937 !important;
+  position: relative;
+  z-index: 16 !important;
+}
+
+/* Add stronger border before first dynamic column in header */
+.first-dynamic-group {
+  border-left: 2px solid #7c3aed !important;
+}
+
+/* Also add border to the first header row for the first dynamic group */
+.header-dynamic:first-of-type {
+  border-left: 2px solid #7c3aed !important;
+}
+
+/* Column-specific styling for second row */
+.col-material { 
+  background: #dcfce7 !important; 
+  color: #166534 !important; 
+}
+
+.col-plant { 
+  background: #dcfce7 !important; 
+  color: #166534 !important;
+  border-right: 2px solid #1f2937 !important;
+  position: relative;
+  z-index: 12 !important;
+}
+
+.col-requested { 
+  background: #fef2f2 !important; 
+  color: #991b1b !important; 
+}
+
+.col-available { 
+  background: #fef2f2 !important; 
+  color: #991b1b !important; 
+}
+
+.col-charged { 
+  background: #fef2f2 !important; 
+  color: #991b1b !important;
+}
+
+.col-dynamic-qty { 
+  background: #f3e8ff !important; 
+  color: #6b21a8 !important; 
+}
+
+.col-dynamic-planned { 
+  background: #f0f9ff !important; 
+  color: #0369a1 !important; 
+}
+
+.col-dynamic-production { 
+  background: #fefce8 !important; 
+  color: #a16207 !important;
+  border-right: 2px solid #1f2937 !important;
+  position: relative;
+  z-index: 12 !important;
+}
+
+/* Sorting Styles */
 .sortable {
   cursor: pointer;
   user-select: none;
   position: relative;
+  transition: background-color 0.2s ease;
 }
 
 .sortable:hover {
   background-color: rgba(59, 130, 246, 0.1) !important;
 }
 
-.sort-active {
-  background-color: rgba(59, 130, 246, 0.2) !important;
+.sort-indicator {
+  display: inline-block;
+  margin-left: 4px;
+  font-size: 10px;
+  opacity: 0.7;
+  transition: opacity 0.2s ease;
 }
 
-/* Cell styles */
+.sort-active .sort-indicator {
+  opacity: 1;
+  color: var(--color-primary) !important;
+}
+
+.sort-arrow {
+  font-weight: bold;
+  color: var(--color-primary) !important;
+}
+
+.sort-arrows {
+  opacity: 0.5;
+}
+
+.sort-active {
+  background-color: rgba(59, 130, 246, 0.05) !important;
+}
+
+/* Table Body Styling */
+.sales-orders-table-custom tbody td {
+  padding: 8px 6px;
+  border: 1px solid var(--border-light);
+  font-size: 12px;
+  text-align: center;
+  vertical-align: middle;
+  border-top: none;
+  position: relative;
+  z-index: 1;
+}
+
+.sales-orders-table-custom tbody tr:first-child td {
+  border-top: 1px solid var(--border-light);
+}
+
 .data-row {
   transition: background-color 0.15s ease;
   cursor: pointer;
 }
 
 .data-row:hover {
-  background-color: #f8fafc;
+  background-color: var(--background-secondary);
+  cursor: pointer;
 }
 
 .data-row:nth-child(even) {
@@ -77,97 +242,260 @@
   background-color: #f1f5f9;
 }
 
-.data-row td {
-  padding: 0.5rem 0.75rem;
-  text-align: right;
-  border: 1px solid #e5e7eb;
-  color: #374151;
-  white-space: nowrap;
-}
-
-.cell-material,
-.cell-plant {
+/* Cell-specific styling */
+.cell-material { 
+  background-color: #f0fdf4; 
+  font-weight: 600; 
+  color: #166534;
   text-align: left;
-  font-weight: 500;
+  padding-left: 12px;
 }
 
-/* Specific column styling */
-.col-cumulative,
-.cell-cumulative {
-  background: #fef3c7 !important;
-  color: #d97706 !important;
-  font-weight: 600;
-}
-
-.col-to-produce,
-.cell-to-produce {
-  background: #fef3c7 !important;
-  color: #d97706 !important;
-  font-weight: 600;
-}
-
-.col-total-available,
-.cell-total-available {
-  background: #fef3c7 !important;
-  color: #d97706 !important;
-  font-weight: 600;
-}
-
-.col-final-battery,
-.cell-final-battery {
-  background: #fef2f2 !important;
-  color: #991b1b !important;
+.cell-plant { 
+  background-color: #f0fdf4; 
+  color: #166534;
   border-right: 2px solid #1f2937 !important;
+  position: relative;
+  z-index: 3 !important;
+}
+
+.cell-requested { 
+  background-color: #fef2f2; 
+  font-weight: 600; 
+  color: #991b1b;
+}
+
+/* To Produce Cell Styling */
+.cell-to-produce { 
+  background-color: #e0e7ff; 
+  color: #4338ca;
   font-weight: 600;
 }
 
-.first-dynamic-group {
-  border-left: 2px solid #7c3aed !important;
+/* Total Available Quantity Cell Styling */
+.cell-total-available { 
+  background-color: #d1fae5; 
+  color: #065f46;
+  font-weight: 600;
+}
+
+/* Cumulative Quantity Cell Styling */
+.cell-cumulative { 
+  background-color: #fef3c7; 
+  color: #d97706;
+  font-weight: 600;
+}
+
+.cell-available { 
+  background-color: #fef2f2; 
+  color: #991b1b;
+}
+
+.cell-charged { 
+  background-color: #fef2f2; 
+  color: #991b1b;
+}
+
+/* Final Battery Cell Styling */
+.cell-final-battery { 
+  background-color: #fef2f2; 
+  color: #991b1b;
+  font-weight: 600;
+  border-right: 2px solid #1f2937 !important;
+  position: relative;
+  z-index: 3 !important;
+}
+
+.cell-dynamic-qty { 
+  background-color: #faf5ff; 
+  font-weight: 600; 
+  color: #7c3aed;
+}
+
+.cell-dynamic-planned { 
+  background-color: #f0f9ff; 
+  font-family: monospace; 
+  font-size: 11px;
+  color: #0369a1;
+}
+
+.cell-dynamic-production { 
+  background-color: #fefce8; 
+  font-family: monospace; 
+  font-size: 11px;
+  color: #a16207;
+  border-right: 2px solid #1f2937 !important;
+  position: relative;
+  z-index: 3 !important;
+}
+
+/* Footer Styling */
+.sales-orders-table-custom tfoot td {
+  background: var(--background-secondary) !important;
+  color: var(--text-primary) !important;
+  font-weight: 600 !important;
+  padding: 12px 8px !important;
+  border-top: 2px solid var(--color-primary) !important;
+  border-bottom: 1px solid var(--border-light) !important;
+  text-align: center !important;
+  font-size: 12px !important;
+  white-space: nowrap !important;
+  position: sticky;
+  bottom: 0;
+  z-index: 8;
+}
+
+.footer-material,
+.footer-plant {
+  background-color: #f0fdf4 !important;
+  color: var(--color-success) !important;
+  font-weight: 600 !important;
+}
+
+.footer-plant {
+  border-right: 2px solid #1f2937 !important;
+}
+
+.footer-requested,
+.footer-available,
+.footer-charged {
+  background-color: #f0f9ff !important;
+  text-align: right !important;
+  font-weight: 700 !important;
+  color: var(--color-primary) !important;
+}
+
+/* To Produce Footer Styling */
+.footer-to-produce {
+  background-color: #e0e7ff !important;
+  text-align: right !important;
+  font-weight: 700 !important;
+  color: #4338ca !important;
+}
+
+/* Total Available Quantity Footer Styling */
+.footer-total-available {
+  background-color: #d1fae5 !important;
+  text-align: right !important;
+  font-weight: 700 !important;
+  color: #065f46 !important;
+}
+
+/* Cumulative Quantity Footer Styling */
+.footer-cumulative {
+  background-color: #fef3c7 !important;
+  text-align: right !important;
+  font-weight: 700 !important;
+  color: #d97706 !important;
+}
+
+/* Final Battery Footer Styling */
+.footer-final-battery {
+  background-color: #f0f9ff !important;
+  text-align: right !important;
+  font-weight: 700 !important;
+  color: var(--color-primary) !important;
+  border-right: 2px solid #1f2937 !important;
+}
+
+.footer-dynamic-qty {
+  background-color: #faf5ff !important;
+  color: #7c3aed !important;
+  font-weight: 700 !important;
+}
+
+.footer-dynamic-planned,
+.footer-dynamic-production {
+  background-color: #f8fafc !important;
+  color: var(--text-secondary) !important;
+}
+
+.footer-dynamic-production {
+  border-right: 2px solid #1f2937 !important;
 }
 
 /* No data styling */
 .no-data-row {
-  background: #f9fafb;
+  background: var(--background-secondary);
 }
 
 .no-data-cell {
   text-align: center !important;
-  padding: 2rem !important;
-  color: #6b7280;
+  padding: 40px !important;
+  color: var(--text-secondary);
   font-style: italic;
 }
 
 /* Responsive styles */
 @media (max-width: 768px) {
   .sales-orders-table-custom {
-    min-width: 1300px;
-    font-size: 0.8rem;
+    min-width: 1500px; /* Increase to accommodate new columns */
+    font-size: 10px;
   }
   
   .header-categories th,
   .header-columns th {
-    padding: 0.5rem 0.25rem;
-    font-size: 0.75rem;
+    padding: 6px 4px;
+    font-size: 10px;
   }
   
-  .data-row td {
-    padding: 0.375rem 0.5rem;
+  .sales-orders-table-custom tbody td,
+  .sales-orders-table-custom tfoot td {
+    padding: 6px 4px;
+    font-size: 10px;
+  }
+
+  /* New columns responsive adjustments */
+  .col-to-produce,
+  .cell-to-produce,
+  .footer-to-produce,
+  .col-total-available,
+  .cell-total-available,
+  .footer-total-available,
+  .col-cumulative,
+  .cell-cumulative,
+  .footer-cumulative,
+  .col-final-battery,
+  .cell-final-battery,
+  .footer-final-battery {
+    min-width: 80px;
+    font-size: 11px;
   }
 }
 
 @media (max-width: 480px) {
+  .col-to-produce,
+  .cell-to-produce,
+  .footer-to-produce,
+  .col-total-available,
+  .cell-total-available,
+  .footer-total-available,
+  .col-cumulative,
+  .cell-cumulative,
+  .footer-cumulative,
+  .col-final-battery,
+  .cell-final-battery,
+  .footer-final-battery {
+    min-width: 60px;
+    font-size: 10px;
+    padding: 4px 2px;
+  }
+  
   .sales-orders-table-custom {
-    min-width: 1100px;
-    font-size: 0.75rem;
+    min-width: 1400px; /* Adjust for very small screens with new columns */
+  }
+}
+
+/* Print styles */
+@media print {
+  .sales-orders-table-custom {
+    font-size: 10px;
   }
   
   .header-categories th,
-  .header-columns th {
-    padding: 0.375rem 0.25rem;
-    font-size: 0.7rem;
-  }
-  
-  .data-row td {
-    padding: 0.25rem 0.375rem;
+  .header-columns th,
+  .sales-orders-table-custom tbody td,
+  .sales-orders-table-custom tfoot td {
+    padding: 4px 2px;
   }
 }

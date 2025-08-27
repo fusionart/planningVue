@@ -1,4 +1,6 @@
-/* DateRangeSelector.css */
+/* DateRangeSelector.css - Updated with complete content from SalesOrdersDatePicker.css */
+
+/* API Parameters Section */
 .api-parameters-section {
   margin-bottom: 2rem;
   padding: 1.5rem;
@@ -24,18 +26,133 @@
 
 .parameter-group-datepicker {
   display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: 0.5rem;
 }
 
 .parameter-group-datepicker label {
   font-weight: 500;
   color: #374151;
-  font-size: 0.875rem;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  text-align: right;
+  min-width: 80px;
+  flex-shrink: 0;
 }
 
+/* DatePicker Specific Styles */
 .parameter-datepicker {
+  min-width: 300px;
+  max-width: 400px;
+  font-size: 13px;
   height: 2.5rem;
+}
+
+/* Remove ALL borders from wrapper components - Direct targeting */
+.p-component,
+.p-inputwrapper,
+.p-inputwrapper-filled,
+.p-inputwrapper-focus,
+.p-datepicker,
+.p-input {
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+/* Apply border ONLY to the actual input */
+.p-inputtext {
+  padding: 6px 8px !important;
+  font-size: 13px !important;
+  height: 32px !important;
+  line-height: 1.2 !important;
+  border: 1px solid var(--border-medium) !important;
+  border-right: none !important;
+  border-radius: var(--border-radius-md) 0 0 var(--border-radius-md) !important;
+  background: var(--background-primary) !important;
+}
+
+/* Fix the trigger button alignment */
+.p-datepicker-trigger {
+  width: 28px !important;
+  height: 28px !important;
+  padding: 4px !important;
+  border: 1px solid var(--border-medium) !important;
+  border-left: none !important;
+  border-radius: 0 var(--border-radius-md) var(--border-radius-md) 0 !important;
+  background: var(--background-secondary) !important;
+}
+
+/* Fix the trigger button icon */
+.p-datepicker-trigger .p-button-icon {
+  font-size: 12px !important;
+}
+
+/* Fix input focus state */
+.p-inputtext:focus {
+  outline: none !important;
+  border-color: var(--color-primary) !important;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1) !important;
+}
+
+/* Fix trigger button focus when input is focused */
+.p-inputtext:focus + .p-datepicker-trigger {
+  border-color: var(--color-primary) !important;
+}
+
+/* Fix validation error state */
+.parameter-datepicker.p-invalid .p-inputtext {
+  border-color: var(--color-error) !important;
+}
+
+.parameter-datepicker.p-invalid .p-datepicker-trigger {
+  border-color: var(--color-error) !important;
+}
+
+/* Fix the dropdown calendar */
+.p-datepicker-panel {
+  font-size: 12px !important;
+  min-width: 250px !important;
+  border: 1px solid var(--border-medium) !important;
+  border-radius: var(--border-radius-md) !important;
+  box-shadow: var(--shadow-lg) !important;
+}
+
+/* Compact the dropdown calendar elements */
+.p-datepicker .p-datepicker-header {
+  padding: 8px !important;
+}
+
+.p-datepicker .p-datepicker-title {
+  font-size: 13px !important;
+  margin: 0 4px !important;
+}
+
+.p-datepicker table td {
+  padding: 2px !important;
+}
+
+.p-datepicker table td > span {
+  width: 24px !important;
+  height: 24px !important;
+  font-size: 11px !important;
+  line-height: 22px !important;
+}
+
+.p-datepicker .p-button {
+  width: 24px !important;
+  height: 24px !important;
+  padding: 0 !important;
+  font-size: 11px !important;
+}
+
+/* Ensure proper spacing in parameter grid */
+.parameter-group-datepicker {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .parameter-actions {
@@ -68,6 +185,20 @@
   color: #f59e0b;
 }
 
+@media (max-width: 1200px) {
+  .parameters-grid {
+    grid-template-columns: auto 1fr;
+    gap: 12px;
+  }
+  
+  .parameter-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+    margin-left: 0;
+    margin-top: 12px;
+  }
+}
+
 @media (max-width: 768px) {
   .parameters-grid {
     grid-template-columns: 1fr;
@@ -76,5 +207,21 @@
   
   .api-parameters-section {
     padding: 1rem;
+  }
+  
+  .parameter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  
+  .parameter-group label {
+    text-align: left;
+    padding-right: 0;
+  }
+  
+  .parameter-actions {
+    justify-content: flex-start;
+    margin-left: 0;
   }
 }

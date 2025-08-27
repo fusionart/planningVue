@@ -18,7 +18,7 @@
 
     <!-- Credentials Modal -->
     <CredentialsModal
-      :show="showCredentialsModal"
+      :show="credentialsModalVisible"
       :saving="savingCredentials"
       :error="credentialsError"
       @save="handleSaveCredentials"
@@ -28,13 +28,13 @@
     <!-- Loading States Component -->
     <LoadingStates
       :hasCredentials="hasCredentials"
-      :showCredentialsModal="showCredentialsModal"
+      :showCredentialsModal="credentialsModalVisible"
       :localCredentialsState="localCredentialsState"
       :loading="loading"
       :hasError="hasError"
       :error="error"
       :isEmpty="isEmpty"
-      @show-credentials="showCredentialsModal = true"
+      @show-credentials="credentialsModalVisible = true"
       @clear-error="clearError"
       @clear-credentials="handleClearCredentials"
       @load-current-month="handleLoadCurrentMonth"
@@ -142,12 +142,14 @@ const {
   formatDateForBackend
 } = useSalesOrders()
 
+// Initialize refs first before passing to composable
+const currentPage = ref(1)
+const rows = ref(10)
+
 // Table composable
 const {
   // State
   globalFilterValue,
-  rows,
-  currentPage,
   sortColumn,
   sortDirection,
   selectedPlant,
@@ -172,9 +174,9 @@ const {
   applyPlantFilter
 } = useSalesOrdersTable(salesOrdersByDate, currentPage, rows)
 
-// Component state
+// Component state - renamed to avoid conflicts
 const selectedOrder = ref<SalesOrderMain | null>(null)
-const showCredentialsModal = ref(false)
+const credentialsModalVisible = ref(false)
 const savingCredentials = ref(false)
 const credentialsError = ref('')
 const componentKey = ref(0)
@@ -204,6 +206,10 @@ const initializeDateInputs = () => {
 }
 
 // Event handlers
+const handleCredentialsButtonClick = () => {
+  credentialsModalVisible.value = true
+}
+
 const handleSaveCredentials = async (credentials: { username: string, password: string }) => {
   savingCredentials.value = true
   credentialsError.value = ''
@@ -215,7 +221,7 @@ const handleSaveCredentials = async (credentials: { username: string, password: 
     await nextTick()
     forceRerender()
     
-    showCredentialsModal.value = false
+    credentialsModalVisible.value = false
     credentialsError.value = ''
     initializeDateInputs()
     
@@ -223,14 +229,14 @@ const handleSaveCredentials = async (credentials: { username: string, password: 
     console.error('❌ Error saving credentials:', error)
     credentialsError.value = error instanceof Error ? error.message : 'Failed to save credentials'
     localCredentialsState.value = false
-    showCredentialsModal.value = true
+    credentialsModalVisible.value = true
   } finally {
     savingCredentials.value = false
   }
 }
 
 const handleCloseCredentialsModal = () => {
-  showCredentialsModal.value = false
+  credentialsModalVisible.value = false
   credentialsError.value = ''
   savingCredentials.value = false
 }
@@ -239,7 +245,7 @@ const handleClearCredentials = () => {
   clearCredentials()
   localCredentialsState.value = false
   clearError()
-  showCredentialsModal.value = true
+  credentialsModalVisible.value = true
 }
 
 const handleLoadData = async () => {
@@ -303,7 +309,7 @@ onMounted(() => {
   localCredentialsState.value = initialHasCredentials
   
   if (!initialHasCredentials) {
-    showCredentialsModal.value = true
+    credentialsModalVisible.value = true
   } else {
     initializeDateInputs()
   }

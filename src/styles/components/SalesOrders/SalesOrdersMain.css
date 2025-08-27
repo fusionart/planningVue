@@ -1,4 +1,4 @@
-/* SalesOrdersMain.css */
+/* SalesOrdersMain.css - Updated with additional layout styles from SalesOrdersTwoRowHeader.css */
 .sales-orders {
   padding: 1.5rem;
   max-width: 100%;
@@ -113,6 +113,14 @@
   font-size: 1.1rem;
   background: #f9fafb;
   border-top: 1px solid #e5e7eb;
+}
+
+/* Additional styles from SalesOrdersTwoRowHeader.css */
+.custom-datatable-container {
+  background: var(--background-card);
+  border-radius: var(--border-radius-lg);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
 }
 
 @media (max-width: 768px) {
