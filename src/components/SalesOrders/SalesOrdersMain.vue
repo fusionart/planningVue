@@ -1,4 +1,4 @@
-<!-- SalesOrdersMain.vue - Refactored main component -->
+<!-- SalesOrdersMain.vue - Updated to show empty state below date picker -->
 <template>
   <div class="sales-orders" :key="componentKey">
     <!-- Page Header -->
@@ -25,7 +25,7 @@
       @close="handleCloseCredentialsModal"
     />
 
-    <!-- Loading States Component -->
+    <!-- Loading States Component (without empty state) -->
     <LoadingStates
       :hasCredentials="hasCredentials"
       :showCredentialsModal="credentialsModalVisible"
@@ -33,7 +33,7 @@
       :loading="loading"
       :hasError="hasError"
       :error="error"
-      :isEmpty="isEmpty"
+      :isEmpty="false"
       @show-credentials="credentialsModalVisible = true"
       @clear-error="clearError"
       @clear-credentials="handleClearCredentials"
@@ -48,6 +48,16 @@
       :loading="loading"
       @load-data="handleLoadData"
     />
+
+    <!-- Empty State - Now positioned below date picker -->
+    <div v-if="isEmpty && (hasCredentials || localCredentialsState) && !loading && !hasError" class="empty-state">
+      <div class="empty-icon">📋</div>
+      <p>No sales orders found for the selected date range.</p>
+      <p class="empty-sub">Try adjusting the date range or load data for a different period.</p>
+      <button class="btn btn-primary" @click="handleLoadCurrentMonth">
+        Load Current Month
+      </button>
+    </div>
 
     <!-- Main Data Display -->
     <div v-if="hasData" class="data-display">
@@ -318,4 +328,33 @@ onMounted(() => {
 
 <style scoped>
 @import '@/styles/components/SalesOrders/SalesOrdersMain.css';
+
+/* Empty state styles */
+.empty-state {
+  text-align: center;
+  padding: 3rem 2rem;
+  background: #f9fafb;
+  border: 2px dashed #d1d5db;
+  border-radius: 12px;
+  margin: 2rem 0;
+}
+
+.empty-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.empty-state p {
+  margin: 0.5rem 0;
+  color: #6b7280;
+}
+
+.empty-sub {
+  font-size: 0.875rem;
+  margin-bottom: 1.5rem !important;
+}
+
+.empty-state .btn {
+  margin-top: 1rem;
+}
 </style>
