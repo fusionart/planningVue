@@ -1,4 +1,4 @@
-<!-- SalesOrdersMain.vue - Updated to show empty state below date picker -->
+<!-- SalesOrdersMain.vue - Updated with modal fixes -->
 <template>
   <div class="sales-orders" :key="componentKey">
     <!-- Page Header -->
@@ -83,6 +83,7 @@
         <!-- Sales Orders Table -->
         <SalesOrdersTable
           :data="paginatedData"
+          :allFilteredData="sortedAndFilteredData"
           :dynamicColumns="dynamicColumnKeys"
           :sortColumn="sortColumn"
           :sortDirection="sortDirection"
@@ -112,13 +113,13 @@
     <!-- Order Details Modal -->
     <OrderDetailsModal
       :order="selectedOrder"
-      @close="selectedOrder = null"
+      @close="handleCloseModal"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, nextTick } from 'vue'
+import { ref, computed, onMounted, watch, nextTick, onUnmounted } from 'vue'
 import { useSalesOrders } from '@/composables/useSalesOrders'
 import { useSalesOrdersTable } from '@/composables/useSalesOrdersTable'
 import { salesOrderService } from '@/services/salesOrderService'
@@ -299,12 +300,26 @@ const handleSort = (column: string) => {
 
 const handleRowClick = (order: SalesOrderMain) => {
   selectedOrder.value = order
+  // Prevent body scroll when modal opens
+  document.body.classList.add('modal-open')
+}
+
+const handleCloseModal = () => {
+  selectedOrder.value = null
+  // Re-enable body scroll when modal closes
+  document.body.classList.remove('modal-open')
 }
 
 const handlePageChange = (page: number) => {
   goToPage(page)
 }
 
+// Escape key handler for modal
+const handleEscapeKey = (event: KeyboardEvent) => {
+  if (event.key === 'Escape' && selectedOrder.value) {
+    handleCloseModal()
+  }
+}
 
 // Watchers
 watch(salesOrdersByDate, (newData) => {
@@ -323,6 +338,15 @@ onMounted(() => {
   } else {
     initializeDateInputs()
   }
+
+  // Add escape key listener
+  document.addEventListener('keydown', handleEscapeKey)
+})
+
+onUnmounted(() => {
+  // Clean up event listener and body class
+  document.removeEventListener('keydown', handleEscapeKey)
+  document.body.classList.remove('modal-open')
 })
 </script>
 

@@ -1,6 +1,6 @@
-<!-- OrderDetailsModal.vue -->
+<!-- OrderDetailsModal.vue - Updated with proper click handling -->
 <template>
-  <div v-if="order" class="modal-overlay" @click="$emit('close')">
+  <div v-if="order" class="modal-overlay" @click="handleOverlayClick">
     <div class="modal order-details-modal" @click.stop>
       <div class="modal-header">
         <h3>Sales Order Item Details</h3>
@@ -134,7 +134,12 @@ interface Emits {
   close: []
 }
 
-defineEmits<Emits>()
+const emit = defineEmits<Emits>()
+
+// Methods
+const handleOverlayClick = () => {
+  emit('close')
+}
 
 // Helper functions
 const getTotalAvailable = (order: SalesOrderMain) => {
