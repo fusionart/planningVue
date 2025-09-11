@@ -7,7 +7,7 @@
         <h3 class="modal-title">
           <span class="material-icon">🏭</span>
           Производствени поръчки за материал: 
-          <span class="material-code">{{ material }}</span>
+          <span class="material-code">{{ transformedMaterial }}</span>
         </h3>
         <button class="modal-close-btn" @click="handleClose" type="button" aria-label="Затвори">
           <span aria-hidden="true">&times;</span>
@@ -20,7 +20,7 @@
         <div v-if="loading" class="loading-state">
           <div class="spinner"></div>
           <p>Зареждане на производствени поръчки...</p>
-          <p class="loading-sub">Материал: {{ material }}</p>
+          <p class="loading-sub">Материал: {{ transformedMaterial }}</p>
         </div>
 
         <!-- Error State -->
@@ -42,7 +42,7 @@
         <div v-else-if="productionOrders.length === 0 && !loading" class="empty-state">
           <div class="empty-icon">📋</div>
           <h4>Няма производствени поръчки</h4>
-          <p>Няма намерени производствени поръчки за материал <strong>{{ material }}</strong>.</p>
+          <p>Няма намерени производствени поръчки за материал <strong>{{ transformedMaterial }}</strong>.</p>
           <p class="empty-sub">
             Период: {{ formattedDateRange }}
           </p>
@@ -68,7 +68,7 @@
                 📅 Период: {{ formattedDateRange }}
               </span>
               <span class="info-badge">
-                🎯 Материал: <strong>{{ material }}</strong>
+                🎯 Материал: <strong>{{ transformedMaterial }}</strong>
               </span>
             </div>
             
@@ -89,15 +89,11 @@
               <thead>
                 <tr>
                   <th class="col-order">Производствена поръчка</th>
-                  <th class="col-description">Описание на материала</th>
                   <th class="col-plant">Завод</th>
                   <th class="col-status">Статус</th>
-                  <th class="col-supervisor">Отговорник</th>
                   <th class="col-work-center">Работен център</th>
                   <th class="col-dates">Планирани дати</th>
                   <th class="col-quantities">Количества</th>
-                  <th class="col-version">Версия</th>
-                  <th class="col-sales-order">Клиентска поръчка</th>
                 </tr>
               </thead>
               <tbody>
@@ -114,13 +110,6 @@
                       <div class="order-meta">
                         <span class="material-code">{{ order.material }}</span>
                       </div>
-                    </div>
-                  </td>
-
-                  <!-- Material Description -->
-                  <td class="cell-description">
-                    <div class="description-text" :title="order.materialDescription">
-                      {{ order.materialDescription || 'Няма описание' }}
                     </div>
                   </td>
 
@@ -157,13 +146,6 @@
                     </div>
                   </td>
 
-                  <!-- Production Supervisor -->
-                  <td class="cell-supervisor">
-                    <span class="supervisor-name">
-                      {{ order.productionSupervisor || 'Неопределен' }}
-                    </span>
-                  </td>
-
                   <!-- Work Center -->
                   <td class="cell-work-center">
                     <div class="work-center-info">
@@ -191,9 +173,6 @@
                           <span class="time">{{ formatDisplayTime(order.mfgOrderScheduledEndTime) }}</span>
                         </div>
                       </div>
-                      <div class="duration-info" v-if="calculateDuration(order)">
-                        <span class="duration">⏱️ {{ calculateDuration(order) }}</span>
-                      </div>
                     </div>
                   </td>
 
@@ -220,16 +199,6 @@
                         ></div>
                       </div>
                     </div>
-                  </td>
-
-                  <!-- Version -->
-                  <td class="cell-version">
-                    <span class="version-code">{{ order.productionVersion || 'N/A' }}</span>
-                  </td>
-
-                  <!-- Sales Order -->
-                  <td class="cell-sales-order">
-                    <span class="sales-order-code">{{ order.salesOrder || 'Няма' }}</span>
                   </td>
                 </tr>
               </tbody>
@@ -292,6 +261,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { productionOrderService, type ProductionOrderDto } from '@/services/productionOrderService'
+import { transformMaterialCode } from '@/utils/materialCodeTransformer'
 
 // Props
 interface Props {
@@ -317,6 +287,10 @@ const error = ref('')
 const lastUpdated = ref('')
 
 // Computed Properties
+const transformedMaterial = computed(() => {
+  return transformMaterialCode(props.material)
+})
+
 const formattedDateRange = computed(() => {
   if (!props.dateFrom || !props.dateTo) return 'неопределен период'
   
@@ -354,10 +328,10 @@ const fetchProductionOrders = async () => {
   error.value = ''
   
   try {
-    console.log(`🔍 Fetching production orders for material: ${props.material}`)
+    console.log(`🔍 Fetching production orders for material: ${transformedMaterial.value}`)
     
     const orders = await productionOrderService.getProductionOrdersByMaterial(
-      props.material,
+      transformedMaterial.value,  // Use transformed material code
       props.dateFrom,
       props.dateTo
     )
@@ -365,7 +339,7 @@ const fetchProductionOrders = async () => {
     productionOrders.value = orders
     lastUpdated.value = new Date().toLocaleString('bg-BG')
     
-    console.log(`✅ Loaded ${orders.length} production orders for material ${props.material}`)
+    console.log(`✅ Loaded ${orders.length} production orders for material ${transformedMaterial.value}`)
     
   } catch (err) {
     console.error('❌ Failed to fetch production orders:', err)
@@ -482,7 +456,7 @@ const exportToCSV = () => {
   const url = URL.createObjectURL(blob)
   
   link.setAttribute('href', url)
-  link.setAttribute('download', `производствени_поръчки_${props.material}_${new Date().toISOString().split('T')[0]}.csv`)
+  link.setAttribute('download', `производствени_поръчки_${transformedMaterial.value}_${new Date().toISOString().split('T')[0]}.csv`)
   link.style.visibility = 'hidden'
   
   document.body.appendChild(link)
