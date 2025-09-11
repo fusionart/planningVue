@@ -1,4 +1,4 @@
-<!-- SalesOrdersMain.vue - Updated with modal fixes -->
+<!-- SalesOrdersMain.vue - Complete with Production Orders Integration -->
 <template>
   <div class="sales-orders" :key="componentKey">
     <!-- Page Header -->
@@ -89,6 +89,7 @@
           :sortDirection="sortDirection"
           @sort="handleSort"
           @row-click="handleRowClick"
+          @material-click="handleMaterialClick"
         />
 
         <!-- Pagination -->
@@ -115,6 +116,15 @@
       :order="selectedOrder"
       @close="handleCloseModal"
     />
+
+    <!-- Production Orders Modal -->
+    <ProductionOrdersModal
+      :show="productionOrdersModalVisible"
+      :material="selectedMaterial"
+      :dateFrom="apiDateFromDate"
+      :dateTo="apiDateToDate"
+      @close="handleCloseProductionOrdersModal"
+    />
   </div>
 </template>
 
@@ -133,8 +143,8 @@ import TableControls from './TableControls.vue'
 import SalesOrdersTable from './SalesOrdersTable.vue'
 import TablePagination from './TablePagination.vue'
 import OrderDetailsModal from './OrderDetailsModal.vue'
+import ProductionOrdersModal from './ProductionOrdersModal.vue'
 import LoadingStates from './LoadingStates.vue'
-
 
 // Main composables
 const {
@@ -185,8 +195,10 @@ const {
   applyPlantFilter
 } = useSalesOrdersTable(salesOrdersByDate, currentPage, rows)
 
-// Component state - renamed to avoid conflicts
+// Component state
 const selectedOrder = ref<SalesOrderMain | null>(null)
+const selectedMaterial = ref('')
+const productionOrdersModalVisible = ref(false)
 const credentialsModalVisible = ref(false)
 const savingCredentials = ref(false)
 const credentialsError = ref('')
@@ -200,6 +212,10 @@ const apiDateToDate = ref<Date | null>(null)
 // Computed
 const hasCredentials = computed(() => {
   return salesOrderService.hasCredentials() || localCredentialsState.value
+})
+
+const isDevelopment = computed(() => {
+  return process.env.NODE_ENV === 'development' || window.location.hostname === 'localhost'
 })
 
 // Methods
@@ -310,14 +326,57 @@ const handleCloseModal = () => {
   document.body.classList.remove('modal-open')
 }
 
+const handleMaterialClick = (material: string) => {
+  console.log(`🔍 Material clicked: ${material}`)
+  
+  // Validate that we have the required date range
+  if (!apiDateFromDate.value || !apiDateToDate.value) {
+    console.warn('⚠️ Date range not available for production orders lookup')
+    alert('Моля, първо изберете период от датите за да видите производствените поръчки.')
+    return
+  }
+
+  // Check if we have credentials
+  if (!salesOrderService.hasCredentials() && !localCredentialsState.value) {
+    console.warn('⚠️ No credentials available for production orders lookup')
+    alert('Моля, първо въведете идентификационни данни.')
+    credentialsModalVisible.value = true
+    return
+  }
+
+  selectedMaterial.value = material
+  productionOrdersModalVisible.value = true
+  
+  // Prevent body scroll when modal opens
+  document.body.classList.add('modal-open')
+  
+  console.log(`✅ Opening production orders modal for material: ${material}`)
+}
+
+const handleCloseProductionOrdersModal = () => {
+  productionOrdersModalVisible.value = false
+  selectedMaterial.value = ''
+  // Re-enable body scroll when modal closes
+  document.body.classList.remove('modal-open')
+  
+  console.log('✅ Production orders modal closed')
+}
+
 const handlePageChange = (page: number) => {
   goToPage(page)
 }
 
-// Escape key handler for modal
+// Escape key handler for modals
 const handleEscapeKey = (event: KeyboardEvent) => {
-  if (event.key === 'Escape' && selectedOrder.value) {
-    handleCloseModal()
+  if (event.key === 'Escape') {
+    // Close modals in priority order
+    if (productionOrdersModalVisible.value) {
+      handleCloseProductionOrdersModal()
+    } else if (selectedOrder.value) {
+      handleCloseModal()
+    } else if (credentialsModalVisible.value) {
+      handleCloseCredentialsModal()
+    }
   }
 }
 
@@ -328,14 +387,28 @@ watch(salesOrdersByDate, (newData) => {
   }
 }, { deep: true })
 
+// Watch for modal state changes to ensure proper cleanup
+watch(productionOrdersModalVisible, (isVisible) => {
+  if (isVisible) {
+    console.log(`🔍 Production orders modal opened for material: ${selectedMaterial.value}`)
+  } else {
+    console.log('✅ Production orders modal closed')
+    selectedMaterial.value = ''
+  }
+})
+
 // Initialize
 onMounted(() => {
+  console.log('📋 SalesOrdersMain component mounted')
+  
   const initialHasCredentials = salesOrderService.hasCredentials()
   localCredentialsState.value = initialHasCredentials
   
   if (!initialHasCredentials) {
+    console.log('🔓 No credentials found, showing credentials modal')
     credentialsModalVisible.value = true
   } else {
+    console.log('🔐 Credentials found, initializing date inputs')
     initializeDateInputs()
   }
 
@@ -344,41 +417,20 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  // Clean up event listener and body class
+  console.log('📋 SalesOrdersMain component unmounted')
+  
+  // Clean up event listener and body classes
   document.removeEventListener('keydown', handleEscapeKey)
   document.body.classList.remove('modal-open')
+  
+  // Clean up any remaining state
+  selectedOrder.value = null
+  selectedMaterial.value = ''
+  productionOrdersModalVisible.value = false
+  credentialsModalVisible.value = false
 })
 </script>
 
 <style scoped>
 @import '@/styles/components/SalesOrders/SalesOrdersMain.css';
-
-/* Empty state styles */
-.empty-state {
-  text-align: center;
-  padding: 3rem 2rem;
-  background: #f9fafb;
-  border: 2px dashed #d1d5db;
-  border-radius: 12px;
-  margin: 2rem 0;
-}
-
-.empty-icon {
-  font-size: 3rem;
-  margin-bottom: 1rem;
-}
-
-.empty-state p {
-  margin: 0.5rem 0;
-  color: #6b7280;
-}
-
-.empty-sub {
-  font-size: 0.875rem;
-  margin-bottom: 1.5rem !important;
-}
-
-.empty-state .btn {
-  margin-top: 1rem;
-}
 </style>
