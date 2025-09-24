@@ -1,9 +1,15 @@
-/* SalesOrdersTable.css - Updated with content from SalesOrdersTwoRowHeader.css */
+/* SalesOrdersTable.css - Complete with all styles including Material and Planned Order Click functionality */
+
+/* =============================================================================
+   BASE TABLE CONTAINER & STRUCTURE
+   ============================================================================= */
+
 .custom-datatable-container {
   background: var(--background-card);
   border-radius: var(--border-radius-lg);
   box-shadow: var(--shadow-card);
   overflow: hidden;
+  position: relative;
 }
 
 .table-wrapper {
@@ -21,7 +27,10 @@
   min-width: 1500px;
 }
 
-/* First Header Row - Categories */
+/* =============================================================================
+   FIRST HEADER ROW - CATEGORY GROUPS
+   ============================================================================= */
+
 .header-categories th {
   background: var(--color-primary) !important;
   color: white !important;
@@ -43,7 +52,7 @@
 }
 
 .header-inventory {
-  background: #dc2626 !important; /* Red for inventory - now spans 7 columns */
+  background: #dc2626 !important; /* Red for inventory - spans 7 columns */
   border-right: 2px solid #1f2937 !important;
 }
 
@@ -53,7 +62,20 @@
   border-right: 2px solid #1f2937 !important;
 }
 
-/* Second Header Row - Column Names */
+/* Add stronger border before first dynamic column in header */
+.first-dynamic-group {
+  border-left: 2px solid #7c3aed !important;
+}
+
+/* Also add border to the first header row for the first dynamic group */
+.header-dynamic:first-of-type {
+  border-left: 2px solid #7c3aed !important;
+}
+
+/* =============================================================================
+   SECOND HEADER ROW - COLUMN NAMES WITH SORTING
+   ============================================================================= */
+
 .header-columns th {
   background: #e2e8f0 !important;
   color: #334155 !important;
@@ -70,11 +92,67 @@
   border-bottom: 1px solid var(--border-medium);
 }
 
+/* Header content for clickable headers */
+.header-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.header-text {
+  font-weight: 700;
+}
+
+.production-hint {
+  font-size: 1rem;
+  opacity: 0.7;
+  transition: opacity 0.2s ease;
+}
+
+/* Material column header enhancements */
+.material-header {
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%) !important;
+  border: 1px solid #bfdbfe !important;
+  position: relative;
+}
+
+.material-header:hover .production-hint {
+  opacity: 1;
+  transform: scale(1.1);
+}
+
+/* Planned order column header enhancements */
+.planned-order-header {
+  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%) !important;
+  border: 1px solid #bbf7d0 !important;
+  position: relative;
+}
+
 /* Section separator borders in second header row */
 .col-plant {
   border-right: 2px solid #1f2937 !important;
   position: relative;
   z-index: 16 !important;
+}
+
+/* Column-specific styling for second row */
+.col-material { 
+  background: #dcfce7 !important; 
+  color: #166534 !important; 
+}
+
+.col-plant { 
+  background: #dcfce7 !important; 
+  color: #166534 !important;
+  border-right: 2px solid #1f2937 !important;
+  position: relative;
+  z-index: 12 !important;
+}
+
+.col-requested { 
+  background: #fef2f2 !important; 
+  color: #991b1b !important; 
 }
 
 /* To Produce Column Styling */
@@ -98,50 +176,6 @@
   font-weight: 600;
 }
 
-/* Final Battery Column Styling */
-.col-final-battery {
-  background: #fef2f2 !important; 
-  color: #991b1b !important;
-  border-right: 2px solid #1f2937 !important;
-  position: relative;
-  z-index: 16 !important;
-}
-
-.col-dynamic-production {
-  border-right: 2px solid #1f2937 !important;
-  position: relative;
-  z-index: 16 !important;
-}
-
-/* Add stronger border before first dynamic column in header */
-.first-dynamic-group {
-  border-left: 2px solid #7c3aed !important;
-}
-
-/* Also add border to the first header row for the first dynamic group */
-.header-dynamic:first-of-type {
-  border-left: 2px solid #7c3aed !important;
-}
-
-/* Column-specific styling for second row */
-.col-material { 
-  background: #dcfce7 !important; 
-  color: #166534 !important; 
-}
-
-.col-plant { 
-  background: #dcfce7 !important; 
-  color: #166534 !important;
-  border-right: 2px solid #1f2937 !important;
-  position: relative;
-  z-index: 12 !important;
-}
-
-.col-requested { 
-  background: #fef2f2 !important; 
-  color: #991b1b !important; 
-}
-
 .col-available { 
   background: #fef2f2 !important; 
   color: #991b1b !important; 
@@ -150,6 +184,15 @@
 .col-charged { 
   background: #fef2f2 !important; 
   color: #991b1b !important;
+}
+
+/* Final Battery Column Styling */
+.col-final-battery {
+  background: #fef2f2 !important; 
+  color: #991b1b !important;
+  border-right: 2px solid #1f2937 !important;
+  position: relative;
+  z-index: 16 !important;
 }
 
 .col-dynamic-qty { 
@@ -170,7 +213,10 @@
   z-index: 12 !important;
 }
 
-/* Sorting Styles */
+/* =============================================================================
+   SORTING FUNCTIONALITY
+   ============================================================================= */
+
 .sortable {
   cursor: pointer;
   user-select: none;
@@ -180,6 +226,11 @@
 
 .sortable:hover {
   background-color: rgba(59, 130, 246, 0.1) !important;
+}
+
+.sortable:focus {
+  outline: 2px solid #3b82f6;
+  outline-offset: -2px;
 }
 
 .sort-indicator {
@@ -195,6 +246,10 @@
   color: var(--color-primary) !important;
 }
 
+.sort-active {
+  background-color: rgba(59, 130, 246, 0.05) !important;
+}
+
 .sort-arrow {
   font-weight: bold;
   color: var(--color-primary) !important;
@@ -204,11 +259,10 @@
   opacity: 0.5;
 }
 
-.sort-active {
-  background-color: rgba(59, 130, 246, 0.05) !important;
-}
+/* =============================================================================
+   TABLE BODY STYLING
+   ============================================================================= */
 
-/* Table Body Styling */
 .sales-orders-table-custom tbody td {
   padding: 8px 6px;
   border: 1px solid var(--border-light);
@@ -242,7 +296,11 @@
   background-color: #f1f5f9;
 }
 
-/* Cell-specific styling */
+/* =============================================================================
+   CELL-SPECIFIC STYLING
+   ============================================================================= */
+
+/* Basic Information Cells */
 .cell-material { 
   background-color: #f0fdf4; 
   font-weight: 600; 
@@ -259,6 +317,7 @@
   z-index: 3 !important;
 }
 
+/* Inventory Data Cells */
 .cell-requested { 
   background-color: #fef2f2; 
   font-weight: 600; 
@@ -306,6 +365,7 @@
   z-index: 3 !important;
 }
 
+/* Dynamic Cells */
 .cell-dynamic-qty { 
   background-color: #faf5ff; 
   font-weight: 600; 
@@ -317,6 +377,7 @@
   font-family: monospace; 
   font-size: 11px;
   color: #0369a1;
+  position: relative;
 }
 
 .cell-dynamic-production { 
@@ -329,7 +390,292 @@
   z-index: 3 !important;
 }
 
-/* Footer Styling */
+/* =============================================================================
+   MATERIAL CLICKABLE CONTAINER
+   ============================================================================= */
+
+.material-clickable-container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  cursor: pointer !important;
+  transition: all 0.2s ease;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border: 1px solid #e2e8f0;
+  position: relative;
+  overflow: hidden;
+}
+
+.material-clickable-container::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(59, 130, 246, 0.1), transparent);
+  transition: left 0.5s ease;
+}
+
+.material-clickable-container:hover::before {
+  left: 100%;
+}
+
+.material-clickable-container:hover {
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  border-color: #3b82f6;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(59, 130, 246, 0.15);
+}
+
+.material-clickable-container:focus {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+.material-code {
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-weight: 700;
+  color: #1e40af;
+  font-size: 0.9rem;
+  letter-spacing: 0.5px;
+}
+
+.production-icon {
+  font-size: 1rem;
+  opacity: 0.6;
+  transition: all 0.2s ease;
+}
+
+.material-clickable-container:hover .production-icon {
+  opacity: 1;
+  transform: scale(1.1);
+}
+
+/* =============================================================================
+   PLANNED ORDER CLICKABLE CONTAINER
+   ============================================================================= */
+
+.planned-order-clickable-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  cursor: pointer !important;
+  transition: all 0.2s ease;
+  background: linear-gradient(135deg, #f0fdf4 0%, #ecfccb 100%);
+  border: 1px solid #d9f99d;
+  position: relative;
+  overflow: hidden;
+  min-width: 120px;
+}
+
+/* Animated background effect */
+.planned-order-clickable-container::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(34, 197, 94, 0.1), transparent);
+  transition: left 0.5s ease;
+}
+
+.planned-order-clickable-container:hover::before {
+  left: 100%;
+}
+
+.planned-order-clickable-container:hover {
+  background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
+  border-color: #22c55e;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(34, 197, 94, 0.15);
+}
+
+/* Focus state for accessibility */
+.planned-order-clickable-container:focus {
+  outline: 2px solid #22c55e;
+  outline-offset: 2px;
+}
+
+/* Active state for click feedback */
+.planned-order-clickable-container:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(34, 197, 94, 0.2);
+}
+
+/* No planned order styling */
+.no-planned-order {
+  color: #9ca3af;
+  font-style: italic;
+  text-align: center;
+  display: block;
+  padding: 0.5rem;
+  font-size: 0.9rem;
+}
+
+/* Row hover effects for clickable elements */
+.data-row:hover .cell-material .material-clickable-container {
+  border-color: #3b82f6;
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+}
+
+.data-row:hover .cell-dynamic-planned .planned-order-clickable-container {
+  border-color: #22c55e;
+  background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
+}
+
+/* =============================================================================
+   TOOLTIP ENHANCEMENTS
+   ============================================================================= */
+
+.planned-order-clickable-container[title] {
+  position: relative;
+}
+
+.planned-order-clickable-container[title]:hover::after {
+  content: attr(title);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.9);
+  color: white;
+  padding: 0.5rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  z-index: 1000;
+  margin-bottom: 0.25rem;
+  animation: tooltipFadeIn 0.2s ease-out;
+}
+
+@keyframes tooltipFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+/* =============================================================================
+   CLICK FEEDBACK TOASTS
+   ============================================================================= */
+
+/* Material click feedback */
+.material-click-feedback {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(59, 130, 246, 0.95);
+  color: white;
+  padding: 1rem 2rem;
+  border-radius: 8px;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+  animation: fadeInOut 2s ease-in-out;
+}
+
+/* Planned order click feedback */
+.planned-order-click-feedback {
+  position: fixed;
+  top: 45%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(34, 197, 94, 0.95);
+  color: white;
+  padding: 1rem 2rem;
+  border-radius: 8px;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+  z-index: 1001;
+  backdrop-filter: blur(4px);
+  animation: fadeInOut 1.5s ease-in-out;
+}
+
+@keyframes fadeInOut {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.9);
+  }
+  20%, 80% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.9);
+  }
+}
+
+.feedback-content {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.feedback-icon {
+  font-size: 1.25rem;
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
+.feedback-text {
+  white-space: nowrap;
+}
+
+/* =============================================================================
+   LOADING STATES
+   ============================================================================= */
+
+/* Loading state for planned order conversion */
+.planned-order-converting {
+  opacity: 0.6;
+  pointer-events: none;
+  position: relative;
+}
+
+.planned-order-converting::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 -8px;
+  border: 2px solid #22c55e;
+  border-top: 2px solid transparent;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* =============================================================================
+   FOOTER STYLING
+   ============================================================================= */
+
 .sales-orders-table-custom tfoot td {
   background: var(--background-secondary) !important;
   color: var(--text-primary) !important;
@@ -414,7 +760,10 @@
   border-right: 2px solid #1f2937 !important;
 }
 
-/* No data styling */
+/* =============================================================================
+   NO DATA STYLING
+   ============================================================================= */
+
 .no-data-row {
   background: var(--background-secondary);
 }
@@ -426,10 +775,29 @@
   font-style: italic;
 }
 
-/* Responsive styles */
+/* =============================================================================
+   RESPONSIVE DESIGN
+   ============================================================================= */
+
+@media (max-width: 1200px) {
+  .material-clickable-container,
+  .planned-order-clickable-container {
+    padding: 0.375rem 0.5rem;
+  }
+  
+  .planned-order-clickable-container {
+    min-width: 100px;
+  }
+  
+  .material-code,
+  .planned-order-code {
+    font-size: 0.8rem;
+  }
+}
+
 @media (max-width: 768px) {
   .sales-orders-table-custom {
-    min-width: 1500px; /* Increase to accommodate new columns */
+    min-width: 1500px;
     font-size: 10px;
   }
   
@@ -443,6 +811,25 @@
   .sales-orders-table-custom tfoot td {
     padding: 6px 4px;
     font-size: 10px;
+  }
+
+  .header-content {
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+  
+  .production-hint {
+    font-size: 0.8rem;
+  }
+  
+  .material-click-feedback,
+  .planned-order-click-feedback {
+    padding: 0.75rem 1.5rem;
+    font-size: 0.9rem;
+  }
+  
+  .feedback-content {
+    gap: 0.5rem;
   }
 
   /* New columns responsive adjustments */
@@ -461,9 +848,47 @@
     min-width: 80px;
     font-size: 11px;
   }
+
+  .planned-order-clickable-container {
+    padding: 0.25rem 0.375rem;
+    flex-direction: column;
+    gap: 0.125rem;
+    min-width: 80px;
+  }
+  
+  .planned-order-code {
+    font-size: 0.75rem;
+  }
 }
 
 @media (max-width: 480px) {
+  .material-clickable-container,
+  .planned-order-clickable-container {
+    padding: 0.25rem 0.375rem;
+    flex-direction: column;
+    gap: 0.125rem;
+  }
+  
+  .material-code,
+  .planned-order-code {
+    font-size: 0.75rem;
+  }
+  
+  .production-icon {
+    font-size: 0.8rem;
+  }
+  
+  .material-click-feedback,
+  .planned-order-click-feedback {
+    padding: 0.5rem 1rem;
+    font-size: 0.8rem;
+  }
+  
+  .feedback-text {
+    white-space: normal;
+    text-align: center;
+  }
+
   .col-to-produce,
   .cell-to-produce,
   .footer-to-produce,
@@ -482,11 +907,65 @@
   }
   
   .sales-orders-table-custom {
-    min-width: 1400px; /* Adjust for very small screens with new columns */
+    min-width: 1400px;
   }
 }
 
-/* Print styles */
+/* =============================================================================
+   ACCESSIBILITY & SPECIAL MODES
+   ============================================================================= */
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .material-clickable-container,
+  .planned-order-clickable-container {
+    background: white;
+    border: 2px solid #000;
+  }
+  
+  .material-code,
+  .planned-order-code {
+    color: #000;
+  }
+  
+  .material-clickable-container:hover,
+  .planned-order-clickable-container:hover {
+    background: #f0f0f0;
+    border-color: #000;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .material-clickable-container,
+  .material-clickable-container::before,
+  .planned-order-clickable-container,
+  .planned-order-clickable-container::before,
+  .production-icon {
+    transition: none;
+  }
+  
+  .material-clickable-container:hover,
+  .planned-order-clickable-container:hover {
+    transform: none;
+  }
+  
+  .planned-order-converting::after,
+  .feedback-icon {
+    animation: none;
+  }
+  
+  .material-click-feedback,
+  .planned-order-click-feedback {
+    animation: none;
+    opacity: 1;
+  }
+}
+
+/* =============================================================================
+   PRINT STYLES
+   ============================================================================= */
+
 @media print {
   .sales-orders-table-custom {
     font-size: 10px;
@@ -497,5 +976,26 @@
   .sales-orders-table-custom tbody td,
   .sales-orders-table-custom tfoot td {
     padding: 4px 2px;
+  }
+
+  .material-clickable-container,
+  .planned-order-clickable-container {
+    background: white !important;
+    border: 1px solid #000 !important;
+    box-shadow: none !important;
+  }
+  
+  .production-icon {
+    display: none !important;
+  }
+  
+  .material-code,
+  .planned-order-code {
+    color: #000 !important;
+  }
+
+  .material-click-feedback,
+  .planned-order-click-feedback {
+    display: none !important;
   }
 }

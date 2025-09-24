@@ -1,4 +1,4 @@
-<!-- SalesOrdersMain.vue - Complete with Production Orders Integration -->
+<!-- SalesOrdersMain.vue - Complete with Production Orders and Planned Order Conversion Integration -->
 <template>
   <div class="sales-orders" :key="componentKey">
     <!-- Page Header -->
@@ -90,6 +90,7 @@
           @sort="handleSort"
           @row-click="handleRowClick"
           @material-click="handleMaterialClick"
+          @planned-order-click="handlePlannedOrderClick"
         />
 
         <!-- Pagination -->
@@ -125,6 +126,39 @@
       :dateTo="apiDateToDate"
       @close="handleCloseProductionOrdersModal"
     />
+
+    <!-- Planned Order Conversion Dialog -->
+    <PlannedOrderConversionDialog
+      :visible="showPlannedOrderConversionDialog"
+      :plannedOrder="selectedPlannedOrderForConversion"
+      :material="selectedMaterialForConversion"
+      @update:visible="handleConversionDialogVisibility"
+      @convert="handlePlannedOrderConversion"
+      @cancel="closePlannedOrderConversionDialog"
+    />
+
+    <!-- Conversion Success/Error Toast -->
+    <div 
+      v-if="showConversionToast && conversionToastMessage"
+      class="conversion-toast"
+      :class="{ 
+        'toast-success': conversionToastMessage.includes('успешно'),
+        'toast-error': !conversionToastMessage.includes('успешно')
+      }"
+    >
+      <div class="toast-content">
+        <span class="toast-icon">
+          {{ conversionToastMessage.includes('успешно') ? '✅' : '❌' }}
+        </span>
+        <span class="toast-message">{{ conversionToastMessage }}</span>
+        <button 
+          class="toast-close"
+          @click="showConversionToast = false"
+        >
+          ✕
+        </button>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -133,6 +167,7 @@ import { ref, computed, onMounted, watch, nextTick, onUnmounted } from 'vue'
 import { useSalesOrders } from '@/composables/useSalesOrders'
 import { useSalesOrdersTable } from '@/composables/useSalesOrdersTable'
 import { salesOrderService } from '@/services/salesOrderService'
+import { productionOrderService } from '@/services/productionOrderService'
 import type { SalesOrderMain } from '@/types/api'
 
 // Import child components
@@ -144,6 +179,7 @@ import SalesOrdersTable from './SalesOrdersTable.vue'
 import TablePagination from './TablePagination.vue'
 import OrderDetailsModal from './OrderDetailsModal.vue'
 import ProductionOrdersModal from './ProductionOrdersModal.vue'
+import PlannedOrderConversionDialog from './PlannedOrderConversionDialog.vue'
 import LoadingStates from './LoadingStates.vue'
 
 // Main composables
@@ -204,6 +240,13 @@ const savingCredentials = ref(false)
 const credentialsError = ref('')
 const componentKey = ref(0)
 const localCredentialsState = ref(false)
+
+// NEW: Planned order conversion state
+const showPlannedOrderConversionDialog = ref(false)
+const selectedPlannedOrderForConversion = ref('')
+const selectedMaterialForConversion = ref('')
+const showConversionToast = ref(false)
+const conversionToastMessage = ref('')
 
 // API date state
 const apiDateFromDate = ref<Date | null>(null)
@@ -362,6 +405,82 @@ const handleCloseProductionOrdersModal = () => {
   console.log('✅ Production orders modal closed')
 }
 
+// NEW: Handle planned order clicks
+const handlePlannedOrderClick = (plannedOrder: string, material: string) => {
+  console.log(`🔄 Planned order clicked in parent: ${plannedOrder} for material: ${material}`)
+  
+  // Validate that we have credentials
+  if (!salesOrderService.hasCredentials() && !localCredentialsState.value) {
+    console.warn('⚠️ No credentials available for planned order conversion')
+    alert('Моля, първо въведете идентификационни данни.')
+    credentialsModalVisible.value = true
+    return
+  }
+
+  // Set the selected planned order and material (same pattern as material click)
+  selectedPlannedOrderForConversion.value = plannedOrder
+  selectedMaterialForConversion.value = material
+  
+  // Open the conversion dialog (same pattern as material click opening production orders modal)
+  showPlannedOrderConversionDialog.value = true
+  
+  // Prevent body scroll when modal opens
+  document.body.classList.add('modal-open')
+  
+  console.log(`✅ Opening planned order conversion dialog for: ${plannedOrder}`)
+}
+
+const handleConversionDialogVisibility = (visible: boolean) => {
+  if (!visible) {
+    closePlannedOrderConversionDialog()
+  }
+}
+
+const handlePlannedOrderConversion = async (plannedOrder: string, manufacturingOrderType: string) => {
+  try {
+    // Use the production order service directly (same pattern as other API calls)
+    const result = await productionOrderService.convertPlannedOrder(plannedOrder, manufacturingOrderType)
+    
+    if (result.success) {
+      // Show success message
+      conversionToastMessage.value = result.message || `Планираната поръчка ${plannedOrder} беше успешно конвертирана`
+      showConversionToast.value = true
+      
+      // Auto-hide toast after 5 seconds
+      setTimeout(() => {
+        showConversionToast.value = false
+      }, 5000)
+      
+      // Close the dialog after short delay (same pattern as successful operations)
+      setTimeout(() => {
+        closePlannedOrderConversionDialog()
+      }, 2000)
+      
+      // Refresh data after successful conversion
+      await handleLoadData()
+    } else {
+      // Show error message
+      conversionToastMessage.value = result.message || 'Конвертирането неуспешно'
+      showConversionToast.value = true
+    }
+  } catch (error) {
+    console.error('Conversion error:', error)
+    conversionToastMessage.value = 'Възникна грешка при конвертирането на планираната поръчка'
+    showConversionToast.value = true
+  }
+}
+
+const closePlannedOrderConversionDialog = () => {
+  showPlannedOrderConversionDialog.value = false
+  selectedPlannedOrderForConversion.value = ''
+  selectedMaterialForConversion.value = ''
+  
+  // Re-enable body scroll when modal closes
+  document.body.classList.remove('modal-open')
+  
+  console.log('✅ Planned order conversion dialog closed')
+}
+
 const handlePageChange = (page: number) => {
   goToPage(page)
 }
@@ -370,7 +489,9 @@ const handlePageChange = (page: number) => {
 const handleEscapeKey = (event: KeyboardEvent) => {
   if (event.key === 'Escape') {
     // Close modals in priority order
-    if (productionOrdersModalVisible.value) {
+    if (showPlannedOrderConversionDialog.value) {
+      closePlannedOrderConversionDialog()
+    } else if (productionOrdersModalVisible.value) {
       handleCloseProductionOrdersModal()
     } else if (selectedOrder.value) {
       handleCloseModal()
@@ -394,6 +515,16 @@ watch(productionOrdersModalVisible, (isVisible) => {
   } else {
     console.log('✅ Production orders modal closed')
     selectedMaterial.value = ''
+  }
+})
+
+// Watch for conversion success to auto-hide toast
+watch(showConversionToast, (isVisible) => {
+  if (isVisible && conversionToastMessage.value.includes('успешно')) {
+    setTimeout(() => {
+      showConversionToast.value = false
+      conversionToastMessage.value = ''
+    }, 3000)
   }
 })
 
@@ -427,10 +558,88 @@ onUnmounted(() => {
   selectedOrder.value = null
   selectedMaterial.value = ''
   productionOrdersModalVisible.value = false
+  showPlannedOrderConversionDialog.value = false
+  selectedPlannedOrderForConversion.value = ''
+  selectedMaterialForConversion.value = ''
   credentialsModalVisible.value = false
 })
 </script>
 
 <style scoped>
 @import '@/styles/components/SalesOrders/SalesOrdersMain.css';
+
+/* Conversion toast styles */
+.conversion-toast {
+  position: fixed;
+  top: 2rem;
+  right: 2rem;
+  z-index: 1002;
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+  backdrop-filter: blur(4px);
+  animation: slideIn 0.3s ease-out;
+  max-width: 400px;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.toast-success {
+  background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
+  border: 1px solid #22c55e;
+  color: #15803d;
+}
+
+.toast-error {
+  background: linear-gradient(135deg, #fef2f2 0%, #fecaca 100%);
+  border: 1px solid #ef4444;
+  color: #dc2626;
+}
+
+.toast-content {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.toast-icon {
+  font-size: 1.25rem;
+}
+
+.toast-message {
+  font-weight: 600;
+  flex: 1;
+}
+
+.toast-close {
+  background: transparent;
+  border: none;
+  font-size: 1.1rem;
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity 0.2s ease;
+}
+
+.toast-close:hover {
+  opacity: 1;
+}
+
+/* Responsive design for toast */
+@media (max-width: 640px) {
+  .conversion-toast {
+    top: 1rem;
+    right: 1rem;
+    left: 1rem;
+    max-width: none;
+  }
+}
 </style>

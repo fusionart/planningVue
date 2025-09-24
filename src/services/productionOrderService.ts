@@ -30,6 +30,17 @@ export interface ProductionOrderFilters {
   reqDelDateEnd: string   // LocalDateTime string (YYYY-MM-DDTHH:mm:ss)
 }
 
+export interface PlannedOrderConversionRequest {
+  plannedOrder: string
+  manufacturingOrderType: string
+}
+
+export interface PlannedOrderConversionResponse {
+  success: boolean
+  message?: string
+  productionOrder?: string
+}
+
 class ProductionOrderService {
   private readonly endpoint = '/api/sap'
 
@@ -105,6 +116,111 @@ class ProductionOrderService {
         throw new Error(`Failed to fetch production orders for material ${material}: ${error.message}`)
       }
       throw new Error(`Failed to fetch production orders for material ${material}: Unknown error`)
+    }
+  }
+
+  /**
+   * Convert planned order to production order
+   */
+  /**
+ * Convert planned order to production order
+ */
+  async convertPlannedOrder(
+    plannedOrder: string,
+    manufacturingOrderType: string
+  ): Promise<PlannedOrderConversionResponse> {
+    try {
+      // Get credentials
+      const credentials = this.getCredentials()
+
+      if (isFeatureEnabled('DEBUG_MODE')) {
+        console.log('🔄 Converting planned order with credentials check:', {
+          plannedOrder,
+          manufacturingOrderType,
+          hasUsername: !!credentials.username,
+          hasPassword: !!credentials.password,
+          usernameLength: credentials.username?.length || 0,
+          passwordLength: credentials.password?.length || 0
+        })
+      }
+
+      // Ensure credentials are not empty
+      if (!credentials.username || !credentials.password) {
+        throw new Error('Username or password is empty')
+      }
+
+      const params = {
+        username: btoa(credentials.username), // Base64 encode for backend
+        password: btoa(credentials.password), // Base64 encode for backend
+        plannedOrder,
+        manufacturingOrderType
+      }
+
+      if (isFeatureEnabled('DEBUG_MODE')) {
+        console.log('🔄 API call parameters:', {
+          hasEncodedUsername: !!params.username,
+          hasEncodedPassword: !!params.password,
+          encodedUsernameLength: params.username?.length || 0,
+          encodedPasswordLength: params.password?.length || 0,
+          plannedOrder: params.plannedOrder,
+          manufacturingOrderType: params.manufacturingOrderType
+        })
+      }
+
+      // Build query string manually
+      const queryString = new URLSearchParams({
+        username: params.username,
+        password: params.password,
+        plannedOrder: params.plannedOrder,
+        manufacturingOrderType: params.manufacturingOrderType
+      }).toString()
+
+      const url = `${this.endpoint}/convertPlannedOrder?${queryString}`
+
+      if (isFeatureEnabled('DEBUG_MODE')) {
+        console.log('🔄 Built URL with query string:', url.replace(/password=[^&]+/, 'password=[HIDDEN]'))
+      }
+
+      // Call the endpoint using POST with query string in URL
+      const response = await apiClient.post<any>(url, null)
+
+      if (isFeatureEnabled('DEBUG_MODE')) {
+        console.log('✅ Planned order converted successfully:', {
+          plannedOrder,
+          manufacturingOrderType,
+          response
+        })
+      }
+
+      return {
+        success: true,
+        message: `Планираната поръчка ${plannedOrder} беше успешно конвертирана към производствена поръчка от тип ${manufacturingOrderType}`,
+        productionOrder: response?.productionOrder || undefined
+      }
+
+    } catch (error) {
+      console.error('❌ Failed to convert planned order:', error)
+      
+      let errorMessage = 'Възникна неочаквана грешка при конвертирането'
+      
+      if (error instanceof Error) {
+        errorMessage = error.message
+      } else if (typeof error === 'object' && error !== null) {
+        // Handle API error responses
+        const apiError = error as any
+        if (apiError.response?.data?.message) {
+          errorMessage = apiError.response.data.message
+        } else if (apiError.response?.data) {
+          errorMessage = JSON.stringify(apiError.response.data)
+        } else if (apiError.message) {
+          errorMessage = apiError.message
+        }
+      }
+
+      return {
+        success: false,
+        message: `Неуспешно конвертиране на планирана поръчка ${plannedOrder}: ${errorMessage}`
+      }
     }
   }
 
