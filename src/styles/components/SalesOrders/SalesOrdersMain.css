@@ -10,8 +10,6 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 2rem;
-  padding-bottom: 1rem;
   border-bottom: 2px solid #e5e7eb;
 }
 
@@ -130,7 +128,6 @@
 
   .page-header {
     flex-direction: column;
-    gap: 1rem;
     align-items: stretch;
   }
 
@@ -180,21 +177,6 @@
 /* Material click feedback styles */
 .data-display {
   position: relative;
-}
-
-/* Add visual feedback for production orders feature */
-.table-section::before {
-  content: "💡 Подсказка: Кликнете на материал за да видите производствените поръчки";
-  display: block;
-  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
-  color: #1e40af;
-  padding: 0.75rem 1rem;
-  border-radius: 8px;
-  margin-bottom: 1rem;
-  font-size: 0.875rem;
-  font-weight: 500;
-  border: 1px solid #bfdbfe;
-  text-align: center;
 }
 
 /* Loading overlay for production orders */
@@ -287,9 +269,9 @@
 /* Page header enhancements */
 .page-header {
   background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
-  padding: 2rem;
+  padding: 0.5rem;
   border-radius: 12px;
-  margin-bottom: 2rem;
+  margin-bottom: 0.5rem;
   border: 1px solid #e5e7eb;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
 }
@@ -307,10 +289,6 @@
 .page-title::before {
   content: "📊";
   font-size: 2rem;
-}
-
-.header-actions {
-  margin-top: 1rem;
 }
 
 /* Data display enhancements */
