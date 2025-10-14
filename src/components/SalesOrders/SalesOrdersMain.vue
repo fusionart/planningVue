@@ -1,4 +1,4 @@
-<!-- SalesOrdersMain.vue - Complete with Production Orders and Planned Order Conversion Integration -->
+<!-- SalesOrdersMain.vue - Complete with Production Orders, Planned Order Conversion, and Update Production Order Integration -->
 <template>
   <div class="sales-orders" :key="componentKey">
     <!-- Page Header -->
@@ -12,6 +12,16 @@
           type="button"
         >
           {{ hasCredentials ? '🔐 Актуализация на идентификационни данни' : '🔓 Въведете идентификационни данни' }}
+        </button>
+        
+        <!-- Update Production Order Button -->
+        <button 
+          v-if="hasCredentials"
+          class="btn btn-info" 
+          @click.stop="handleUpdateProductionOrderClick"
+          type="button"
+        >
+          🔄 Актуализация на производствена поръчка
         </button>
       </div>
     </div>
@@ -137,6 +147,13 @@
       @cancel="closePlannedOrderConversionDialog"
     />
 
+    <!-- Update Production Order Modal -->
+    <UpdateProductionOrderModal
+      :show="updateProductionOrderModalVisible"
+      @close="handleCloseUpdateProductionOrderModal"
+      @success="handleUpdateProductionOrderSuccess"
+    />
+
     <!-- Conversion Success/Error Toast -->
     <div 
       v-if="showConversionToast && conversionToastMessage"
@@ -180,6 +197,7 @@ import TablePagination from './TablePagination.vue'
 import OrderDetailsModal from './OrderDetailsModal.vue'
 import ProductionOrdersModal from './ProductionOrdersModal.vue'
 import PlannedOrderConversionDialog from './PlannedOrderConversionDialog.vue'
+import UpdateProductionOrderModal from './UpdateProductionOrderModal.vue'
 import LoadingStates from './LoadingStates.vue'
 
 // Main composables
@@ -241,12 +259,15 @@ const credentialsError = ref('')
 const componentKey = ref(0)
 const localCredentialsState = ref(false)
 
-// NEW: Planned order conversion state
+// Planned order conversion state
 const showPlannedOrderConversionDialog = ref(false)
 const selectedPlannedOrderForConversion = ref('')
 const selectedMaterialForConversion = ref('')
 const showConversionToast = ref(false)
 const conversionToastMessage = ref('')
+
+// Update production order state
+const updateProductionOrderModalVisible = ref(false)
 
 // API date state
 const apiDateFromDate = ref<Date | null>(null)
@@ -405,7 +426,7 @@ const handleCloseProductionOrdersModal = () => {
   console.log('✅ Production orders modal closed')
 }
 
-// NEW: Handle planned order clicks
+// Handle planned order clicks
 const handlePlannedOrderClick = (plannedOrder: string, material: string) => {
   console.log(`🔄 Planned order clicked in parent: ${plannedOrder} for material: ${material}`)
   
@@ -417,11 +438,11 @@ const handlePlannedOrderClick = (plannedOrder: string, material: string) => {
     return
   }
 
-  // Set the selected planned order and material (same pattern as material click)
+  // Set the selected planned order and material
   selectedPlannedOrderForConversion.value = plannedOrder
   selectedMaterialForConversion.value = material
   
-  // Open the conversion dialog (same pattern as material click opening production orders modal)
+  // Open the conversion dialog
   showPlannedOrderConversionDialog.value = true
   
   // Prevent body scroll when modal opens
@@ -438,7 +459,6 @@ const handleConversionDialogVisibility = (visible: boolean) => {
 
 const handlePlannedOrderConversion = async (plannedOrder: string, manufacturingOrderType: string) => {
   try {
-    // Use the production order service directly (same pattern as other API calls)
     const result = await productionOrderService.convertPlannedOrder(plannedOrder, manufacturingOrderType)
     
     if (result.success) {
@@ -451,7 +471,7 @@ const handlePlannedOrderConversion = async (plannedOrder: string, manufacturingO
         showConversionToast.value = false
       }, 5000)
       
-      // Close the dialog after short delay (same pattern as successful operations)
+      // Close the dialog after short delay
       setTimeout(() => {
         closePlannedOrderConversionDialog()
       }, 2000)
@@ -481,6 +501,35 @@ const closePlannedOrderConversionDialog = () => {
   console.log('✅ Planned order conversion dialog closed')
 }
 
+// Handle update production order
+const handleUpdateProductionOrderClick = () => {
+  updateProductionOrderModalVisible.value = true
+  // Prevent body scroll when modal opens
+  document.body.classList.add('modal-open')
+}
+
+const handleCloseUpdateProductionOrderModal = () => {
+  updateProductionOrderModalVisible.value = false
+  // Re-enable body scroll when modal closes
+  document.body.classList.remove('modal-open')
+}
+
+const handleUpdateProductionOrderSuccess = (productionOrder: string) => {
+  console.log(`✅ Production order ${productionOrder} updated successfully`)
+  
+  // Show success message
+  conversionToastMessage.value = `Производствената поръчка ${productionOrder} беше успешно актуализирана`
+  showConversionToast.value = true
+  
+  // Auto-hide toast after 5 seconds
+  setTimeout(() => {
+    showConversionToast.value = false
+  }, 5000)
+  
+  // Optionally refresh data
+  handleLoadData()
+}
+
 const handlePageChange = (page: number) => {
   goToPage(page)
 }
@@ -489,7 +538,9 @@ const handlePageChange = (page: number) => {
 const handleEscapeKey = (event: KeyboardEvent) => {
   if (event.key === 'Escape') {
     // Close modals in priority order
-    if (showPlannedOrderConversionDialog.value) {
+    if (updateProductionOrderModalVisible.value) {
+      handleCloseUpdateProductionOrderModal()
+    } else if (showPlannedOrderConversionDialog.value) {
       closePlannedOrderConversionDialog()
     } else if (productionOrdersModalVisible.value) {
       handleCloseProductionOrdersModal()
@@ -562,11 +613,25 @@ onUnmounted(() => {
   selectedPlannedOrderForConversion.value = ''
   selectedMaterialForConversion.value = ''
   credentialsModalVisible.value = false
+  updateProductionOrderModalVisible.value = false
 })
 </script>
 
 <style scoped>
 @import '@/styles/components/SalesOrders/SalesOrdersMain.css';
+
+/* Update production order button style */
+.btn-info {
+  background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
+  color: white;
+  border: 1px solid #0891b2;
+}
+
+.btn-info:hover {
+  background: linear-gradient(135deg, #0891b2 0%, #0e7490 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(6, 182, 212, 0.3);
+}
 
 /* Conversion toast styles */
 .conversion-toast {

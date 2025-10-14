@@ -41,6 +41,11 @@ export interface PlannedOrderConversionResponse {
   productionOrder?: string
 }
 
+export interface ProductionOrderUpdateResponse {
+  success: boolean
+  message?: string
+}
+
 class ProductionOrderService {
   private readonly endpoint = '/api/sap'
 
@@ -302,6 +307,83 @@ class ProductionOrderService {
     if (quantity === null || quantity === undefined) return '0'
     return quantity.toLocaleString('bg-BG')
   }
+
+  async updateProductionOrder(productionOrder: string): Promise<ProductionOrderUpdateResponse> {
+  try {
+    // Get credentials
+    const credentials = this.getCredentials()
+
+    if (isFeatureEnabled('DEBUG_MODE')) {
+      console.log('🔄 Updating production order:', {
+        productionOrder,
+        hasCredentials: !!(credentials.username && credentials.password)
+      })
+    }
+
+    // Ensure credentials are not empty
+    if (!credentials.username || !credentials.password) {
+      throw new Error('Username or password is empty')
+    }
+
+    const params = {
+      username: btoa(credentials.username), // Base64 encode for backend
+      password: btoa(credentials.password), // Base64 encode for backend
+      productionOrder
+    }
+
+    // Build query string manually
+    const queryString = new URLSearchParams({
+      username: params.username,
+      password: params.password,
+      productionOrder: params.productionOrder
+    }).toString()
+
+    const url = `${this.endpoint}/updateProductionOrder?${queryString}`
+
+    if (isFeatureEnabled('DEBUG_MODE')) {
+      console.log('🔄 Calling updateProductionOrder API:', url.replace(/password=[^&]+/, 'password=[HIDDEN]'))
+    }
+
+    // Call the endpoint using POST with query string in URL
+    const response = await apiClient.post<any>(url, null)
+
+    if (isFeatureEnabled('DEBUG_MODE')) {
+      console.log('✅ Production order updated successfully:', {
+        productionOrder,
+        response
+      })
+    }
+
+    return {
+      success: true,
+      message: `Производствената поръчка ${productionOrder} беше успешно актуализирана`
+    }
+
+  } catch (error) {
+    console.error('❌ Failed to update production order:', error)
+    
+    let errorMessage = 'Възникна неочаквана грешка при актуализацията'
+    
+    if (error instanceof Error) {
+      errorMessage = error.message
+    } else if (typeof error === 'object' && error !== null) {
+      // Handle API error responses
+      const apiError = error as any
+      if (apiError.response?.data?.message) {
+        errorMessage = apiError.response.data.message
+      } else if (apiError.response?.data) {
+        errorMessage = JSON.stringify(apiError.response.data)
+      } else if (apiError.message) {
+        errorMessage = apiError.message
+      }
+    }
+
+    return {
+      success: false,
+      message: `Неуспешна актуализация на производствена поръчка ${productionOrder}: ${errorMessage}`
+    }
+  }
+}
 }
 
 // Export singleton instance
