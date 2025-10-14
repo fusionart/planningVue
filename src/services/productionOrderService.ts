@@ -64,6 +64,19 @@ class ProductionOrderService {
   }
 
   /**
+   * Create LocalDateTime string from date and time strings
+   */
+  private createLocalDateTime(dateStr: string, timeStr: string): string {
+    // dateStr format: YYYY-MM-DD
+    // timeStr format: HH:mm
+    const timeParts = timeStr.split(':')
+    const hours = timeParts[0].padStart(2, '0')
+    const minutes = timeParts[1].padStart(2, '0')
+    
+    return `${dateStr}T${hours}:${minutes}:00`
+  }
+
+  /**
    * Get production orders by material from ProductionOrderByMaterialController
    */
   async getProductionOrdersByMaterial(
@@ -127,9 +140,6 @@ class ProductionOrderService {
   /**
    * Convert planned order to production order
    */
-  /**
- * Convert planned order to production order
- */
   async convertPlannedOrder(
     plannedOrder: string,
     manufacturingOrderType: string
@@ -187,7 +197,7 @@ class ProductionOrderService {
       }
 
       // Call the endpoint using POST with query string in URL
-      const response = await apiClient.post<any>(url, null)
+      const response = await apiClient.post<string>(url, null)
 
       if (isFeatureEnabled('DEBUG_MODE')) {
         console.log('✅ Planned order converted successfully:', {
@@ -197,10 +207,13 @@ class ProductionOrderService {
         })
       }
 
+      // The backend returns a string which is the production order number
+      const productionOrderNumber = typeof response === 'string' ? response : response?.toString() || ''
+
       return {
         success: true,
-        message: `Планираната поръчка ${plannedOrder} беше успешно конвертирана към производствена поръчка от тип ${manufacturingOrderType}`,
-        productionOrder: response?.productionOrder || undefined
+        message: `Планираната поръчка ${plannedOrder} беше успешно конвертирана към производствена поръчка ${productionOrderNumber}`,
+        productionOrder: productionOrderNumber
       }
 
     } catch (error) {
@@ -225,6 +238,101 @@ class ProductionOrderService {
       return {
         success: false,
         message: `Неуспешно конвертиране на планирана поръчка ${plannedOrder}: ${errorMessage}`
+      }
+    }
+  }
+
+  /**
+   * Update production order with scheduled start date/time
+   */
+  async updateProductionOrder(
+    productionOrder: string,
+    scheduledStartDate: string,
+    scheduledStartTime: string
+  ): Promise<ProductionOrderUpdateResponse> {
+    try {
+      // Get credentials
+      const credentials = this.getCredentials()
+
+      if (isFeatureEnabled('DEBUG_MODE')) {
+        console.log('🔄 Updating production order:', {
+          productionOrder,
+          scheduledStartDate,
+          scheduledStartTime,
+          hasCredentials: !!(credentials.username && credentials.password)
+        })
+      }
+
+      // Ensure credentials are not empty
+      if (!credentials.username || !credentials.password) {
+        throw new Error('Username or password is empty')
+      }
+
+      // Create LocalDateTime string from date and time
+      const scheduledStartDateTime = this.createLocalDateTime(scheduledStartDate, scheduledStartTime)
+
+      const params = {
+        username: btoa(credentials.username), // Base64 encode for backend
+        password: btoa(credentials.password), // Base64 encode for backend
+        productionOrder,
+        scheduledStartDateTime
+      }
+
+      // Build query string manually
+      const queryString = new URLSearchParams({
+        username: params.username,
+        password: params.password,
+        productionOrder: params.productionOrder,
+        scheduledStartDateTime: params.scheduledStartDateTime
+      }).toString()
+
+      const url = `${this.endpoint}/updateProductionOrder?${queryString}`
+
+      if (isFeatureEnabled('DEBUG_MODE')) {
+        console.log('🔄 Calling updateProductionOrder API:', {
+          url: url.replace(/password=[^&]+/, 'password=[HIDDEN]'),
+          scheduledStartDateTime
+        })
+      }
+
+      // Call the endpoint using POST with query string in URL
+      const response = await apiClient.post<any>(url, null)
+
+      if (isFeatureEnabled('DEBUG_MODE')) {
+        console.log('✅ Production order updated successfully:', {
+          productionOrder,
+          scheduledStartDateTime,
+          response
+        })
+      }
+
+      return {
+        success: true,
+        message: `Производствената поръчка ${productionOrder} беше успешно актуализирана с начална дата ${scheduledStartDate} ${scheduledStartTime}`
+      }
+
+    } catch (error) {
+      console.error('❌ Failed to update production order:', error)
+      
+      let errorMessage = 'Възникна неочаквана грешка при актуализацията'
+      
+      if (error instanceof Error) {
+        errorMessage = error.message
+      } else if (typeof error === 'object' && error !== null) {
+        // Handle API error responses
+        const apiError = error as any
+        if (apiError.response?.data?.message) {
+          errorMessage = apiError.response.data.message
+        } else if (apiError.response?.data) {
+          errorMessage = JSON.stringify(apiError.response.data)
+        } else if (apiError.message) {
+          errorMessage = apiError.message
+        }
+      }
+
+      return {
+        success: false,
+        message: `Неуспешна актуализация на производствена поръчка ${productionOrder}: ${errorMessage}`
       }
     }
   }
@@ -307,83 +415,6 @@ class ProductionOrderService {
     if (quantity === null || quantity === undefined) return '0'
     return quantity.toLocaleString('bg-BG')
   }
-
-  async updateProductionOrder(productionOrder: string): Promise<ProductionOrderUpdateResponse> {
-  try {
-    // Get credentials
-    const credentials = this.getCredentials()
-
-    if (isFeatureEnabled('DEBUG_MODE')) {
-      console.log('🔄 Updating production order:', {
-        productionOrder,
-        hasCredentials: !!(credentials.username && credentials.password)
-      })
-    }
-
-    // Ensure credentials are not empty
-    if (!credentials.username || !credentials.password) {
-      throw new Error('Username or password is empty')
-    }
-
-    const params = {
-      username: btoa(credentials.username), // Base64 encode for backend
-      password: btoa(credentials.password), // Base64 encode for backend
-      productionOrder
-    }
-
-    // Build query string manually
-    const queryString = new URLSearchParams({
-      username: params.username,
-      password: params.password,
-      productionOrder: params.productionOrder
-    }).toString()
-
-    const url = `${this.endpoint}/updateProductionOrder?${queryString}`
-
-    if (isFeatureEnabled('DEBUG_MODE')) {
-      console.log('🔄 Calling updateProductionOrder API:', url.replace(/password=[^&]+/, 'password=[HIDDEN]'))
-    }
-
-    // Call the endpoint using POST with query string in URL
-    const response = await apiClient.post<any>(url, null)
-
-    if (isFeatureEnabled('DEBUG_MODE')) {
-      console.log('✅ Production order updated successfully:', {
-        productionOrder,
-        response
-      })
-    }
-
-    return {
-      success: true,
-      message: `Производствената поръчка ${productionOrder} беше успешно актуализирана`
-    }
-
-  } catch (error) {
-    console.error('❌ Failed to update production order:', error)
-    
-    let errorMessage = 'Възникна неочаквана грешка при актуализацията'
-    
-    if (error instanceof Error) {
-      errorMessage = error.message
-    } else if (typeof error === 'object' && error !== null) {
-      // Handle API error responses
-      const apiError = error as any
-      if (apiError.response?.data?.message) {
-        errorMessage = apiError.response.data.message
-      } else if (apiError.response?.data) {
-        errorMessage = JSON.stringify(apiError.response.data)
-      } else if (apiError.message) {
-        errorMessage = apiError.message
-      }
-    }
-
-    return {
-      success: false,
-      message: `Неуспешна актуализация на производствена поръчка ${productionOrder}: ${errorMessage}`
-    }
-  }
-}
 }
 
 // Export singleton instance

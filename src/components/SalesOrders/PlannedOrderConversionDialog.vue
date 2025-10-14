@@ -56,6 +56,102 @@
           </div>
         </div>
 
+        <div class="datetime-section">
+          <div class="datetime-row">
+            <div class="input-section flex-1">
+              <label class="input-label" for="scheduledStartDate">
+                Планирана начална дата <span class="required-asterisk">*</span>
+              </label>
+              <input
+                id="scheduledStartDate"
+                v-model="displayDate"
+                type="text"
+                class="input-field"
+                :class="{ 'input-error': !displayDate && showValidation }"
+                placeholder="дд.мм.гггг"
+                :disabled="isConverting"
+                @input="handleDateInput"
+                @blur="validateDateFormat"
+                maxlength="10"
+              />
+              <div 
+                v-if="!displayDate && showValidation" 
+                class="error-message"
+              >
+                Датата е задължителна
+              </div>
+              <div 
+                v-if="dateFormatError" 
+                class="error-message"
+              >
+                {{ dateFormatError }}
+              </div>
+            </div>
+
+            <div class="input-section flex-1">
+              <label class="input-label" for="scheduledStartTime">
+                Планиран начален час <span class="required-asterisk">*</span>
+              </label>
+              <input
+                id="scheduledStartTime"
+                v-model="displayTime"
+                type="text"
+                class="input-field"
+                :class="{ 'input-error': !displayTime && showValidation }"
+                placeholder="чч:мм"
+                :disabled="isConverting"
+                @input="handleTimeInput"
+                @blur="validateTimeFormat"
+                maxlength="5"
+              />
+              <div 
+                v-if="!displayTime && showValidation" 
+                class="error-message"
+              >
+                Часът е задължителен
+              </div>
+              <div 
+                v-if="timeFormatError" 
+                class="error-message"
+              >
+                {{ timeFormatError }}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="conversionStatus" class="status-section">
+          <div class="status-step" :class="{ 'status-active': conversionStatus === 'converting' }">
+            <span class="status-icon">
+              <span v-if="conversionStatus === 'converting'" class="loading-spinner-small"></span>
+              <span v-else-if="conversionStatus === 'converted'">✓</span>
+              <span v-else>1</span>
+            </span>
+            <span class="status-text">Конвертиране на поръчка</span>
+          </div>
+          <div class="status-divider"></div>
+          <div class="status-step" :class="{ 'status-active': conversionStatus === 'updating' }">
+            <span class="status-icon">
+              <span v-if="conversionStatus === 'updating'" class="loading-spinner-small"></span>
+              <span v-else-if="conversionStatus === 'completed'">✓</span>
+              <span v-else>2</span>
+            </span>
+            <span class="status-text">Актуализиране на датата</span>
+          </div>
+        </div>
+
+        <div v-if="successMessage" class="success-section">
+          <div class="success-alert">
+            <div class="success-icon-wrapper">
+              <span class="success-icon">✓</span>
+            </div>
+            <div class="success-content">
+              <div class="success-title">{{ successMessage.title }}</div>
+              <div class="success-details">{{ successMessage.details }}</div>
+            </div>
+          </div>
+        </div>
+
         <div v-if="errorMessage" class="error-section">
           <div class="error-alert">
             <span class="error-icon">⚠️</span>
@@ -78,11 +174,11 @@
         <button 
           class="btn btn-convert"
           @click="handleConvert"
-          :disabled="isConverting || !manufacturingOrderType.trim()"
+          :disabled="isConverting || !isFormValid"
           :class="{ 'btn-loading': isConverting }"
         >
           <span v-if="isConverting" class="loading-spinner"></span>
-          <span v-if="isConverting">Конвертиране...</span>
+          <span v-if="isConverting">{{ conversionStatusText }}</span>
           <span v-else>Конвертирай</span>
         </button>
       </div>
@@ -91,7 +187,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, watch } from 'vue'
+import { ref, computed, nextTick, watch } from 'vue'
+import { productionOrderService } from '@/services/productionOrderService'
 
 // Props
 interface Props {
@@ -107,7 +204,7 @@ const props = withDefaults(defineProps<Props>(), {
 // Events
 interface Emits {
   'update:visible': [visible: boolean]
-  'convert': [plannedOrder: string, manufacturingOrderType: string]
+  'success': []
   'cancel': []
 }
 
@@ -115,13 +212,162 @@ const emit = defineEmits<Emits>()
 
 // State
 const manufacturingOrderType = ref('')
+const scheduledStartDate = ref('')
+const scheduledStartTime = ref('')
+const displayDate = ref('')
+const displayTime = ref('')
+const dateFormatError = ref('')
+const timeFormatError = ref('')
 const isConverting = ref(false)
 const showValidation = ref(false)
 const errorMessage = ref('')
+const successMessage = ref<{ title: string; details: string } | null>(null)
+const conversionStatus = ref<'' | 'converting' | 'converted' | 'updating' | 'completed'>('')
+const convertedProductionOrder = ref('')
+
+// Computed
+const isFormValid = computed(() => {
+  return manufacturingOrderType.value.trim() !== '' &&
+         scheduledStartDate.value !== '' &&
+         scheduledStartTime.value !== '' &&
+         !dateFormatError.value &&
+         !timeFormatError.value
+})
+
+const conversionStatusText = computed(() => {
+  switch (conversionStatus.value) {
+    case 'converting':
+      return 'Конвертиране...'
+    case 'converted':
+      return 'Конвертирано ✓'
+    case 'updating':
+      return 'Актуализиране...'
+    case 'completed':
+      return 'Завършено ✓'
+    default:
+      return 'Конвертиране...'
+  }
+})
 
 // Methods
+const handleDateInput = (event: Event) => {
+  const input = event.target as HTMLInputElement
+  let value = input.value.replace(/[^\d.]/g, '')
+  
+  // Auto-format as user types
+  if (value.length >= 2 && value[2] !== '.') {
+    value = value.slice(0, 2) + '.' + value.slice(2)
+  }
+  if (value.length >= 5 && value[5] !== '.') {
+    value = value.slice(0, 5) + '.' + value.slice(5)
+  }
+  if (value.length > 10) {
+    value = value.slice(0, 10)
+  }
+  
+  displayDate.value = value
+  dateFormatError.value = ''
+}
+
+const validateDateFormat = () => {
+  if (!displayDate.value) {
+    dateFormatError.value = ''
+    scheduledStartDate.value = ''
+    return
+  }
+
+  const datePattern = /^(\d{2})\.(\d{2})\.(\d{4})$/
+  const match = displayDate.value.match(datePattern)
+  
+  if (!match) {
+    dateFormatError.value = 'Формат: дд.мм.гггг'
+    scheduledStartDate.value = ''
+    return
+  }
+  
+  const day = parseInt(match[1], 10)
+  const month = parseInt(match[2], 10)
+  const year = parseInt(match[3], 10)
+  
+  // Validate date values
+  if (month < 1 || month > 12) {
+    dateFormatError.value = 'Невалиден месец'
+    scheduledStartDate.value = ''
+    return
+  }
+  
+  if (day < 1 || day > 31) {
+    dateFormatError.value = 'Невалиден ден'
+    scheduledStartDate.value = ''
+    return
+  }
+  
+  // Check if date is valid
+  const testDate = new Date(year, month - 1, day)
+  if (testDate.getDate() !== day || testDate.getMonth() !== month - 1 || testDate.getFullYear() !== year) {
+    dateFormatError.value = 'Невалидна дата'
+    scheduledStartDate.value = ''
+    return
+  }
+  
+  // Convert to YYYY-MM-DD format for backend
+  scheduledStartDate.value = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+  dateFormatError.value = ''
+}
+
+const handleTimeInput = (event: Event) => {
+  const input = event.target as HTMLInputElement
+  let value = input.value.replace(/[^\d:]/g, '')
+  
+  // Auto-format as user types
+  if (value.length >= 2 && value[2] !== ':') {
+    value = value.slice(0, 2) + ':' + value.slice(2)
+  }
+  if (value.length > 5) {
+    value = value.slice(0, 5)
+  }
+  
+  displayTime.value = value
+  timeFormatError.value = ''
+}
+
+const validateTimeFormat = () => {
+  if (!displayTime.value) {
+    timeFormatError.value = ''
+    scheduledStartTime.value = ''
+    return
+  }
+
+  const timePattern = /^(\d{2}):(\d{2})$/
+  const match = displayTime.value.match(timePattern)
+  
+  if (!match) {
+    timeFormatError.value = 'Формат: чч:мм (24ч)'
+    scheduledStartTime.value = ''
+    return
+  }
+  
+  const hours = parseInt(match[1], 10)
+  const minutes = parseInt(match[2], 10)
+  
+  if (hours < 0 || hours > 23) {
+    timeFormatError.value = 'Часовете трябва да са 00-23'
+    scheduledStartTime.value = ''
+    return
+  }
+  
+  if (minutes < 0 || minutes > 59) {
+    timeFormatError.value = 'Минутите трябва да са 00-59'
+    scheduledStartTime.value = ''
+    return
+  }
+  
+  scheduledStartTime.value = displayTime.value
+  timeFormatError.value = ''
+}
+
 const handleConvert = async () => {
-  if (!manufacturingOrderType.value.trim()) {
+  if (!isFormValid.value) {
     showValidation.value = true
     return
   }
@@ -129,12 +375,60 @@ const handleConvert = async () => {
   try {
     isConverting.value = true
     errorMessage.value = ''
+    successMessage.value = null
+    conversionStatus.value = 'converting'
     
-    emit('convert', props.plannedOrder, manufacturingOrderType.value.trim())
+    // Step 1: Convert planned order
+    const conversionResult = await productionOrderService.convertPlannedOrder(
+      props.plannedOrder,
+      manufacturingOrderType.value.trim()
+    )
+
+    if (!conversionResult.success) {
+      throw new Error(conversionResult.message || 'Неуспешно конвертиране')
+    }
+
+    // Store the converted production order number
+    convertedProductionOrder.value = conversionResult.productionOrder || props.plannedOrder
+    conversionStatus.value = 'converted'
+
+    // Small delay for better UX
+    await new Promise(resolve => setTimeout(resolve, 500))
+
+    // Step 2: Update production order with scheduled date/time
+    conversionStatus.value = 'updating'
+    
+    const updateResult = await productionOrderService.updateProductionOrder(
+      convertedProductionOrder.value,
+      scheduledStartDate.value,
+      scheduledStartTime.value
+    )
+
+    if (!updateResult.success) {
+      throw new Error(updateResult.message || 'Неуспешна актуализация')
+    }
+
+    conversionStatus.value = 'completed'
+
+    // Show success message
+    successMessage.value = {
+      title: '🎉 Успешно конвертиране и планиране!',
+      details: `Планираната поръчка ${props.plannedOrder} беше успешно конвертирана в производствена поръчка ${convertedProductionOrder.value} и планирана за ${displayDate.value} в ${displayTime.value} часа.`
+    }
+
+    // Wait to show success message
+    await new Promise(resolve => setTimeout(resolve, 2500))
+
+    // Success - notify parent and close
+    emit('success')
+    emit('update:visible', false)
+    resetDialog()
+
   } catch (error) {
     console.error('Error in handleConvert:', error)
-    errorMessage.value = 'Възникна неочаквана грешка'
+    errorMessage.value = error instanceof Error ? error.message : 'Възникна неочаквана грешка'
     isConverting.value = false
+    conversionStatus.value = ''
   }
 }
 
@@ -142,6 +436,7 @@ const handleCancel = () => {
   if (isConverting.value) return
   
   emit('cancel')
+  emit('update:visible', false)
   resetDialog()
 }
 
@@ -153,9 +448,18 @@ const handleOverlayClick = () => {
 
 const resetDialog = () => {
   manufacturingOrderType.value = ''
+  scheduledStartDate.value = ''
+  scheduledStartTime.value = ''
+  displayDate.value = ''
+  displayTime.value = ''
+  dateFormatError.value = ''
+  timeFormatError.value = ''
   isConverting.value = false
   showValidation.value = false
   errorMessage.value = ''
+  successMessage.value = null
+  conversionStatus.value = ''
+  convertedProductionOrder.value = ''
 }
 
 const setConvertingState = (state: boolean) => {
@@ -165,12 +469,32 @@ const setConvertingState = (state: boolean) => {
 const setErrorMessage = (message: string) => {
   errorMessage.value = message
   isConverting.value = false
+  conversionStatus.value = ''
+}
+
+// Initialize with current date/time
+const initializeDateTime = () => {
+  const now = new Date()
+  const day = String(now.getDate()).padStart(2, '0')
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const year = now.getFullYear()
+  const hours = String(now.getHours()).padStart(2, '0')
+  const minutes = String(now.getMinutes()).padStart(2, '0')
+  
+  // Set display values in dd.mm.yyyy and HH:mm format
+  displayDate.value = `${day}.${month}.${year}`
+  displayTime.value = `${hours}:${minutes}`
+  
+  // Set internal values in YYYY-MM-DD and HH:mm format
+  scheduledStartDate.value = `${year}-${month}-${day}`
+  scheduledStartTime.value = `${hours}:${minutes}`
 }
 
 // Watch for dialog visibility changes
 watch(() => props.visible, (newVisible) => {
   if (newVisible) {
     resetDialog()
+    initializeDateTime()
     // Focus the input field after the dialog is shown
     nextTick(() => {
       const input = document.getElementById('manufacturingOrderType')
@@ -217,7 +541,7 @@ defineExpose({
   border-radius: 12px;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
   width: 90%;
-  max-width: 500px;
+  max-width: 600px;
   max-height: 90vh;
   overflow: hidden;
   animation: slideIn 0.3s ease-out;
@@ -286,6 +610,8 @@ defineExpose({
 
 .dialog-body {
   padding: 2rem;
+  max-height: calc(90vh - 180px);
+  overflow-y: auto;
 }
 
 .order-info {
@@ -333,6 +659,19 @@ defineExpose({
   margin-bottom: 1.5rem;
 }
 
+.datetime-section {
+  margin-bottom: 1.5rem;
+}
+
+.datetime-row {
+  display: flex;
+  gap: 1rem;
+}
+
+.flex-1 {
+  flex: 1;
+}
+
 .input-label {
   display: block;
   font-weight: 600;
@@ -354,19 +693,19 @@ defineExpose({
   font-size: 1rem;
   transition: all 0.2s ease;
   background: white;
-  color: #1f2937 !important; /* Force black text color */
+  color: #1f2937 !important;
 }
 
 .input-field:focus {
   outline: none;
   border-color: #3b82f6;
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-  color: #1f2937 !important; /* Force black text color */
+  color: #1f2937 !important;
 }
 
 .input-field:disabled {
   background: #f3f4f6;
-  color: #6b7280 !important; /* Gray text for disabled state */
+  color: #6b7280 !important;
   cursor: not-allowed;
 }
 
@@ -388,6 +727,168 @@ defineExpose({
 .error-message::before {
   content: '⚠️';
   font-size: 1rem;
+}
+
+.status-section {
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  border: 1px solid #bae6fd;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+}
+
+.status-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+  opacity: 0.5;
+  transition: opacity 0.3s ease;
+}
+
+.status-step.status-active {
+  opacity: 1;
+}
+
+.status-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #e0f2fe;
+  border: 2px solid #bae6fd;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  color: #0369a1;
+  font-size: 1.1rem;
+}
+
+.status-active .status-icon {
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  border-color: #1d4ed8;
+  color: white;
+}
+
+.status-text {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #475569;
+  text-align: center;
+}
+
+.status-divider {
+  width: 40px;
+  height: 2px;
+  background: #bae6fd;
+  margin: 0 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.loading-spinner-small {
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top: 2px solid white;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.success-section {
+  margin-bottom: 1.5rem;
+}
+
+.success-alert {
+  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+  border: 2px solid #86efac;
+  border-radius: 12px;
+  padding: 1.5rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  box-shadow: 0 4px 6px rgba(34, 197, 94, 0.1);
+  animation: successSlideIn 0.4s ease-out;
+}
+
+@keyframes successSlideIn {
+  from {
+    transform: translateY(-10px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.success-icon-wrapper {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
+  animation: successPulse 2s ease-in-out infinite;
+}
+
+@keyframes successPulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 6px 16px rgba(34, 197, 94, 0.4);
+  }
+}
+
+.success-icon {
+  color: white;
+  font-size: 28px;
+  font-weight: bold;
+  animation: successCheck 0.6s ease-out;
+}
+
+@keyframes successCheck {
+  0% {
+    transform: scale(0) rotate(-45deg);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.2) rotate(0deg);
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+}
+
+.success-content {
+  flex: 1;
+}
+
+.success-title {
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: #166534;
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.success-details {
+  color: #15803d;
+  font-size: 0.95rem;
+  line-height: 1.5;
 }
 
 .error-section {
@@ -536,6 +1037,10 @@ defineExpose({
     text-align: center;
   }
 
+  .datetime-row {
+    flex-direction: column;
+  }
+
   .dialog-footer {
     flex-direction: column;
     gap: 0.75rem;
@@ -543,6 +1048,17 @@ defineExpose({
 
   .btn {
     width: 100%;
+  }
+
+  .status-section {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .status-divider {
+    width: 2px;
+    height: 30px;
+    margin: 0;
   }
 }
 
@@ -582,7 +1098,8 @@ defineExpose({
     transform: none;
   }
 
-  .loading-spinner {
+  .loading-spinner,
+  .loading-spinner-small {
     animation: none;
   }
 }
