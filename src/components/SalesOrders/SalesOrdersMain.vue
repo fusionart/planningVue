@@ -1,4 +1,4 @@
-<!-- SalesOrdersMain.vue - Complete with Production Orders, Planned Order Conversion, and Update Production Order Integration -->
+<!-- SalesOrdersMain.vue - Updated with CreateProductionOrderDialog -->
 <template>
   <div class="sales-orders" :key="componentKey">
     <!-- Page Header -->
@@ -14,14 +14,14 @@
           {{ hasCredentials ? '🔐 Актуализация на идентификационни данни' : '🔓 Въведете идентификационни данни' }}
         </button>
         
-        <!-- Update Production Order Button -->
+        <!-- Create Production Order Button -->
         <button 
           v-if="hasCredentials"
-          class="btn btn-info" 
-          @click.stop="handleUpdateProductionOrderClick"
+          class="btn btn-primary" 
+          @click.stop="handleCreateProductionOrderClick"
           type="button"
         >
-          🔄 Актуализация на производствена поръчка
+          ➕ Създаване на производствена поръчка
         </button>
       </div>
     </div>
@@ -143,34 +143,35 @@
       :plannedOrder="selectedPlannedOrderForConversion"
       :material="selectedMaterialForConversion"
       @update:visible="handleConversionDialogVisibility"
-      @convert="handlePlannedOrderConversion"
+      @success="handlePlannedOrderConversionSuccess"
       @cancel="closePlannedOrderConversionDialog"
     />
 
-    <!-- Update Production Order Modal -->
-    <UpdateProductionOrderModal
-      :show="updateProductionOrderModalVisible"
-      @close="handleCloseUpdateProductionOrderModal"
-      @success="handleUpdateProductionOrderSuccess"
+    <!-- Create Production Order Dialog -->
+    <CreateProductionOrderDialog
+      :visible="createProductionOrderDialogVisible"
+      @update:visible="handleCreateProductionOrderDialogVisibility"
+      @success="handleCreateProductionOrderSuccess"
+      @cancel="closeCreateProductionOrderDialog"
     />
 
-    <!-- Conversion Success/Error Toast -->
+    <!-- Success/Error Toast -->
     <div 
-      v-if="showConversionToast && conversionToastMessage"
-      class="conversion-toast"
+      v-if="showToast && toastMessage"
+      class="toast"
       :class="{ 
-        'toast-success': conversionToastMessage.includes('успешно'),
-        'toast-error': !conversionToastMessage.includes('успешно')
+        'toast-success': toastType === 'success',
+        'toast-error': toastType === 'error'
       }"
     >
       <div class="toast-content">
         <span class="toast-icon">
-          {{ conversionToastMessage.includes('успешно') ? '✅' : '❌' }}
+          {{ toastType === 'success' ? '✅' : '❌' }}
         </span>
-        <span class="toast-message">{{ conversionToastMessage }}</span>
+        <span class="toast-message">{{ toastMessage }}</span>
         <button 
           class="toast-close"
-          @click="showConversionToast = false"
+          @click="showToast = false"
         >
           ✕
         </button>
@@ -197,7 +198,7 @@ import TablePagination from './TablePagination.vue'
 import OrderDetailsModal from './OrderDetailsModal.vue'
 import ProductionOrdersModal from './ProductionOrdersModal.vue'
 import PlannedOrderConversionDialog from './PlannedOrderConversionDialog.vue'
-import UpdateProductionOrderModal from './UpdateProductionOrderModal.vue'
+import CreateProductionOrderDialog from './CreateProductionOrderDialog.vue'
 import LoadingStates from './LoadingStates.vue'
 
 // Main composables
@@ -263,11 +264,14 @@ const localCredentialsState = ref(false)
 const showPlannedOrderConversionDialog = ref(false)
 const selectedPlannedOrderForConversion = ref('')
 const selectedMaterialForConversion = ref('')
-const showConversionToast = ref(false)
-const conversionToastMessage = ref('')
 
-// Update production order state
-const updateProductionOrderModalVisible = ref(false)
+// Create production order state
+const createProductionOrderDialogVisible = ref(false)
+
+// Toast state
+const showToast = ref(false)
+const toastMessage = ref('')
+const toastType = ref<'success' | 'error'>('success')
 
 // API date state
 const apiDateFromDate = ref<Date | null>(null)
@@ -294,6 +298,28 @@ const initializeDateInputs = () => {
   
   apiDateFromDate.value = startOfMonth
   apiDateToDate.value = endOfMonth
+}
+
+const showSuccessToast = (message: string) => {
+  toastMessage.value = message
+  toastType.value = 'success'
+  showToast.value = true
+  
+  // Auto-hide after 5 seconds
+  setTimeout(() => {
+    showToast.value = false
+  }, 5000)
+}
+
+const showErrorToast = (message: string) => {
+  toastMessage.value = message
+  toastType.value = 'error'
+  showToast.value = true
+  
+  // Auto-hide after 7 seconds for errors
+  setTimeout(() => {
+    showToast.value = false
+  }, 7000)
 }
 
 // Event handlers
@@ -457,37 +483,18 @@ const handleConversionDialogVisibility = (visible: boolean) => {
   }
 }
 
-const handlePlannedOrderConversion = async (plannedOrder: string, manufacturingOrderType: string) => {
-  try {
-    const result = await productionOrderService.convertPlannedOrder(plannedOrder, manufacturingOrderType)
-    
-    if (result.success) {
-      // Show success message
-      conversionToastMessage.value = result.message || `Планираната поръчка ${plannedOrder} беше успешно конвертирана`
-      showConversionToast.value = true
-      
-      // Auto-hide toast after 5 seconds
-      setTimeout(() => {
-        showConversionToast.value = false
-      }, 5000)
-      
-      // Close the dialog after short delay
-      setTimeout(() => {
-        closePlannedOrderConversionDialog()
-      }, 2000)
-      
-      // Refresh data after successful conversion
-      await handleLoadData()
-    } else {
-      // Show error message
-      conversionToastMessage.value = result.message || 'Конвертирането неуспешно'
-      showConversionToast.value = true
-    }
-  } catch (error) {
-    console.error('Conversion error:', error)
-    conversionToastMessage.value = 'Възникна грешка при конвертирането на планираната поръчка'
-    showConversionToast.value = true
-  }
+const handlePlannedOrderConversionSuccess = () => {
+  console.log('✅ Planned order conversion successful')
+  
+  showSuccessToast('Планираната поръчка беше успешно конвертирана и планирана')
+  
+  // Close the dialog after short delay
+  setTimeout(() => {
+    closePlannedOrderConversionDialog()
+  }, 1500)
+  
+  // Refresh data after successful conversion
+  handleLoadData()
 }
 
 const closePlannedOrderConversionDialog = () => {
@@ -501,33 +508,50 @@ const closePlannedOrderConversionDialog = () => {
   console.log('✅ Planned order conversion dialog closed')
 }
 
-// Handle update production order
-const handleUpdateProductionOrderClick = () => {
-  updateProductionOrderModalVisible.value = true
+// Handle create production order
+const handleCreateProductionOrderClick = () => {
+  // Validate credentials
+  if (!salesOrderService.hasCredentials() && !localCredentialsState.value) {
+    console.warn('⚠️ No credentials available for creating production order')
+    alert('Моля, първо въведете идентификационни данни.')
+    credentialsModalVisible.value = true
+    return
+  }
+
+  createProductionOrderDialogVisible.value = true
   // Prevent body scroll when modal opens
   document.body.classList.add('modal-open')
+  
+  console.log('✅ Opening create production order dialog')
 }
 
-const handleCloseUpdateProductionOrderModal = () => {
-  updateProductionOrderModalVisible.value = false
+const handleCreateProductionOrderDialogVisibility = (visible: boolean) => {
+  if (!visible) {
+    closeCreateProductionOrderDialog()
+  }
+}
+
+const handleCreateProductionOrderSuccess = (productionOrder: string) => {
+  console.log(`✅ Production order ${productionOrder} created and scheduled successfully`)
+  
+  showSuccessToast(`Производствената поръчка ${productionOrder} беше успешно създадена и планирана`)
+  
+  // Close the dialog after short delay
+  setTimeout(() => {
+    closeCreateProductionOrderDialog()
+  }, 1500)
+  
+  // Refresh data
+  handleLoadData()
+}
+
+const closeCreateProductionOrderDialog = () => {
+  createProductionOrderDialogVisible.value = false
+  
   // Re-enable body scroll when modal closes
   document.body.classList.remove('modal-open')
-}
-
-const handleUpdateProductionOrderSuccess = (productionOrder: string) => {
-  console.log(`✅ Production order ${productionOrder} updated successfully`)
   
-  // Show success message
-  conversionToastMessage.value = `Производствената поръчка ${productionOrder} беше успешно актуализирана`
-  showConversionToast.value = true
-  
-  // Auto-hide toast after 5 seconds
-  setTimeout(() => {
-    showConversionToast.value = false
-  }, 5000)
-  
-  // Optionally refresh data
-  handleLoadData()
+  console.log('✅ Create production order dialog closed')
 }
 
 const handlePageChange = (page: number) => {
@@ -538,8 +562,8 @@ const handlePageChange = (page: number) => {
 const handleEscapeKey = (event: KeyboardEvent) => {
   if (event.key === 'Escape') {
     // Close modals in priority order
-    if (updateProductionOrderModalVisible.value) {
-      handleCloseUpdateProductionOrderModal()
+    if (createProductionOrderDialogVisible.value) {
+      closeCreateProductionOrderDialog()
     } else if (showPlannedOrderConversionDialog.value) {
       closePlannedOrderConversionDialog()
     } else if (productionOrdersModalVisible.value) {
@@ -566,16 +590,6 @@ watch(productionOrdersModalVisible, (isVisible) => {
   } else {
     console.log('✅ Production orders modal closed')
     selectedMaterial.value = ''
-  }
-})
-
-// Watch for conversion success to auto-hide toast
-watch(showConversionToast, (isVisible) => {
-  if (isVisible && conversionToastMessage.value.includes('успешно')) {
-    setTimeout(() => {
-      showConversionToast.value = false
-      conversionToastMessage.value = ''
-    }, 3000)
   }
 })
 
@@ -613,28 +627,15 @@ onUnmounted(() => {
   selectedPlannedOrderForConversion.value = ''
   selectedMaterialForConversion.value = ''
   credentialsModalVisible.value = false
-  updateProductionOrderModalVisible.value = false
+  createProductionOrderDialogVisible.value = false
 })
 </script>
 
 <style scoped>
 @import '@/styles/components/SalesOrders/SalesOrdersMain.css';
 
-/* Update production order button style */
-.btn-info {
-  background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
-  color: white;
-  border: 1px solid #0891b2;
-}
-
-.btn-info:hover {
-  background: linear-gradient(135deg, #0891b2 0%, #0e7490 100%);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(6, 182, 212, 0.3);
-}
-
-/* Conversion toast styles */
-.conversion-toast {
+/* Toast styles */
+.toast {
   position: fixed;
   top: 2rem;
   right: 2rem;
@@ -700,7 +701,7 @@ onUnmounted(() => {
 
 /* Responsive design for toast */
 @media (max-width: 640px) {
-  .conversion-toast {
+  .toast {
     top: 1rem;
     right: 1rem;
     left: 1rem;

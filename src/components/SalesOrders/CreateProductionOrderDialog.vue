@@ -1,0 +1,1122 @@
+<!-- CreateProductionOrderDialog.vue -->
+<template>
+  <div 
+    v-if="visible" 
+    class="dialog-overlay"
+    @click.self="handleOverlayClick"
+  >
+    <div class="dialog-container">
+      <div class="dialog-header">
+        <h3 class="dialog-title">
+          <span class="dialog-icon">➕</span>
+          Създаване на производствена поръчка
+        </h3>
+        <button 
+          class="dialog-close-btn"
+          @click="handleCancel"
+          :disabled="isProcessing"
+          :title="'Затвори'"
+        >
+          ✕
+        </button>
+      </div>
+
+      <div class="dialog-body">
+        <div class="input-section">
+          <label class="input-label" for="material">
+            Материал <span class="required-asterisk">*</span>
+          </label>
+          <input
+            id="material"
+            v-model="material"
+            type="text"
+            class="input-field"
+            :class="{ 'input-error': !material.trim() && showValidation }"
+            placeholder="Въведете код на материал"
+            :disabled="isProcessing"
+            @keyup.enter="handleCreate"
+            @input="showValidation = false"
+          />
+          <div 
+            v-if="!material.trim() && showValidation" 
+            class="error-message"
+          >
+            Материалът е задължителен
+          </div>
+        </div>
+
+        <div class="input-section">
+          <label class="input-label" for="productionPlant">
+            Производствен завод <span class="required-asterisk">*</span>
+          </label>
+          <input
+            id="productionPlant"
+            v-model="productionPlant"
+            type="text"
+            class="input-field"
+            :class="{ 'input-error': !productionPlant.trim() && showValidation }"
+            placeholder="Въведете код на производствен завод"
+            :disabled="isProcessing"
+            @keyup.enter="handleCreate"
+            @input="showValidation = false"
+          />
+          <div 
+            v-if="!productionPlant.trim() && showValidation" 
+            class="error-message"
+          >
+            Производственият завод е задължителен
+          </div>
+        </div>
+
+        <div class="input-section">
+          <label class="input-label" for="manufacturingOrderType">
+            Тип производствена поръчка <span class="required-asterisk">*</span>
+          </label>
+          <input
+            id="manufacturingOrderType"
+            v-model="manufacturingOrderType"
+            type="text"
+            class="input-field"
+            :class="{ 'input-error': !manufacturingOrderType.trim() && showValidation }"
+            placeholder="Въведете тип производствена поръчка"
+            :disabled="isProcessing"
+            @keyup.enter="handleCreate"
+            @input="showValidation = false"
+          />
+          <div 
+            v-if="!manufacturingOrderType.trim() && showValidation" 
+            class="error-message"
+          >
+            Типът производствена поръчка е задължителен
+          </div>
+        </div>
+
+        <div class="input-section">
+          <label class="input-label" for="totalQuantity">
+            Обща количество <span class="required-asterisk">*</span>
+          </label>
+          <input
+            id="totalQuantity"
+            v-model="totalQuantity"
+            type="text"
+            class="input-field"
+            :class="{ 'input-error': !totalQuantity.trim() && showValidation }"
+            placeholder="Въведете количество"
+            :disabled="isProcessing"
+            @keyup.enter="handleCreate"
+            @input="showValidation = false"
+          />
+          <div 
+            v-if="!totalQuantity.trim() && showValidation" 
+            class="error-message"
+          >
+            Количеството е задължително
+          </div>
+        </div>
+
+        <div class="datetime-section">
+          <div class="datetime-row">
+            <div class="input-section flex-1">
+              <label class="input-label" for="scheduledStartDate">
+                Планирана начална дата <span class="required-asterisk">*</span>
+              </label>
+              <input
+                id="scheduledStartDate"
+                v-model="displayDate"
+                type="text"
+                class="input-field"
+                :class="{ 'input-error': !displayDate && showValidation }"
+                placeholder="дд.мм.гггг"
+                :disabled="isProcessing"
+                @input="handleDateInput"
+                @blur="validateDateFormat"
+                maxlength="10"
+              />
+              <div 
+                v-if="!displayDate && showValidation" 
+                class="error-message"
+              >
+                Датата е задължителна
+              </div>
+              <div 
+                v-if="dateFormatError" 
+                class="error-message"
+              >
+                {{ dateFormatError }}
+              </div>
+            </div>
+
+            <div class="input-section flex-1">
+              <label class="input-label" for="scheduledStartTime">
+                Планиран начален час <span class="required-asterisk">*</span>
+              </label>
+              <input
+                id="scheduledStartTime"
+                v-model="displayTime"
+                type="text"
+                class="input-field"
+                :class="{ 'input-error': !displayTime && showValidation }"
+                placeholder="чч:мм"
+                :disabled="isProcessing"
+                @input="handleTimeInput"
+                @blur="validateTimeFormat"
+                maxlength="5"
+              />
+              <div 
+                v-if="!displayTime && showValidation" 
+                class="error-message"
+              >
+                Часът е задължителен
+              </div>
+              <div 
+                v-if="timeFormatError" 
+                class="error-message"
+              >
+                {{ timeFormatError }}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="processStatus" class="status-section">
+          <div class="status-step" :class="{ 'status-active': processStatus === 'creating' }">
+            <span class="status-icon">
+              <span v-if="processStatus === 'creating'" class="loading-spinner-small"></span>
+              <span v-else-if="processStatus === 'created'">✓</span>
+              <span v-else>1</span>
+            </span>
+            <span class="status-text">Създаване на поръчка</span>
+          </div>
+          <div class="status-divider"></div>
+          <div class="status-step" :class="{ 'status-active': processStatus === 'updating' }">
+            <span class="status-icon">
+              <span v-if="processStatus === 'updating'" class="loading-spinner-small"></span>
+              <span v-else-if="processStatus === 'completed'">✓</span>
+              <span v-else>2</span>
+            </span>
+            <span class="status-text">Актуализиране на датата</span>
+          </div>
+        </div>
+
+        <div v-if="successMessage" class="success-section">
+          <div class="success-alert">
+            <div class="success-icon-wrapper">
+              <span class="success-icon">✓</span>
+            </div>
+            <div class="success-content">
+              <div class="success-title">{{ successMessage.title }}</div>
+              <div class="success-details">{{ successMessage.details }}</div>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="errorMessage" class="error-section">
+          <div class="error-alert">
+            <span class="error-icon">⚠️</span>
+            <div class="error-content">
+              <div class="error-title">Грешка при създаването</div>
+              <div class="error-details">{{ errorMessage }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="dialog-footer">
+        <button 
+          class="btn btn-cancel"
+          @click="handleCancel"
+          :disabled="isProcessing"
+        >
+          Отказ
+        </button>
+        <button 
+          class="btn btn-create"
+          @click="handleCreate"
+          :disabled="isProcessing || !isFormValid"
+          :class="{ 'btn-loading': isProcessing }"
+        >
+          <span v-if="isProcessing" class="loading-spinner"></span>
+          <span v-if="isProcessing">{{ processStatusText }}</span>
+          <span v-else>Създай</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, computed, nextTick, watch } from 'vue'
+import { productionOrderService } from '@/services/productionOrderService'
+
+// Props
+interface Props {
+  visible: boolean
+}
+
+const props = defineProps<Props>()
+
+// Events
+interface Emits {
+  'update:visible': [visible: boolean]
+  'success': [productionOrder: string]
+  'cancel': []
+}
+
+const emit = defineEmits<Emits>()
+
+// State
+const material = ref('')
+const productionPlant = ref('')
+const manufacturingOrderType = ref('')
+const totalQuantity = ref('')
+const scheduledStartDate = ref('')
+const scheduledStartTime = ref('')
+const displayDate = ref('')
+const displayTime = ref('')
+const dateFormatError = ref('')
+const timeFormatError = ref('')
+const isProcessing = ref(false)
+const showValidation = ref(false)
+const errorMessage = ref('')
+const successMessage = ref<{ title: string; details: string } | null>(null)
+const processStatus = ref<'' | 'creating' | 'created' | 'updating' | 'completed'>('')
+const createdProductionOrder = ref('')
+
+// Computed
+const isFormValid = computed(() => {
+  return material.value.trim() !== '' &&
+         productionPlant.value.trim() !== '' &&
+         manufacturingOrderType.value.trim() !== '' &&
+         totalQuantity.value.trim() !== '' &&
+         scheduledStartDate.value !== '' &&
+         scheduledStartTime.value !== '' &&
+         !dateFormatError.value &&
+         !timeFormatError.value
+})
+
+const processStatusText = computed(() => {
+  switch (processStatus.value) {
+    case 'creating':
+      return 'Създаване...'
+    case 'created':
+      return 'Създадено ✓'
+    case 'updating':
+      return 'Актуализиране...'
+    case 'completed':
+      return 'Завършено ✓'
+    default:
+      return 'Създаване...'
+  }
+})
+
+// Methods
+const handleDateInput = (event: Event) => {
+  const input = event.target as HTMLInputElement
+  let value = input.value.replace(/[^\d.]/g, '')
+  
+  // Auto-format as user types
+  if (value.length >= 2 && value[2] !== '.') {
+    value = value.slice(0, 2) + '.' + value.slice(2)
+  }
+  if (value.length >= 5 && value[5] !== '.') {
+    value = value.slice(0, 5) + '.' + value.slice(5)
+  }
+  if (value.length > 10) {
+    value = value.slice(0, 10)
+  }
+  
+  displayDate.value = value
+  dateFormatError.value = ''
+}
+
+const validateDateFormat = () => {
+  if (!displayDate.value) {
+    dateFormatError.value = ''
+    scheduledStartDate.value = ''
+    return
+  }
+
+  const datePattern = /^(\d{2})\.(\d{2})\.(\d{4})$/
+  const match = displayDate.value.match(datePattern)
+  
+  if (!match) {
+    dateFormatError.value = 'Формат: дд.мм.гггг'
+    scheduledStartDate.value = ''
+    return
+  }
+  
+  const day = parseInt(match[1], 10)
+  const month = parseInt(match[2], 10)
+  const year = parseInt(match[3], 10)
+  
+  // Validate date values
+  if (month < 1 || month > 12) {
+    dateFormatError.value = 'Невалиден месец'
+    scheduledStartDate.value = ''
+    return
+  }
+  
+  if (day < 1 || day > 31) {
+    dateFormatError.value = 'Невалиден ден'
+    scheduledStartDate.value = ''
+    return
+  }
+  
+  // Check if date is valid
+  const testDate = new Date(year, month - 1, day)
+  if (testDate.getDate() !== day || testDate.getMonth() !== month - 1 || testDate.getFullYear() !== year) {
+    dateFormatError.value = 'Невалидна дата'
+    scheduledStartDate.value = ''
+    return
+  }
+  
+  // Convert to YYYY-MM-DD format for backend
+  scheduledStartDate.value = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+  dateFormatError.value = ''
+}
+
+const handleTimeInput = (event: Event) => {
+  const input = event.target as HTMLInputElement
+  let value = input.value.replace(/[^\d:]/g, '')
+  
+  // Auto-format as user types
+  if (value.length >= 2 && value[2] !== ':') {
+    value = value.slice(0, 2) + ':' + value.slice(2)
+  }
+  if (value.length > 5) {
+    value = value.slice(0, 5)
+  }
+  
+  displayTime.value = value
+  timeFormatError.value = ''
+}
+
+const validateTimeFormat = () => {
+  if (!displayTime.value) {
+    timeFormatError.value = ''
+    scheduledStartTime.value = ''
+    return
+  }
+
+  const timePattern = /^(\d{2}):(\d{2})$/
+  const match = displayTime.value.match(timePattern)
+  
+  if (!match) {
+    timeFormatError.value = 'Формат: чч:мм (24ч)'
+    scheduledStartTime.value = ''
+    return
+  }
+  
+  const hours = parseInt(match[1], 10)
+  const minutes = parseInt(match[2], 10)
+  
+  if (hours < 0 || hours > 23) {
+    timeFormatError.value = 'Часовете трябва да са 00-23'
+    scheduledStartTime.value = ''
+    return
+  }
+  
+  if (minutes < 0 || minutes > 59) {
+    timeFormatError.value = 'Минутите трябва да са 00-59'
+    scheduledStartTime.value = ''
+    return
+  }
+  
+  scheduledStartTime.value = displayTime.value
+  timeFormatError.value = ''
+}
+
+const handleCreate = async () => {
+  if (!isFormValid.value) {
+    showValidation.value = true
+    return
+  }
+
+  try {
+    isProcessing.value = true
+    errorMessage.value = ''
+    successMessage.value = null
+    processStatus.value = 'creating'
+    
+    // Step 1: Create production order
+    const createResult = await productionOrderService.createProductionOrder(
+      material.value.trim(),
+      productionPlant.value.trim(),
+      manufacturingOrderType.value.trim(),
+      totalQuantity.value.trim()
+    )
+
+    if (!createResult.success) {
+      throw new Error(createResult.message || 'Неуспешно създаване')
+    }
+
+    // Store the created production order number
+    createdProductionOrder.value = createResult.productionOrder || ''
+    processStatus.value = 'created'
+
+    // Small delay for better UX
+    await new Promise(resolve => setTimeout(resolve, 500))
+
+    // Step 2: Update production order with scheduled date/time
+    processStatus.value = 'updating'
+    
+    const updateResult = await productionOrderService.updateProductionOrder(
+      createdProductionOrder.value,
+      scheduledStartDate.value,
+      scheduledStartTime.value
+    )
+
+    if (!updateResult.success) {
+      throw new Error(updateResult.message || 'Неуспешна актуализация')
+    }
+
+    processStatus.value = 'completed'
+
+    // Show success message
+    successMessage.value = {
+      title: '🎉 Успешно създаване и планиране!',
+      details: `Производствената поръчка ${createdProductionOrder.value} беше успешно създадена за материал ${material.value} и планирана за ${displayDate.value} в ${displayTime.value} часа.`
+    }
+
+    // Wait to show success message
+    await new Promise(resolve => setTimeout(resolve, 2500))
+
+    // Success - notify parent and close
+    emit('success', createdProductionOrder.value)
+    emit('update:visible', false)
+    resetDialog()
+
+  } catch (error) {
+    console.error('Error in handleCreate:', error)
+    errorMessage.value = error instanceof Error ? error.message : 'Възникна неочаквана грешка'
+    isProcessing.value = false
+    processStatus.value = ''
+  }
+}
+
+const handleCancel = () => {
+  if (isProcessing.value) return
+  
+  emit('cancel')
+  emit('update:visible', false)
+  resetDialog()
+}
+
+const handleOverlayClick = () => {
+  if (!isProcessing.value) {
+    handleCancel()
+  }
+}
+
+const resetDialog = () => {
+  material.value = ''
+  productionPlant.value = ''
+  manufacturingOrderType.value = ''
+  totalQuantity.value = ''
+  scheduledStartDate.value = ''
+  scheduledStartTime.value = ''
+  displayDate.value = ''
+  displayTime.value = ''
+  dateFormatError.value = ''
+  timeFormatError.value = ''
+  isProcessing.value = false
+  showValidation.value = false
+  errorMessage.value = ''
+  successMessage.value = null
+  processStatus.value = ''
+  createdProductionOrder.value = ''
+}
+
+const setProcessingState = (state: boolean) => {
+  isProcessing.value = state
+}
+
+const setErrorMessage = (message: string) => {
+  errorMessage.value = message
+  isProcessing.value = false
+  processStatus.value = ''
+}
+
+// Initialize with current date/time
+const initializeDateTime = () => {
+  const now = new Date()
+  const day = String(now.getDate()).padStart(2, '0')
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const year = now.getFullYear()
+  const hours = String(now.getHours()).padStart(2, '0')
+  const minutes = String(now.getMinutes()).padStart(2, '0')
+  
+  // Set display values in dd.mm.yyyy and HH:mm format
+  displayDate.value = `${day}.${month}.${year}`
+  displayTime.value = `${hours}:${minutes}`
+  
+  // Set internal values in YYYY-MM-DD and HH:mm format
+  scheduledStartDate.value = `${year}-${month}-${day}`
+  scheduledStartTime.value = `${hours}:${minutes}`
+}
+
+// Watch for dialog visibility changes
+watch(() => props.visible, (newVisible) => {
+  if (newVisible) {
+    resetDialog()
+    initializeDateTime()
+    // Focus the input field after the dialog is shown
+    nextTick(() => {
+      const input = document.getElementById('material')
+      input?.focus()
+    })
+  }
+})
+
+// Expose methods for parent component
+defineExpose({
+  setProcessingState,
+  setErrorMessage,
+  resetDialog
+})
+</script>
+
+<style scoped>
+.dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.dialog-container {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+  width: 90%;
+  max-width: 600px;
+  max-height: 90vh;
+  overflow: hidden;
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    transform: scale(0.95) translateY(-20px);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
+}
+
+.dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.5rem 2rem;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  position: relative;
+}
+
+.dialog-title {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.dialog-icon {
+  font-size: 1.5rem;
+  opacity: 0.9;
+}
+
+.dialog-close-btn {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  border-radius: 6px;
+  color: white;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 1.2rem;
+  font-weight: bold;
+}
+
+.dialog-close-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.3);
+  transform: scale(1.05);
+}
+
+.dialog-close-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.dialog-body {
+  padding: 2rem;
+  max-height: calc(90vh - 180px);
+  overflow-y: auto;
+}
+
+.input-section {
+  margin-bottom: 1.5rem;
+}
+
+.datetime-section {
+  margin-bottom: 1.5rem;
+}
+
+.datetime-row {
+  display: flex;
+  gap: 1rem;
+}
+
+.flex-1 {
+  flex: 1;
+}
+
+.input-label {
+  display: block;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 0.75rem;
+  font-size: 0.95rem;
+}
+
+.required-asterisk {
+  color: #dc2626;
+  margin-left: 0.25rem;
+}
+
+.input-field {
+  width: 100%;
+  padding: 0.875rem 1rem;
+  border: 2px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 1rem;
+  transition: all 0.2s ease;
+  background: white;
+  color: #1f2937 !important;
+}
+
+.input-field:focus {
+  outline: none;
+  border-color: #10b981;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+  color: #1f2937 !important;
+}
+
+.input-field:disabled {
+  background: #f3f4f6;
+  color: #6b7280 !important;
+  cursor: not-allowed;
+}
+
+.input-error {
+  border-color: #dc2626 !important;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1) !important;
+}
+
+.error-message {
+  color: #dc2626;
+  font-size: 0.875rem;
+  font-weight: 500;
+  margin-top: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.error-message::before {
+  content: '⚠️';
+  font-size: 1rem;
+}
+
+.status-section {
+  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+  border: 1px solid #86efac;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+}
+
+.status-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+  opacity: 0.5;
+  transition: opacity 0.3s ease;
+}
+
+.status-step.status-active {
+  opacity: 1;
+}
+
+.status-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #dcfce7;
+  border: 2px solid #86efac;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  color: #047857;
+  font-size: 1.1rem;
+}
+
+.status-active .status-icon {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  border-color: #059669;
+  color: white;
+}
+
+.status-text {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #475569;
+  text-align: center;
+}
+
+.status-divider {
+  width: 40px;
+  height: 2px;
+  background: #86efac;
+  margin: 0 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.loading-spinner-small {
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top: 2px solid white;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.success-section {
+  margin-bottom: 1.5rem;
+}
+
+.success-alert {
+  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+  border: 2px solid #86efac;
+  border-radius: 12px;
+  padding: 1.5rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  box-shadow: 0 4px 6px rgba(34, 197, 94, 0.1);
+  animation: successSlideIn 0.4s ease-out;
+}
+
+@keyframes successSlideIn {
+  from {
+    transform: translateY(-10px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.success-icon-wrapper {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
+  animation: successPulse 2s ease-in-out infinite;
+}
+
+@keyframes successPulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 6px 16px rgba(34, 197, 94, 0.4);
+  }
+}
+
+.success-icon {
+  color: white;
+  font-size: 28px;
+  font-weight: bold;
+  animation: successCheck 0.6s ease-out;
+}
+
+@keyframes successCheck {
+  0% {
+    transform: scale(0) rotate(-45deg);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.2) rotate(0deg);
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+}
+
+.success-content {
+  flex: 1;
+}
+
+.success-title {
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: #166534;
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.success-details {
+  color: #15803d;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.error-section {
+  margin-bottom: 1.5rem;
+}
+
+.error-alert {
+  background: linear-gradient(135deg, #fef2f2 0%, #fecaca 100%);
+  border: 1px solid #fca5a5;
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.error-icon {
+  font-size: 1.25rem;
+  flex-shrink: 0;
+  margin-top: 0.125rem;
+}
+
+.error-content {
+  flex: 1;
+}
+
+.error-title {
+  font-weight: 600;
+  color: #991b1b;
+  margin-bottom: 0.25rem;
+}
+
+.error-details {
+  color: #7f1d1d;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  padding: 1.5rem 2rem;
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+}
+
+.btn {
+  padding: 0.875rem 1.75rem;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-width: 120px;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-cancel {
+  background: #f3f4f6;
+  color: #374151;
+  border: 1px solid #d1d5db;
+}
+
+.btn-cancel:hover:not(:disabled) {
+  background: #e5e7eb;
+  border-color: #9ca3af;
+}
+
+.btn-create {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  box-shadow: 0 2px 4px rgba(16, 185, 129, 0.2);
+}
+
+.btn-create:hover:not(:disabled) {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(16, 185, 129, 0.3);
+}
+
+.btn-create:disabled {
+  background: #9ca3af;
+  box-shadow: none;
+  transform: none;
+}
+
+.btn-loading {
+  pointer-events: none;
+}
+
+.loading-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top: 2px solid white;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Responsive design */
+@media (max-width: 640px) {
+  .dialog-container {
+    width: 95%;
+    margin: 1rem;
+  }
+
+  .dialog-header,
+  .dialog-body,
+  .dialog-footer {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+
+  .dialog-title {
+    font-size: 1.1rem;
+  }
+
+  .datetime-row {
+    flex-direction: column;
+  }
+
+  .dialog-footer {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .btn {
+    width: 100%;
+  }
+
+  .status-section {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .status-divider {
+    width: 2px;
+    height: 30px;
+    margin: 0;
+  }
+}
+
+/* High contrast mode */
+@media (prefers-contrast: high) {
+  .dialog-header {
+    background: #000;
+    color: #fff;
+  }
+
+  .input-field {
+    border-color: #000;
+  }
+
+  .btn-create {
+    background: #000;
+  }
+
+  .btn-cancel {
+    background: #fff;
+    color: #000;
+    border-color: #000;
+  }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .dialog-overlay,
+  .dialog-container,
+  .btn,
+  .input-field {
+    animation: none;
+    transition: none;
+  }
+
+  .btn-create:hover:not(:disabled) {
+    transform: none;
+  }
+
+  .loading-spinner,
+  .loading-spinner-small {
+    animation: none;
+  }
+}
+
+/* Focus styles for accessibility */
+.btn:focus-visible,
+.input-field:focus-visible,
+.dialog-close-btn:focus-visible {
+  outline: 2px solid #10b981;
+  outline-offset: 2px;
+}
+</style>

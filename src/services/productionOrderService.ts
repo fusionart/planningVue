@@ -46,6 +46,12 @@ export interface ProductionOrderUpdateResponse {
   message?: string
 }
 
+export interface ProductionOrderCreateResponse {
+  success: boolean
+  message?: string
+  productionOrder?: string
+}
+
 class ProductionOrderService {
   private readonly endpoint = '/api/sap'
 
@@ -238,6 +244,111 @@ class ProductionOrderService {
       return {
         success: false,
         message: `Неуспешно конвертиране на планирана поръчка ${plannedOrder}: ${errorMessage}`
+      }
+    }
+  }
+
+  /**
+   * Create production order
+   */
+  async createProductionOrder(
+    material: string,
+    productionPlant: string,
+    manufacturingOrderType: string,
+    totalQuantity: string
+  ): Promise<ProductionOrderCreateResponse> {
+    try {
+      // Get credentials
+      const credentials = this.getCredentials()
+
+      if (isFeatureEnabled('DEBUG_MODE')) {
+        console.log('➕ Creating production order:', {
+          material,
+          productionPlant,
+          manufacturingOrderType,
+          totalQuantity,
+          hasCredentials: !!(credentials.username && credentials.password)
+        })
+      }
+
+      // Ensure credentials are not empty
+      if (!credentials.username || !credentials.password) {
+        throw new Error('Username or password is empty')
+      }
+
+      const params = {
+        username: btoa(credentials.username), // Base64 encode for backend
+        password: btoa(credentials.password), // Base64 encode for backend
+        material,
+        productionPlant,
+        manufacturingOrderType,
+        totalQuantity
+      }
+
+      // Build query string manually
+      const queryString = new URLSearchParams({
+        username: params.username,
+        password: params.password,
+        material: params.material,
+        productionPlant: params.productionPlant,
+        manufacturingOrderType: params.manufacturingOrderType,
+        totalQuantity: params.totalQuantity
+      }).toString()
+
+      const url = `${this.endpoint}/createProductionOrder?${queryString}`
+
+      if (isFeatureEnabled('DEBUG_MODE')) {
+        console.log('➕ Calling createProductionOrder API:', {
+          url: url.replace(/password=[^&]+/, 'password=[HIDDEN]'),
+          material,
+          productionPlant,
+          manufacturingOrderType,
+          totalQuantity
+        })
+      }
+
+      // Call the endpoint using POST with query string in URL
+      const response = await apiClient.post<string>(url, null)
+
+      if (isFeatureEnabled('DEBUG_MODE')) {
+        console.log('✅ Production order created successfully:', {
+          material,
+          productionPlant,
+          response
+        })
+      }
+
+      // The backend returns a string which is the production order number
+      const productionOrderNumber = typeof response === 'string' ? response : response?.toString() || ''
+
+      return {
+        success: true,
+        message: `Производствената поръчка ${productionOrderNumber} беше успешно създадена за материал ${material}`,
+        productionOrder: productionOrderNumber
+      }
+
+    } catch (error) {
+      console.error('❌ Failed to create production order:', error)
+      
+      let errorMessage = 'Възникна неочаквана грешка при създаването'
+      
+      if (error instanceof Error) {
+        errorMessage = error.message
+      } else if (typeof error === 'object' && error !== null) {
+        // Handle API error responses
+        const apiError = error as any
+        if (apiError.response?.data?.message) {
+          errorMessage = apiError.response.data.message
+        } else if (apiError.response?.data) {
+          errorMessage = JSON.stringify(apiError.response.data)
+        } else if (apiError.message) {
+          errorMessage = apiError.message
+        }
+      }
+
+      return {
+        success: false,
+        message: `Неуспешно създаване на производствена поръчка за материал ${material}: ${errorMessage}`
       }
     }
   }
