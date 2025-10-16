@@ -64,7 +64,7 @@
             v-if="!productionPlant.trim() && showValidation" 
             class="error-message"
           >
-            Производственият завод е задължителен
+            Производствения завод е задължителен
           </div>
         </div>
 
@@ -178,23 +178,90 @@
           </div>
         </div>
 
+        <!-- ZP98 Checkbox Section -->
+        <div class="zp98-section">
+          <div class="checkbox-wrapper">
+            <label class="checkbox-label">
+              <input
+                v-model="createZP98"
+                type="checkbox"
+                class="checkbox-input"
+                :disabled="isProcessing"
+                @change="handleZP98Toggle"
+              />
+              <span class="checkbox-custom"></span>
+              <span class="checkbox-text">Създай ZP98</span>
+            </label>
+          </div>
+
+          <div v-if="createZP98" class="zp98-quantity-section">
+            <label class="input-label" for="zp98Quantity">
+              Количество за ZP98 <span class="required-asterisk">*</span>
+            </label>
+            <input
+              id="zp98Quantity"
+              v-model="zp98Quantity"
+              type="text"
+              class="input-field"
+              :class="{ 'input-error': createZP98 && !zp98Quantity.trim() && showValidation }"
+              placeholder="Въведете количество за ZP98"
+              :disabled="isProcessing"
+              @keyup.enter="handleCreate"
+              @input="showValidation = false"
+            />
+            <div 
+              v-if="createZP98 && !zp98Quantity.trim() && showValidation" 
+              class="error-message"
+            >
+              Количеството за ZP98 е задължително
+            </div>
+          </div>
+        </div>
+
         <div v-if="processStatus" class="status-section">
           <div class="status-step" :class="{ 'status-active': processStatus === 'creating' }">
             <span class="status-icon">
               <span v-if="processStatus === 'creating'" class="loading-spinner-small"></span>
-              <span v-else-if="processStatus === 'created'">✓</span>
+              <span v-else-if="['created', 'updating', 'updatingStorage', 'creatingZP98', 'updatingZP98', 'completed'].includes(processStatus)">✓</span>
               <span v-else>1</span>
             </span>
-            <span class="status-text">Създаване на поръчка</span>
+            <span class="status-text">Създаване на основна поръчка</span>
           </div>
           <div class="status-divider"></div>
           <div class="status-step" :class="{ 'status-active': processStatus === 'updating' }">
             <span class="status-icon">
               <span v-if="processStatus === 'updating'" class="loading-spinner-small"></span>
-              <span v-else-if="processStatus === 'completed'">✓</span>
+              <span v-else-if="['updatingStorage', 'creatingZP98', 'updatingZP98', 'completed'].includes(processStatus)">✓</span>
               <span v-else>2</span>
             </span>
             <span class="status-text">Актуализиране на датата</span>
+          </div>
+          <div v-if="createZP98" class="status-divider"></div>
+          <div v-if="createZP98" class="status-step" :class="{ 'status-active': processStatus === 'updatingStorage' }">
+            <span class="status-icon">
+              <span v-if="processStatus === 'updatingStorage'" class="loading-spinner-small"></span>
+              <span v-else-if="['creatingZP98', 'updatingZP98', 'completed'].includes(processStatus)">✓</span>
+              <span v-else>3</span>
+            </span>
+            <span class="status-text">Актуализиране на склад</span>
+          </div>
+          <div v-if="createZP98" class="status-divider"></div>
+          <div v-if="createZP98" class="status-step" :class="{ 'status-active': processStatus === 'creatingZP98' }">
+            <span class="status-icon">
+              <span v-if="processStatus === 'creatingZP98'" class="loading-spinner-small"></span>
+              <span v-else-if="['updatingZP98', 'completed'].includes(processStatus)">✓</span>
+              <span v-else>4</span>
+            </span>
+            <span class="status-text">Създаване на ZP98</span>
+          </div>
+          <div v-if="createZP98" class="status-divider"></div>
+          <div v-if="createZP98" class="status-step" :class="{ 'status-active': processStatus === 'updatingZP98' }">
+            <span class="status-icon">
+              <span v-if="processStatus === 'updatingZP98'" class="loading-spinner-small"></span>
+              <span v-else-if="processStatus === 'completed'">✓</span>
+              <span v-else>5</span>
+            </span>
+            <span class="status-text">Актуализиране на ZP98</span>
           </div>
         </div>
 
@@ -279,12 +346,17 @@ const isProcessing = ref(false)
 const showValidation = ref(false)
 const errorMessage = ref('')
 const successMessage = ref<{ title: string; details: string } | null>(null)
-const processStatus = ref<'' | 'creating' | 'created' | 'updating' | 'completed'>('')
+const processStatus = ref<'' | 'creating' | 'created' | 'updating' | 'updatingStorage' | 'creatingZP98' | 'updatingZP98' | 'completed'>('')
 const createdProductionOrder = ref('')
+const createdZP98Order = ref('')
+
+// ZP98 related state
+const createZP98 = ref(false)
+const zp98Quantity = ref('')
 
 // Computed
 const isFormValid = computed(() => {
-  return material.value.trim() !== '' &&
+  const baseFormValid = material.value.trim() !== '' &&
          productionPlant.value.trim() !== '' &&
          manufacturingOrderType.value.trim() !== '' &&
          totalQuantity.value.trim() !== '' &&
@@ -292,16 +364,29 @@ const isFormValid = computed(() => {
          scheduledStartTime.value !== '' &&
          !dateFormatError.value &&
          !timeFormatError.value
+
+  // If ZP98 is checked, also validate ZP98 quantity
+  if (createZP98.value) {
+    return baseFormValid && zp98Quantity.value.trim() !== ''
+  }
+
+  return baseFormValid
 })
 
 const processStatusText = computed(() => {
   switch (processStatus.value) {
     case 'creating':
-      return 'Създаване...'
+      return 'Създаване на поръчка...'
     case 'created':
-      return 'Създадено ✓'
+      return 'Поръчката е създадена ✓'
     case 'updating':
       return 'Актуализиране...'
+    case 'updatingStorage':
+      return 'Актуализиране на склад...'
+    case 'creatingZP98':
+      return 'Създаване на ZP98...'
+    case 'updatingZP98':
+      return 'Актуализиране на ZP98...'
     case 'completed':
       return 'Завършено ✓'
     default:
@@ -310,6 +395,13 @@ const processStatusText = computed(() => {
 })
 
 // Methods
+const handleZP98Toggle = () => {
+  if (!createZP98.value) {
+    // Clear ZP98 quantity when unchecked
+    zp98Quantity.value = ''
+  }
+}
+
 const handleDateInput = (event: Event) => {
   const input = event.target as HTMLInputElement
   let value = input.value.replace(/[^\d.]/g, '')
@@ -357,7 +449,7 @@ const validateDateFormat = () => {
   }
   
   if (day < 1 || day > 31) {
-    dateFormatError.value = 'Невалиден ден'
+    dateFormatError.value = 'Невалиденден'
     scheduledStartDate.value = ''
     return
   }
@@ -470,12 +562,72 @@ const handleCreate = async () => {
       throw new Error(updateResult.message || 'Неуспешна актуализация')
     }
 
+    // If ZP98 checkbox is checked, create ZP98 order and update its storage location
+    if (createZP98.value) {
+      // Small delay for better UX
+      await new Promise(resolve => setTimeout(resolve, 500))
+      
+      // Step 3: Create ZP98 production order
+      processStatus.value = 'creatingZP98'
+      
+      const createZP98Result = await productionOrderService.createProductionOrder(
+        material.value.trim(),
+        productionPlant.value.trim(),
+        'ZP98', // Fixed order type for ZP98
+        zp98Quantity.value.trim()
+      )
+
+      if (!createZP98Result.success) {
+        throw new Error(createZP98Result.message || 'Неуспешно създаване на ZP98')
+      }
+
+      // Store the created ZP98 order number
+      createdZP98Order.value = createZP98Result.productionOrder || ''
+      
+      // Small delay for better UX
+      await new Promise(resolve => setTimeout(resolve, 500))
+
+      // Step 4: Update ZP98 order with the same scheduled date/time
+      processStatus.value = 'updatingZP98'
+      
+      const updateZP98Result = await productionOrderService.updateProductionOrder(
+        createdZP98Order.value,
+        scheduledStartDate.value,
+        scheduledStartTime.value
+      )
+
+      if (!updateZP98Result.success) {
+        throw new Error(updateZP98Result.message || 'Неуспешна актуализация на ZP98')
+      }
+
+      // Small delay for better UX
+      await new Promise(resolve => setTimeout(resolve, 500))
+      
+      // Step 5: Update storage location to 2000 for the ZP98 order
+      processStatus.value = 'updatingStorage'
+      
+      const updateStorageResult = await productionOrderService.updateStorageLocation(
+        createdZP98Order.value,
+        '2000'
+      )
+
+      if (!updateStorageResult.success) {
+        throw new Error(updateStorageResult.message || 'Неуспешно актуализиране на склад')
+      }
+    }
+
     processStatus.value = 'completed'
 
     // Show success message
+    let successDetails = `Производствената поръчка ${createdProductionOrder.value} беше успешно създадена за материал ${material.value} и планирана за ${displayDate.value} в ${displayTime.value} часа.`
+    
+    if (createZP98.value && createdZP98Order.value) {
+      successDetails += ` Склад 2000 беше зададен. Допълнително беше създадена ZP98 поръчка ${createdZP98Order.value} с количество ${zp98Quantity.value}.`
+    }
+
     successMessage.value = {
       title: '🎉 Успешно създаване и планиране!',
-      details: `Производствената поръчка ${createdProductionOrder.value} беше успешно създадена за материал ${material.value} и планирана за ${displayDate.value} в ${displayTime.value} часа.`
+      details: successDetails
     }
 
     // Wait to show success message
@@ -525,6 +677,9 @@ const resetDialog = () => {
   successMessage.value = null
   processStatus.value = ''
   createdProductionOrder.value = ''
+  createdZP98Order.value = ''
+  createZP98.value = false
+  zp98Quantity.value = ''
 }
 
 const setProcessingState = (state: boolean) => {
@@ -750,149 +905,164 @@ defineExpose({
 
 .error-message::before {
   content: '⚠️';
-  font-size: 1rem;
+  font-size: 0.75rem;
 }
 
-.status-section {
-  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
-  border: 1px solid #86efac;
-  border-radius: 8px;
-  padding: 1.5rem;
+/* ZP98 Section Styles */
+.zp98-section {
   margin-bottom: 1.5rem;
+  padding: 1rem;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.checkbox-wrapper {
+  margin-bottom: 1rem;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  font-weight: 600;
+  color: #374151;
+  gap: 0.75rem;
+}
+
+.checkbox-input {
+  display: none;
+}
+
+.checkbox-custom {
+  width: 20px;
+  height: 20px;
+  border: 2px solid #d1d5db;
+  border-radius: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 1rem;
+  transition: all 0.2s ease;
+  background: white;
+}
+
+.checkbox-input:checked + .checkbox-custom {
+  background: #10b981;
+  border-color: #10b981;
+}
+
+.checkbox-input:checked + .checkbox-custom::after {
+  content: '✓';
+  color: white;
+  font-size: 0.875rem;
+  font-weight: bold;
+}
+
+.checkbox-input:disabled + .checkbox-custom {
+  background: #f3f4f6;
+  border-color: #d1d5db;
+  cursor: not-allowed;
+}
+
+.checkbox-text {
+  font-size: 0.95rem;
+}
+
+.zp98-quantity-section {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+/* Status Section */
+.status-section {
+  margin: 2rem 0;
+  padding: 1.5rem;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
 }
 
 .status-step {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 0.5rem;
-  flex: 1;
-  opacity: 0.5;
-  transition: opacity 0.3s ease;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
 }
 
-.status-step.status-active {
-  opacity: 1;
+.status-active {
+  color: #10b981;
+  font-weight: 600;
 }
 
 .status-icon {
-  width: 40px;
-  height: 40px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
-  background: #dcfce7;
-  border: 2px solid #86efac;
+  background: #e5e7eb;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 700;
-  color: #047857;
-  font-size: 1.1rem;
+  font-size: 0.75rem;
+  font-weight: bold;
+  color: #6b7280;
 }
 
 .status-active .status-icon {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-  border-color: #059669;
+  background: #10b981;
   color: white;
 }
 
 .status-text {
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: #475569;
-  text-align: center;
+  font-size: 0.9rem;
 }
 
 .status-divider {
-  width: 40px;
-  height: 2px;
-  background: #86efac;
-  margin: 0 0.5rem;
-  margin-bottom: 1.5rem;
+  height: 20px;
+  width: 2px;
+  background: #e5e7eb;
+  margin-left: 11px;
 }
 
 .loading-spinner-small {
-  width: 20px;
-  height: 20px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top: 2px solid white;
+  width: 16px;
+  height: 16px;
+  border: 2px solid transparent;
+  border-top: 2px solid currentColor;
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
 
+/* Success Section */
 .success-section {
-  margin-bottom: 1.5rem;
+  margin: 1.5rem 0;
 }
 
 .success-alert {
-  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
-  border: 2px solid #86efac;
-  border-radius: 12px;
-  padding: 1.5rem;
   display: flex;
   align-items: flex-start;
-  gap: 1rem;
-  box-shadow: 0 4px 6px rgba(34, 197, 94, 0.1);
-  animation: successSlideIn 0.4s ease-out;
-}
-
-@keyframes successSlideIn {
-  from {
-    transform: translateY(-10px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
+  gap: 0.75rem;
+  padding: 1rem;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  border-radius: 8px;
 }
 
 .success-icon-wrapper {
-  flex-shrink: 0;
-  width: 48px;
-  height: 48px;
-  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+  width: 24px;
+  height: 24px;
+  background: #10b981;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
-  animation: successPulse 2s ease-in-out infinite;
-}
-
-@keyframes successPulse {
-  0%, 100% {
-    transform: scale(1);
-    box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
-  }
-  50% {
-    transform: scale(1.05);
-    box-shadow: 0 6px 16px rgba(34, 197, 94, 0.4);
-  }
+  flex-shrink: 0;
 }
 
 .success-icon {
   color: white;
-  font-size: 28px;
+  font-size: 0.875rem;
   font-weight: bold;
-  animation: successCheck 0.6s ease-out;
-}
-
-@keyframes successCheck {
-  0% {
-    transform: scale(0) rotate(-45deg);
-    opacity: 0;
-  }
-  50% {
-    transform: scale(1.2) rotate(0deg);
-  }
-  100% {
-    transform: scale(1) rotate(0deg);
-    opacity: 1;
-  }
 }
 
 .success-content {
@@ -900,39 +1070,35 @@ defineExpose({
 }
 
 .success-title {
-  font-weight: 700;
-  font-size: 1.1rem;
-  color: #166534;
-  margin-bottom: 0.5rem;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
+  font-weight: 600;
+  color: #065f46;
+  margin-bottom: 0.25rem;
 }
 
 .success-details {
-  color: #15803d;
-  font-size: 0.95rem;
-  line-height: 1.5;
+  color: #047857;
+  font-size: 0.9rem;
+  line-height: 1.4;
 }
 
+/* Error Section */
 .error-section {
-  margin-bottom: 1.5rem;
+  margin: 1.5rem 0;
 }
 
 .error-alert {
-  background: linear-gradient(135deg, #fef2f2 0%, #fecaca 100%);
-  border: 1px solid #fca5a5;
-  border-radius: 8px;
-  padding: 1rem 1.25rem;
   display: flex;
   align-items: flex-start;
   gap: 0.75rem;
+  padding: 1rem;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
 }
 
 .error-icon {
   font-size: 1.25rem;
   flex-shrink: 0;
-  margin-top: 0.125rem;
 }
 
 .error-content {
@@ -946,22 +1112,23 @@ defineExpose({
 }
 
 .error-details {
-  color: #7f1d1d;
+  color: #dc2626;
   font-size: 0.9rem;
   line-height: 1.4;
 }
 
+/* Footer */
 .dialog-footer {
   display: flex;
-  justify-content: flex-end;
   gap: 1rem;
+  justify-content: flex-end;
   padding: 1.5rem 2rem;
   background: #f8fafc;
   border-top: 1px solid #e2e8f0;
 }
 
 .btn {
-  padding: 0.875rem 1.75rem;
+  padding: 0.75rem 1.5rem;
   border: none;
   border-radius: 8px;
   font-size: 0.95rem;
@@ -970,9 +1137,9 @@ defineExpose({
   transition: all 0.2s ease;
   display: flex;
   align-items: center;
-  justify-content: center;
   gap: 0.5rem;
-  min-width: 120px;
+  min-width: 100px;
+  justify-content: center;
 }
 
 .btn:disabled {
@@ -981,142 +1148,77 @@ defineExpose({
 }
 
 .btn-cancel {
-  background: #f3f4f6;
+  background: white;
   color: #374151;
-  border: 1px solid #d1d5db;
+  border: 2px solid #d1d5db;
 }
 
 .btn-cancel:hover:not(:disabled) {
-  background: #e5e7eb;
+  background: #f9fafb;
   border-color: #9ca3af;
 }
 
 .btn-create {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  background: #10b981;
   color: white;
-  box-shadow: 0 2px 4px rgba(16, 185, 129, 0.2);
+  border: 2px solid #10b981;
 }
 
 .btn-create:hover:not(:disabled) {
-  background: linear-gradient(135deg, #059669 0%, #047857 100%);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(16, 185, 129, 0.3);
+  background: #059669;
+  border-color: #059669;
 }
 
 .btn-create:disabled {
-  background: #9ca3af;
-  box-shadow: none;
-  transform: none;
+  background: #d1d5db;
+  border-color: #d1d5db;
 }
 
 .btn-loading {
-  pointer-events: none;
+  position: relative;
 }
 
 .loading-spinner {
-  width: 16px;
-  height: 16px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top: 2px solid white;
+  width: 18px;
+  height: 18px;
+  border: 2px solid transparent;
+  border-top: 2px solid currentColor;
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
-/* Responsive design */
+/* Responsive */
 @media (max-width: 640px) {
   .dialog-container {
     width: 95%;
     margin: 1rem;
   }
-
-  .dialog-header,
-  .dialog-body,
-  .dialog-footer {
-    padding-left: 1.5rem;
-    padding-right: 1.5rem;
+  
+  .dialog-header {
+    padding: 1.25rem 1.5rem;
   }
-
-  .dialog-title {
-    font-size: 1.1rem;
+  
+  .dialog-body {
+    padding: 1.5rem;
   }
-
+  
   .datetime-row {
     flex-direction: column;
+    gap: 0;
   }
-
+  
   .dialog-footer {
-    flex-direction: column;
-    gap: 0.75rem;
+    flex-direction: column-reverse;
   }
-
+  
   .btn {
     width: 100%;
   }
-
-  .status-section {
-    flex-direction: column;
-    gap: 0.75rem;
-  }
-
-  .status-divider {
-    width: 2px;
-    height: 30px;
-    margin: 0;
-  }
-}
-
-/* High contrast mode */
-@media (prefers-contrast: high) {
-  .dialog-header {
-    background: #000;
-    color: #fff;
-  }
-
-  .input-field {
-    border-color: #000;
-  }
-
-  .btn-create {
-    background: #000;
-  }
-
-  .btn-cancel {
-    background: #fff;
-    color: #000;
-    border-color: #000;
-  }
-}
-
-/* Reduced motion */
-@media (prefers-reduced-motion: reduce) {
-  .dialog-overlay,
-  .dialog-container,
-  .btn,
-  .input-field {
-    animation: none;
-    transition: none;
-  }
-
-  .btn-create:hover:not(:disabled) {
-    transform: none;
-  }
-
-  .loading-spinner,
-  .loading-spinner-small {
-    animation: none;
-  }
-}
-
-/* Focus styles for accessibility */
-.btn:focus-visible,
-.input-field:focus-visible,
-.dialog-close-btn:focus-visible {
-  outline: 2px solid #10b981;
-  outline-offset: 2px;
 }
 </style>

@@ -52,6 +52,11 @@ export interface ProductionOrderCreateResponse {
   productionOrder?: string
 }
 
+export interface StorageLocationUpdateResponse {
+  success: boolean
+  message?: string
+}
+
 class ProductionOrderService {
   private readonly endpoint = '/api/sap'
 
@@ -444,6 +449,97 @@ class ProductionOrderService {
       return {
         success: false,
         message: `Неуспешна актуализация на производствена поръчка ${productionOrder}: ${errorMessage}`
+      }
+    }
+  }
+
+  /**
+   * Update storage location for a manufacturing order
+   */
+  async updateStorageLocation(
+    manufacturingOrder: string,
+    newStorageLocation: string
+  ): Promise<StorageLocationUpdateResponse> {
+    try {
+      // Get credentials
+      const credentials = this.getCredentials()
+
+      if (isFeatureEnabled('DEBUG_MODE')) {
+        console.log('📦 Updating storage location:', {
+          manufacturingOrder,
+          newStorageLocation,
+          hasCredentials: !!(credentials.username && credentials.password)
+        })
+      }
+
+      // Ensure credentials are not empty
+      if (!credentials.username || !credentials.password) {
+        throw new Error('Username or password is empty')
+      }
+
+      const params = {
+        username: btoa(credentials.username), // Base64 encode for backend
+        password: btoa(credentials.password), // Base64 encode for backend
+        manufacturingOrder,
+        newStorageLocation
+      }
+
+      // Build query string manually
+      const queryString = new URLSearchParams({
+        username: params.username,
+        password: params.password,
+        manufacturingOrder: params.manufacturingOrder,
+        newStorageLocation: params.newStorageLocation
+      }).toString()
+
+      const url = `${this.endpoint}/updateStorageLocation?${queryString}`
+
+      if (isFeatureEnabled('DEBUG_MODE')) {
+        console.log('📦 Calling updateStorageLocation API:', {
+          url: url.replace(/password=[^&]+/, 'password=[HIDDEN]'),
+          manufacturingOrder,
+          newStorageLocation
+        })
+      }
+
+      // Call the endpoint using POST with query string in URL
+      const response = await apiClient.post<string>(url, null)
+
+      if (isFeatureEnabled('DEBUG_MODE')) {
+        console.log('✅ Storage location updated successfully:', {
+          manufacturingOrder,
+          newStorageLocation,
+          response
+        })
+      }
+
+      return {
+        success: true,
+        message: `Складът за поръчка ${manufacturingOrder} беше успешно актуализиран на ${newStorageLocation}`
+      }
+
+    } catch (error) {
+      console.error('❌ Failed to update storage location:', error)
+      
+      let errorMessage = 'Възникна неочаквана грешка при актуализацията на склада'
+      
+      if (error instanceof Error) {
+        errorMessage = error.message
+      } else if (typeof error === 'object' && error !== null) {
+        // Handle API error responses
+        const apiError = error as any
+        if (apiError.response?.data?.message) {
+          errorMessage = apiError.response.data.message
+        } else if (apiError.response?.data) {
+          errorMessage = JSON.stringify(apiError.response.data)
+        } else if (apiError.message) {
+          errorMessage = apiError.message
+        }
+      }
+
+      return {
+        success: false,
+        message: `Неуспешна актуализация на склада за поръчка ${manufacturingOrder}: ${errorMessage}`
       }
     }
   }
