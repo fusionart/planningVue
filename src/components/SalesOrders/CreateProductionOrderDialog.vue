@@ -237,20 +237,11 @@
             <span class="status-text">Актуализиране на датата</span>
           </div>
           <div v-if="createZP98" class="status-divider"></div>
-          <div v-if="createZP98" class="status-step" :class="{ 'status-active': processStatus === 'updatingStorage' }">
-            <span class="status-icon">
-              <span v-if="processStatus === 'updatingStorage'" class="loading-spinner-small"></span>
-              <span v-else-if="['creatingZP98', 'updatingZP98', 'completed'].includes(processStatus)">✓</span>
-              <span v-else>3</span>
-            </span>
-            <span class="status-text">Актуализиране на склад</span>
-          </div>
-          <div v-if="createZP98" class="status-divider"></div>
           <div v-if="createZP98" class="status-step" :class="{ 'status-active': processStatus === 'creatingZP98' }">
             <span class="status-icon">
               <span v-if="processStatus === 'creatingZP98'" class="loading-spinner-small"></span>
               <span v-else-if="['updatingZP98', 'completed'].includes(processStatus)">✓</span>
-              <span v-else>4</span>
+              <span v-else>3</span>
             </span>
             <span class="status-text">Създаване на ZP98</span>
           </div>
@@ -259,9 +250,18 @@
             <span class="status-icon">
               <span v-if="processStatus === 'updatingZP98'" class="loading-spinner-small"></span>
               <span v-else-if="processStatus === 'completed'">✓</span>
+              <span v-else>4</span>
+            </span>
+            <span class="status-text">Актуализиране на дата на ZP98</span>
+          </div>
+          <div v-if="createZP98" class="status-divider"></div>
+          <div v-if="createZP98" class="status-step" :class="{ 'status-active': processStatus === 'updatingStorage' }">
+            <span class="status-icon">
+              <span v-if="processStatus === 'updatingStorage'" class="loading-spinner-small"></span>
+              <span v-else-if="['creatingZP98', 'updatingZP98', 'completed'].includes(processStatus)">✓</span>
               <span v-else>5</span>
             </span>
-            <span class="status-text">Актуализиране на ZP98</span>
+            <span class="status-text">Актуализиране на склад на ZP98</span>
           </div>
         </div>
 
