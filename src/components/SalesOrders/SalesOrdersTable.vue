@@ -168,7 +168,7 @@
                 <div 
                   v-if="order.dynamicSoItems?.[key]?.plannedOrder && order.dynamicSoItems[key].plannedOrder !== '-'"
                   class="planned-order-clickable-container"
-                  @click.stop="handlePlannedOrderClick(order.dynamicSoItems[key].plannedOrder, order.material)"
+                  @click.stop="handlePlannedOrderClick(order.dynamicSoItems[key].plannedOrder, order.material, order.plant)"
                   :title="`Кликнете за конвертиране на планирана поръчка ${order.dynamicSoItems[key].plannedOrder}`"
                 >
                   <span class="planned-order-code">{{ order.dynamicSoItems[key].plannedOrder }}</span>
@@ -205,14 +205,6 @@
         <span class="feedback-text">Зареждане на производствени поръчки за {{ lastClickedMaterial }}...</span>
       </div>
     </div>
-
-    <!-- Planned Order Click Feedback -->
-    <div v-if="showPlannedOrderClickFeedback" class="planned-order-click-feedback">
-      <div class="feedback-content">
-        <span class="feedback-icon">🔄</span>
-        <span class="feedback-text">Отваряне на диалог за конвертиране на {{ lastClickedPlannedOrder }}...</span>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -241,7 +233,7 @@ interface Emits {
   sort: [column: string]
   'row-click': [order: SalesOrderMain]
   'material-click': [material: string]
-  'planned-order-click': [plannedOrder: string, material: string]
+  'planned-order-click': [plannedOrder: string, material: string, plant: string]
 }
 
 const emit = defineEmits<Emits>()
@@ -289,8 +281,8 @@ const handleMaterialClick = (material: string) => {
   console.log(`✅ Material click event emitted for: ${material}`)
 }
 
-const handlePlannedOrderClick = (plannedOrder: string, material: string) => {
-  console.log(`🔄 Planned order clicked in table: ${plannedOrder} for material: ${material}`)
+const handlePlannedOrderClick = (plannedOrder: string, material: string, plant: string) => {
+  console.log(`🔄 Planned order clicked in table: ${plannedOrder} for material: ${material}, plant: ${plant}`)
   
   lastClickedPlannedOrder.value = plannedOrder
   
@@ -300,10 +292,10 @@ const handlePlannedOrderClick = (plannedOrder: string, material: string) => {
     showPlannedOrderClickFeedback.value = false
   }, 1500)
   
-  // Emit the planned order click event (same pattern as material click)
-  emit('planned-order-click', plannedOrder, material)
+  // Emit the planned order click event with plant information
+  emit('planned-order-click', plannedOrder, material, plant)
   
-  console.log(`✅ Planned order click event emitted for: ${plannedOrder}`)
+  console.log(`✅ Planned order click event emitted for: ${plannedOrder} with plant: ${plant}`)
 }
 
 const formatNumber = (value: number): string => {

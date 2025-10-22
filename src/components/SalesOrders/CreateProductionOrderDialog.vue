@@ -35,6 +35,7 @@
             placeholder="Въведете код на материал"
             :disabled="isProcessing"
             @keyup.enter="handleCreate"
+            @blur="handleMaterialBlur"
             @input="showValidation = false"
           />
           <div 
@@ -58,6 +59,7 @@
             placeholder="Въведете код на производствен завод"
             :disabled="isProcessing"
             @keyup.enter="handleCreate"
+            @blur="handlePlantBlur"
             @input="showValidation = false"
           />
           <div 
@@ -65,6 +67,38 @@
             class="error-message"
           >
             Производствения завод е задължителен
+          </div>
+        </div>
+
+        <!-- Production Version Combobox -->
+        <div class="input-section">
+          <label class="input-label" for="productionVersion">
+            Производствена версия
+            <span v-if="isLoadingVersions" class="loading-text">(зареждане...)</span>
+            <span v-else-if="productionVersions.length > 0" class="success-text">({{ productionVersions.length }} намерени)</span>
+          </label>
+          <select
+            id="productionVersion"
+            v-model="selectedProductionVersion"
+            class="input-field select-field"
+            :disabled="isProcessing || isLoadingVersions || productionVersions.length === 0"
+            :key="productionVersionsKey"
+            @change="showValidation = false"
+          >
+            <option value="" disabled>{{ productionVersions.length === 0 ? 'Няма налични версии' : 'Изберете производствена версия' }}</option>
+            <option 
+              v-for="version in productionVersions" 
+              :key="version.id"
+              :value="version.productionVersionNumber.toString()"
+            >
+              {{ version.productionVersionNumber }} - {{ version.description }}
+            </option>
+          </select>
+          <div 
+            v-if="productionVersions.length === 0 && !isLoadingVersions && material.trim() && productionPlant.trim()" 
+            class="info-message"
+          >
+            Няма намерени производствени версии
           </div>
         </div>
 
@@ -181,16 +215,21 @@
         <!-- ZP98 Checkbox Section -->
         <div class="zp98-section">
           <div class="checkbox-wrapper">
-            <label class="checkbox-label">
+            <label class="checkbox-label" :class="{ 'checkbox-disabled': !isZP98Eligible }">
               <input
                 v-model="createZP98"
                 type="checkbox"
                 class="checkbox-input"
-                :disabled="isProcessing"
+                :disabled="isProcessing || !isZP98Eligible"
                 @change="handleZP98Toggle"
               />
               <span class="checkbox-custom"></span>
-              <span class="checkbox-text">Създай ZP98</span>
+              <span class="checkbox-text">
+                Създай ZP98
+                <span v-if="!isZP98Eligible" class="eligibility-hint">
+                  (достъпно само за материали, започващи с 11)
+                </span>
+              </span>
             </label>
           </div>
 
@@ -313,7 +352,7 @@
 
 <script setup lang="ts">
 import { ref, computed, nextTick, watch } from 'vue'
-import { productionOrderService } from '@/services/productionOrderService'
+import { productionOrderService, type ProductionVersionDto } from '@/services/productionOrderService'
 
 // Props
 interface Props {
@@ -350,6 +389,11 @@ const processStatus = ref<'' | 'creating' | 'created' | 'updating' | 'updatingSt
 const createdProductionOrder = ref('')
 const createdZP98Order = ref('')
 
+// Production Version state
+const productionVersions = ref<ProductionVersionDto[]>([])
+const selectedProductionVersion = ref<string>('')
+const isLoadingVersions = ref(false)
+
 // ZP98 related state
 const createZP98 = ref(false)
 const zp98Quantity = ref('')
@@ -371,6 +415,11 @@ const isFormValid = computed(() => {
   }
 
   return baseFormValid
+})
+
+// Computed property to check if material is eligible for ZP98
+const isZP98Eligible = computed(() => {
+  return material.value.trim().startsWith('11')
 })
 
 const processStatusText = computed(() => {
@@ -399,6 +448,52 @@ const handleZP98Toggle = () => {
   if (!createZP98.value) {
     // Clear ZP98 quantity when unchecked
     zp98Quantity.value = ''
+  }
+}
+
+const fetchProductionVersions = async () => {
+  // Only fetch if both material and plant are filled
+  if (!material.value.trim() || !productionPlant.value.trim()) {
+    productionVersions.value = []
+    selectedProductionVersion.value = ''
+    return
+  }
+
+  try {
+    isLoadingVersions.value = true
+    productionVersions.value = []
+    selectedProductionVersion.value = ''
+
+    const versions = await productionOrderService.getProductionVersionsByMaterial(
+      material.value.trim(),
+      productionPlant.value.trim()
+    )
+
+    productionVersions.value = versions
+
+    // Auto-select if only one version exists
+    if (versions.length === 1) {
+      selectedProductionVersion.value = versions[0].productionVersionNumber.toString()
+    }
+
+  } catch (error) {
+    console.error('Failed to fetch production versions:', error)
+    productionVersions.value = []
+    selectedProductionVersion.value = ''
+  } finally {
+    isLoadingVersions.value = false
+  }
+}
+
+const handleMaterialBlur = () => {
+  if (material.value.trim() && productionPlant.value.trim()) {
+    fetchProductionVersions()
+  }
+}
+
+const handlePlantBlur = () => {
+  if (material.value.trim() && productionPlant.value.trim()) {
+    fetchProductionVersions()
   }
 }
 
@@ -530,12 +625,13 @@ const handleCreate = async () => {
     successMessage.value = null
     processStatus.value = 'creating'
     
-    // Step 1: Create production order
+    // Step 1: Create production order with production version
     const createResult = await productionOrderService.createProductionOrder(
       material.value.trim(),
       productionPlant.value.trim(),
       manufacturingOrderType.value.trim(),
-      totalQuantity.value.trim()
+      totalQuantity.value.trim(),
+      selectedProductionVersion.value || undefined
     )
 
     if (!createResult.success) {
@@ -574,7 +670,8 @@ const handleCreate = async () => {
         material.value.trim(),
         productionPlant.value.trim(),
         'ZP98', // Fixed order type for ZP98
-        zp98Quantity.value.trim()
+        zp98Quantity.value.trim(),
+        selectedProductionVersion.value || undefined
       )
 
       if (!createZP98Result.success) {
@@ -680,6 +777,9 @@ const resetDialog = () => {
   createdZP98Order.value = ''
   createZP98.value = false
   zp98Quantity.value = ''
+  productionVersions.value = []
+  selectedProductionVersion.value = ''
+  isLoadingVersions.value = false
 }
 
 const setProcessingState = (state: boolean) => {
@@ -691,6 +791,14 @@ const setErrorMessage = (message: string) => {
   isProcessing.value = false
   processStatus.value = ''
 }
+
+// Watch for material changes and auto-clear ZP98 if not eligible
+watch(material, (newMaterial) => {
+  if (!newMaterial.trim().startsWith('11') && createZP98.value) {
+    createZP98.value = false
+    zp98Quantity.value = ''
+  }
+})
 
 // Initialize with current date/time
 const initializeDateTime = () => {
@@ -859,6 +967,19 @@ defineExpose({
   font-size: 0.95rem;
 }
 
+.loading-text {
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: #6b7280;
+  font-style: italic;
+}
+
+.success-text {
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: #10b981;
+}
+
 .required-asterisk {
   color: #dc2626;
   margin-left: 0.25rem;
@@ -873,6 +994,10 @@ defineExpose({
   transition: all 0.2s ease;
   background: white;
   color: #1f2937 !important;
+}
+
+.select-field {
+  cursor: pointer;
 }
 
 .input-field:focus {
@@ -908,6 +1033,20 @@ defineExpose({
   font-size: 0.75rem;
 }
 
+.info-message {
+  color: #6b7280;
+  font-size: 0.875rem;
+  margin-top: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.info-message::before {
+  content: 'ℹ️';
+  font-size: 0.75rem;
+}
+
 /* ZP98 Section Styles */
 .zp98-section {
   margin-bottom: 1.5rem;
@@ -928,6 +1067,23 @@ defineExpose({
   font-weight: 600;
   color: #374151;
   gap: 0.75rem;
+}
+
+.checkbox-disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.checkbox-disabled .checkbox-text {
+  color: #6b7280;
+}
+
+.eligibility-hint {
+  font-size: 0.8rem;
+  font-weight: normal;
+  color: #6b7280;
+  font-style: italic;
+  margin-left: 0.5rem;
 }
 
 .checkbox-input {

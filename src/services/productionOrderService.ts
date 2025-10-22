@@ -24,6 +24,16 @@ export interface ProductionOrderDto {
   salesOrder: string
 }
 
+export interface ProductionVersionDto {
+  id: string
+  material: string
+  plant: number
+  productionVersionNumber: number
+  routingGroup: string
+  routingGroupCounter: number
+  description: string
+}
+
 export interface ProductionOrderFilters {
   material: string
   reqDelDateBegin: string // LocalDateTime string (YYYY-MM-DDTHH:mm:ss)
@@ -57,6 +67,11 @@ export interface StorageLocationUpdateResponse {
   message?: string
 }
 
+export interface ProductionVersionUpdateResponse {
+  success: boolean
+  message?: string
+}
+
 class ProductionOrderService {
   private readonly endpoint = '/api/sap'
 
@@ -85,6 +100,55 @@ class ProductionOrderService {
     const minutes = timeParts[1].padStart(2, '0')
     
     return `${dateStr}T${hours}:${minutes}:00`
+  }
+
+  /**
+   * Get production versions by material and plant
+   */
+  async getProductionVersionsByMaterial(
+    material: string,
+    plant: string
+  ): Promise<ProductionVersionDto[]> {
+    try {
+      if (isFeatureEnabled('DEBUG_MODE')) {
+        console.log('🔍 Fetching production versions:', {
+          material,
+          plant
+        })
+      }
+
+      const params = {
+        material,
+        plant
+      }
+
+      // Call the endpoint: /api/sap/getProductionVersionByMaterial
+      const response = await apiClient.get<ProductionVersionDto[]>(
+        `${this.endpoint}/getProductionVersionByMaterial`, 
+        params
+      )
+      
+      const productionVersions = Array.isArray(response) ? response : []
+
+      if (isFeatureEnabled('DEBUG_MODE')) {
+        console.log('📊 Production versions fetched successfully:', {
+          material,
+          plant,
+          versionsCount: productionVersions.length,
+          versions: productionVersions
+        })
+      }
+
+      return productionVersions
+
+    } catch (error) {
+      console.error('❌ Failed to fetch production versions:', error)
+      
+      if (error instanceof Error) {
+        throw new Error(`Failed to fetch production versions for material ${material}: ${error.message}`)
+      }
+      throw new Error(`Failed to fetch production versions for material ${material}: Unknown error`)
+    }
   }
 
   /**
@@ -254,13 +318,14 @@ class ProductionOrderService {
   }
 
   /**
-   * Create production order
+   * Create production order with production version
    */
   async createProductionOrder(
     material: string,
     productionPlant: string,
     manufacturingOrderType: string,
-    totalQuantity: string
+    totalQuantity: string,
+    productionVersion?: string
   ): Promise<ProductionOrderCreateResponse> {
     try {
       // Get credentials
@@ -272,6 +337,7 @@ class ProductionOrderService {
           productionPlant,
           manufacturingOrderType,
           totalQuantity,
+          productionVersion,
           hasCredentials: !!(credentials.username && credentials.password)
         })
       }
@@ -281,7 +347,7 @@ class ProductionOrderService {
         throw new Error('Username or password is empty')
       }
 
-      const params = {
+      const params: any = {
         username: btoa(credentials.username), // Base64 encode for backend
         password: btoa(credentials.password), // Base64 encode for backend
         material,
@@ -290,15 +356,13 @@ class ProductionOrderService {
         totalQuantity
       }
 
+      // Add production version if provided (as string)
+      if (productionVersion !== undefined && productionVersion !== null && productionVersion !== '') {
+        params.productionVersion = productionVersion
+      }
+
       // Build query string manually
-      const queryString = new URLSearchParams({
-        username: params.username,
-        password: params.password,
-        material: params.material,
-        productionPlant: params.productionPlant,
-        manufacturingOrderType: params.manufacturingOrderType,
-        totalQuantity: params.totalQuantity
-      }).toString()
+      const queryString = new URLSearchParams(params).toString()
 
       const url = `${this.endpoint}/createProductionOrder?${queryString}`
 
@@ -308,7 +372,8 @@ class ProductionOrderService {
           material,
           productionPlant,
           manufacturingOrderType,
-          totalQuantity
+          totalQuantity,
+          productionVersion
         })
       }
 
@@ -540,6 +605,97 @@ class ProductionOrderService {
       return {
         success: false,
         message: `Неуспешна актуализация на склада за поръчка ${manufacturingOrder}: ${errorMessage}`
+      }
+    }
+  }
+
+  /**
+   * Update production version for a manufacturing order
+   */
+  async updateProductionVersion(
+    manufacturingOrder: string,
+    productionVersion: string
+  ): Promise<ProductionVersionUpdateResponse> {
+    try {
+      // Get credentials
+      const credentials = this.getCredentials()
+
+      if (isFeatureEnabled('DEBUG_MODE')) {
+        console.log('🔧 Updating production version:', {
+          manufacturingOrder,
+          productionVersion,
+          hasCredentials: !!(credentials.username && credentials.password)
+        })
+      }
+
+      // Ensure credentials are not empty
+      if (!credentials.username || !credentials.password) {
+        throw new Error('Username or password is empty')
+      }
+
+      const params = {
+        username: btoa(credentials.username), // Base64 encode for backend
+        password: btoa(credentials.password), // Base64 encode for backend
+        manufacturingOrder,
+        productionVersion
+      }
+
+      // Build query string manually
+      const queryString = new URLSearchParams({
+        username: params.username,
+        password: params.password,
+        manufacturingOrder: params.manufacturingOrder,
+        productionVersion: params.productionVersion
+      }).toString()
+
+      const url = `${this.endpoint}/updateProductionVersion?${queryString}`
+
+      if (isFeatureEnabled('DEBUG_MODE')) {
+        console.log('🔧 Calling updateProductionVersion API:', {
+          url: url.replace(/password=[^&]+/, 'password=[HIDDEN]'),
+          manufacturingOrder,
+          productionVersion
+        })
+      }
+
+      // Call the endpoint using POST with query string in URL
+      const response = await apiClient.post<any>(url, null)
+
+      if (isFeatureEnabled('DEBUG_MODE')) {
+        console.log('✅ Production version updated successfully:', {
+          manufacturingOrder,
+          productionVersion,
+          response
+        })
+      }
+
+      return {
+        success: true,
+        message: `Производствената версия за поръчка ${manufacturingOrder} беше успешно актуализирана на ${productionVersion}`
+      }
+
+    } catch (error) {
+      console.error('❌ Failed to update production version:', error)
+      
+      let errorMessage = 'Възникна неочаквана грешка при актуализацията на версията'
+      
+      if (error instanceof Error) {
+        errorMessage = error.message
+      } else if (typeof error === 'object' && error !== null) {
+        // Handle API error responses
+        const apiError = error as any
+        if (apiError.response?.data?.message) {
+          errorMessage = apiError.response.data.message
+        } else if (apiError.response?.data) {
+          errorMessage = JSON.stringify(apiError.response.data)
+        } else if (apiError.message) {
+          errorMessage = apiError.message
+        }
+      }
+
+      return {
+        success: false,
+        message: `Неуспешна актуализация на версията за поръчка ${manufacturingOrder}: ${errorMessage}`
       }
     }
   }

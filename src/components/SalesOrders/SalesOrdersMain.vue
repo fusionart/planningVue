@@ -142,6 +142,7 @@
       :visible="showPlannedOrderConversionDialog"
       :plannedOrder="selectedPlannedOrderForConversion"
       :material="selectedMaterialForConversion"
+      :plant="selectedPlantForConversion"
       @update:visible="handleConversionDialogVisibility"
       @success="handlePlannedOrderConversionSuccess"
       @cancel="closePlannedOrderConversionDialog"
@@ -264,6 +265,7 @@ const localCredentialsState = ref(false)
 const showPlannedOrderConversionDialog = ref(false)
 const selectedPlannedOrderForConversion = ref('')
 const selectedMaterialForConversion = ref('')
+const selectedPlantForConversion = ref('')
 
 // Create production order state
 const createProductionOrderDialogVisible = ref(false)
@@ -453,8 +455,8 @@ const handleCloseProductionOrdersModal = () => {
 }
 
 // Handle planned order clicks
-const handlePlannedOrderClick = (plannedOrder: string, material: string) => {
-  console.log(`🔄 Planned order clicked in parent: ${plannedOrder} for material: ${material}`)
+const handlePlannedOrderClick = (plannedOrder: string, material: string, plant: string) => {
+  console.log(`🔄 Planned order clicked in parent: ${plannedOrder} for material: ${material}, plant: ${plant}`)
   
   // Validate that we have credentials
   if (!salesOrderService.hasCredentials() && !localCredentialsState.value) {
@@ -464,9 +466,10 @@ const handlePlannedOrderClick = (plannedOrder: string, material: string) => {
     return
   }
 
-  // Set the selected planned order and material
+  // Set the selected planned order, material, and plant
   selectedPlannedOrderForConversion.value = plannedOrder
   selectedMaterialForConversion.value = material
+  selectedPlantForConversion.value = plant
   
   // Open the conversion dialog
   showPlannedOrderConversionDialog.value = true
@@ -474,7 +477,7 @@ const handlePlannedOrderClick = (plannedOrder: string, material: string) => {
   // Prevent body scroll when modal opens
   document.body.classList.add('modal-open')
   
-  console.log(`✅ Opening planned order conversion dialog for: ${plannedOrder}`)
+  console.log(`✅ Opening planned order conversion dialog for: ${plannedOrder} with plant: ${plant}`)
 }
 
 const handleConversionDialogVisibility = (visible: boolean) => {
@@ -501,6 +504,7 @@ const closePlannedOrderConversionDialog = () => {
   showPlannedOrderConversionDialog.value = false
   selectedPlannedOrderForConversion.value = ''
   selectedMaterialForConversion.value = ''
+  selectedPlantForConversion.value = ''
   
   // Re-enable body scroll when modal closes
   document.body.classList.remove('modal-open')
@@ -626,6 +630,7 @@ onUnmounted(() => {
   showPlannedOrderConversionDialog.value = false
   selectedPlannedOrderForConversion.value = ''
   selectedMaterialForConversion.value = ''
+  selectedPlantForConversion.value = ''
   credentialsModalVisible.value = false
   createProductionOrderDialogVisible.value = false
 })

@@ -9,7 +9,7 @@
       <div class="dialog-header">
         <h3 class="dialog-title">
           <span class="dialog-icon">🔄</span>
-          Конвертиране на планирана поръчка
+          Конвертиране на планова поръчка
         </h3>
         <button 
           class="dialog-close-btn"
@@ -24,12 +24,49 @@
       <div class="dialog-body">
         <div class="order-info">
           <div class="info-item">
-            <span class="info-label">Планирана поръчка:</span>
+            <span class="info-label">Планова поръчка:</span>
             <span class="info-value planned-order">{{ plannedOrder }}</span>
           </div>
           <div class="info-item" v-if="material">
             <span class="info-label">Материал:</span>
             <span class="info-value">{{ material }}</span>
+          </div>
+          <div class="info-item" v-if="plant">
+            <span class="info-label">Завод:</span>
+            <span class="info-value">{{ plant }} ({{ convertedPlantNumber }})</span>
+          </div>
+        </div>
+
+        <!-- Production Version Combobox -->
+        <div class="input-section">
+          <label class="input-label" for="productionVersion">
+            Производствена версия
+            <span v-if="isLoadingVersions" class="loading-text">(зареждане...)</span>
+            <span v-else-if="productionVersions.length > 0" class="success-text">({{ productionVersions.length }} намерени)</span>
+            <span v-else-if="material && convertedPlantNumber" class="info-text">(завод: {{ convertedPlantNumber }})</span>
+          </label>
+          <select
+            id="productionVersion"
+            v-model="selectedProductionVersion"
+            class="input-field select-field"
+            :disabled="isConverting || isLoadingVersions || productionVersions.length === 0"
+            :key="productionVersionsKey"
+            @change="showValidation = false"
+          >
+            <option value="" disabled>{{ productionVersions.length === 0 ? 'Няма налични версии' : 'Изберете производствена версия' }}</option>
+            <option 
+              v-for="version in productionVersions" 
+              :key="version.id"
+              :value="version.productionVersionNumber.toString()"
+            >
+              {{ version.productionVersionNumber }} - {{ version.description }}
+            </option>
+          </select>
+          <div 
+            v-if="productionVersions.length === 0 && !isLoadingVersions && material && convertedPlantNumber" 
+            class="info-message"
+          >
+            Няма намерени производствени версии за материал {{ material }} в завод {{ convertedPlantNumber }}
           </div>
         </div>
 
@@ -42,17 +79,13 @@
             v-model="manufacturingOrderType"
             type="text"
             class="input-field"
-            :class="{ 'input-error': !manufacturingOrderType.trim() && showValidation }"
-            placeholder="Въведете тип производствена поръчка"
+            :class="{ 'input-field-readonly': true }"
+            placeholder="ZP02"
+            readonly
             :disabled="isConverting"
-            @keyup.enter="handleConvert"
-            @input="showValidation = false"
           />
-          <div 
-            v-if="!manufacturingOrderType.trim() && showValidation" 
-            class="error-message"
-          >
-            Типът производствена поръчка е задължителен
+          <div class="info-message">
+            Типът производствена поръчка е фиксиран на ZP02
           </div>
         </div>
 
@@ -124,7 +157,7 @@
           <div class="status-step" :class="{ 'status-active': conversionStatus === 'converting' }">
             <span class="status-icon">
               <span v-if="conversionStatus === 'converting'" class="loading-spinner-small"></span>
-              <span v-else-if="conversionStatus === 'converted'">✓</span>
+              <span v-else-if="['converted', 'updating', 'updatingVersion', 'completed'].includes(conversionStatus)">✓</span>
               <span v-else>1</span>
             </span>
             <span class="status-text">Конвертиране на поръчка</span>
@@ -133,10 +166,19 @@
           <div class="status-step" :class="{ 'status-active': conversionStatus === 'updating' }">
             <span class="status-icon">
               <span v-if="conversionStatus === 'updating'" class="loading-spinner-small"></span>
-              <span v-else-if="conversionStatus === 'completed'">✓</span>
+              <span v-else-if="['updatingVersion', 'completed'].includes(conversionStatus)">✓</span>
               <span v-else>2</span>
             </span>
             <span class="status-text">Актуализиране на датата</span>
+          </div>
+          <div v-if="needsVersionUpdate" class="status-divider"></div>
+          <div v-if="needsVersionUpdate" class="status-step" :class="{ 'status-active': conversionStatus === 'updatingVersion' }">
+            <span class="status-icon">
+              <span v-if="conversionStatus === 'updatingVersion'" class="loading-spinner-small"></span>
+              <span v-else-if="conversionStatus === 'completed'">✓</span>
+              <span v-else>3</span>
+            </span>
+            <span class="status-text">Актуализиране на версия</span>
           </div>
         </div>
 
@@ -188,17 +230,19 @@
 
 <script setup lang="ts">
 import { ref, computed, nextTick, watch } from 'vue'
-import { productionOrderService } from '@/services/productionOrderService'
+import { productionOrderService, type ProductionVersionDto } from '@/services/productionOrderService'
 
 // Props
 interface Props {
   visible: boolean
   plannedOrder: string
   material?: string
+  plant?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  material: ''
+  material: '',
+  plant: ''
 })
 
 // Events
@@ -211,7 +255,7 @@ interface Emits {
 const emit = defineEmits<Emits>()
 
 // State
-const manufacturingOrderType = ref('')
+const manufacturingOrderType = ref('ZP02') // Pre-filled with ZP02
 const scheduledStartDate = ref('')
 const scheduledStartTime = ref('')
 const displayDate = ref('')
@@ -222,10 +266,25 @@ const isConverting = ref(false)
 const showValidation = ref(false)
 const errorMessage = ref('')
 const successMessage = ref<{ title: string; details: string } | null>(null)
-const conversionStatus = ref<'' | 'converting' | 'converted' | 'updating' | 'completed'>('')
+const conversionStatus = ref<'' | 'converting' | 'converted' | 'updating' | 'updatingVersion' | 'completed'>('')
 const convertedProductionOrder = ref('')
 
+// Production Version state
+const productionVersions = ref<ProductionVersionDto[]>([])
+const selectedProductionVersion = ref<string>('')
+const isLoadingVersions = ref(false)
+const productionVersionsKey = ref(0)
+
 // Computed
+const convertedPlantNumber = computed(() => {
+  // Convert plant name to plant number: "Start" -> 1100, anything else -> 1000
+  return props.plant?.toLowerCase() === 'start' ? '1100' : '1000'
+})
+
+const needsVersionUpdate = computed(() => {
+  return selectedProductionVersion.value && selectedProductionVersion.value !== '1000'
+})
+
 const isFormValid = computed(() => {
   return manufacturingOrderType.value.trim() !== '' &&
          scheduledStartDate.value !== '' &&
@@ -241,7 +300,9 @@ const conversionStatusText = computed(() => {
     case 'converted':
       return 'Конвертирано ✓'
     case 'updating':
-      return 'Актуализиране...'
+      return 'Актуализиране на дата...'
+    case 'updatingVersion':
+      return 'Актуализиране на версия...'
     case 'completed':
       return 'Завършено ✓'
     default:
@@ -250,6 +311,56 @@ const conversionStatusText = computed(() => {
 })
 
 // Methods
+const fetchProductionVersions = async () => {
+  // Only fetch if both material and plant are provided
+  if (!props.material || !convertedPlantNumber.value) {
+    console.log('Cannot fetch production versions - missing data:', {
+      material: props.material,
+      plant: props.plant,
+      convertedPlantNumber: convertedPlantNumber.value
+    })
+    productionVersions.value = []
+    selectedProductionVersion.value = ''
+    productionVersionsKey.value++
+    return
+  }
+
+  try {
+    console.log('Fetching production versions for:', {
+      material: props.material,
+      originalPlant: props.plant,
+      convertedPlantNumber: convertedPlantNumber.value
+    })
+    
+    isLoadingVersions.value = true
+    productionVersions.value = []
+    selectedProductionVersion.value = ''
+
+    const versions = await productionOrderService.getProductionVersionsByMaterial(
+      props.material,
+      convertedPlantNumber.value
+    )
+
+    console.log('Production versions fetched:', versions)
+    
+    productionVersions.value = versions
+    productionVersionsKey.value++
+
+    // Auto-select if only one version exists
+    if (versions.length === 1) {
+      selectedProductionVersion.value = versions[0].productionVersionNumber.toString()
+    }
+
+  } catch (error) {
+    console.error('Failed to fetch production versions:', error)
+    productionVersions.value = []
+    selectedProductionVersion.value = ''
+    productionVersionsKey.value++
+  } finally {
+    isLoadingVersions.value = false
+  }
+}
+
 const handleDateInput = (event: Event) => {
   const input = event.target as HTMLInputElement
   let value = input.value.replace(/[^\d.]/g, '')
@@ -381,7 +492,7 @@ const handleConvert = async () => {
     // Step 1: Convert planned order
     const conversionResult = await productionOrderService.convertPlannedOrder(
       props.plannedOrder,
-      manufacturingOrderType.value.trim()
+      manufacturingOrderType.value.trim() // This will always be "ZP02"
     )
 
     if (!conversionResult.success) {
@@ -408,12 +519,35 @@ const handleConvert = async () => {
       throw new Error(updateResult.message || 'Неуспешна актуализация')
     }
 
+    // Step 3: Update production version if needed (not 1000)
+    if (needsVersionUpdate.value) {
+      // Small delay for better UX
+      await new Promise(resolve => setTimeout(resolve, 500))
+      
+      conversionStatus.value = 'updatingVersion'
+      
+      const updateVersionResult = await productionOrderService.updateProductionVersion(
+        convertedProductionOrder.value,
+        selectedProductionVersion.value
+      )
+
+      if (!updateVersionResult.success) {
+        throw new Error(updateVersionResult.message || 'Неуспешна актуализация на версия')
+      }
+    }
+
     conversionStatus.value = 'completed'
 
     // Show success message
+    let details = `Плановата поръчка ${props.plannedOrder} беше успешно конвертирана в производствена поръчка ${convertedProductionOrder.value} и планирана за ${displayDate.value} в ${displayTime.value} часа.`
+    
+    if (needsVersionUpdate.value) {
+      details += ` Производствената версия беше актуализирана на ${selectedProductionVersion.value}.`
+    }
+
     successMessage.value = {
       title: '🎉 Успешно конвертиране и планиране!',
-      details: `Планираната поръчка ${props.plannedOrder} беше успешно конвертирана в производствена поръчка ${convertedProductionOrder.value} и планирана за ${displayDate.value} в ${displayTime.value} часа.`
+      details
     }
 
     // Wait to show success message
@@ -447,7 +581,8 @@ const handleOverlayClick = () => {
 }
 
 const resetDialog = () => {
-  manufacturingOrderType.value = ''
+  // Keep ZP02 as the default value when resetting
+  manufacturingOrderType.value = 'ZP02'
   scheduledStartDate.value = ''
   scheduledStartTime.value = ''
   displayDate.value = ''
@@ -460,6 +595,10 @@ const resetDialog = () => {
   successMessage.value = null
   conversionStatus.value = ''
   convertedProductionOrder.value = ''
+  productionVersions.value = []
+  selectedProductionVersion.value = ''
+  isLoadingVersions.value = false
+  productionVersionsKey.value = 0
 }
 
 const setConvertingState = (state: boolean) => {
@@ -495,11 +634,28 @@ watch(() => props.visible, (newVisible) => {
   if (newVisible) {
     resetDialog()
     initializeDateTime()
+    
+    // Automatically fetch production versions when dialog opens
+    if (props.material && convertedPlantNumber.value) {
+      fetchProductionVersions()
+    }
+    
     // Focus the input field after the dialog is shown
     nextTick(() => {
       const input = document.getElementById('manufacturingOrderType')
       input?.focus()
     })
+  }
+})
+
+// Watch for plant changes to refetch production versions
+watch(() => props.plant, (newPlant) => {
+  if (props.visible && props.material && newPlant) {
+    console.log('Plant changed, refetching production versions:', {
+      originalPlant: newPlant,
+      convertedPlantNumber: convertedPlantNumber.value
+    })
+    fetchProductionVersions()
   }
 })
 
@@ -680,6 +836,20 @@ defineExpose({
   font-size: 0.95rem;
 }
 
+.loading-text {
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: #6b7280;
+  font-style: italic;
+}
+
+.success-text {
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: #10b981;
+  font-style: italic;
+}
+
 .required-asterisk {
   color: #dc2626;
   margin-left: 0.25rem;
@@ -694,6 +864,10 @@ defineExpose({
   transition: all 0.2s ease;
   background: white;
   color: #1f2937 !important;
+}
+
+.select-field {
+  cursor: pointer;
 }
 
 .input-field:focus {
@@ -727,6 +901,20 @@ defineExpose({
 .error-message::before {
   content: '⚠️';
   font-size: 1rem;
+}
+
+.info-message {
+  color: #6b7280;
+  font-size: 0.875rem;
+  margin-top: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.info-message::before {
+  content: 'ℹ️';
+  font-size: 0.75rem;
 }
 
 .status-section {
@@ -1110,5 +1298,12 @@ defineExpose({
 .dialog-close-btn:focus-visible {
   outline: 2px solid #3b82f6;
   outline-offset: 2px;
+}
+
+.info-text {
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: #6b7280;
+  font-style: italic;
 }
 </style>
