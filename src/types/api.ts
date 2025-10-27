@@ -5,6 +5,7 @@ export interface SalesOrderMainItem {
   plannedOrder?: string;
   productionOrder?: string;
   customer?: string;           // Customer field
+  customerName?: string; 
   completeDelivery?: boolean;  // Complete delivery flag
 }
 
