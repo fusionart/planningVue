@@ -1,4 +1,4 @@
-<!-- SalesOrdersTable.vue - Customer Info in Header Row -->
+<!-- SalesOrdersTable.vue - Customer Info in Header Row with Cached Customer Data -->
 <template>
   <div class="custom-datatable-container">
     <div class="table-wrapper">
@@ -248,6 +248,7 @@
           <div class="debug-values">
             <div>Customer: {{ getCustomerForKey(key) || 'MISSING' }}</div>
             <div>CustomerName: {{ getCustomerNameForKey(key) || 'MISSING' }}</div>
+            <div>Source: {{ customerCache.has(key) ? 'CACHE' : 'LIVE DATA' }}</div>
           </div>
         </div>
       </div>
@@ -256,7 +257,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, inject, ref, onMounted } from 'vue'
+import { computed, inject, ref, onMounted, watch } from 'vue'
 import type { SalesOrderMain } from '@/types/api'
 import SortIndicator from './SortIndicator.vue'
 import TableFooter from './TableFooter.vue'
@@ -292,6 +293,15 @@ const showPlannedOrderClickFeedback = ref(false)
 const lastClickedPlannedOrder = ref('')
 const showDebugPanel = ref(false)
 
+// CRITICAL: Cache for customer data to persist through filters
+// This stores customer info when first discovered and never changes
+interface CustomerData {
+  customer: string
+  customerName: string
+}
+
+const customerCache = ref<Map<string, CustomerData>>(new Map())
+
 // Inject table utilities from parent composable if available
 const tableUtils = inject('tableUtils', {
   formatNumber: (value: number) => value.toLocaleString('bg-BG'),
@@ -304,23 +314,60 @@ const totalColumns = computed(() => {
   return 9 + (props.dynamicColumns.length * 3)
 })
 
+// CRITICAL: Build customer cache from allFilteredData
+// This runs whenever allFilteredData changes to capture new customer info
+const buildCustomerCache = () => {
+  console.log('🔄 Building/updating customer cache from allFilteredData...')
+  
+  props.dynamicColumns.forEach(key => {
+    // Only cache if we don't already have it
+    if (!customerCache.value.has(key)) {
+      for (const order of props.allFilteredData) {
+        if (order.dynamicSoItems?.[key]?.customer) {
+          customerCache.value.set(key, {
+            customer: order.dynamicSoItems[key].customer!,
+            customerName: order.dynamicSoItems[key].customerName || ''
+          })
+          console.log(`✅ Cached customer for key "${key}":`, customerCache.value.get(key))
+          break // Found it, move to next key
+        }
+      }
+    }
+  })
+  
+  console.log(`📦 Customer cache now has ${customerCache.value.size} entries`)
+}
+
+// Watch for changes in allFilteredData to update cache
+watch(() => props.allFilteredData, () => {
+  buildCustomerCache()
+}, { deep: true, immediate: true })
+
+// Watch for new dynamic columns
+watch(() => props.dynamicColumns, () => {
+  buildCustomerCache()
+}, { immediate: true })
+
 // Debug: Log data on mount
 onMounted(() => {
-  console.group('🔍 SalesOrdersTable Debug - Customer Data in Header')
+  console.group('🔍 SalesOrdersTable Debug - Customer Data with Cache')
   console.log('Orders on current page:', props.data.length)
   console.log('Total filtered orders (all pages):', props.allFilteredData.length)
   console.log('Dynamic columns:', props.dynamicColumns)
+  console.log('Customer cache size:', customerCache.value.size)
   
   // Check customer data for each dynamic column
   props.dynamicColumns.forEach(key => {
     const customer = getCustomerForKey(key)
     const customerName = getCustomerNameForKey(key)
+    const source = customerCache.value.has(key) ? 'CACHE' : 'LIVE DATA'
+    
     console.log(`Key "${key}":`, {
       customer: customer || 'MISSING',
       customerName: customerName || 'MISSING',
       hasCustomer: !!customer,
       hasCustomerName: !!customerName,
-      searchedIn: 'ALL filtered data (all pages)'
+      source: source
     })
   })
   console.groupEnd()
@@ -385,37 +432,52 @@ const formatCustomerNumber = (customer: string | undefined): string => {
 }
 
 // Get customer for a specific dynamic column key
+// CRITICAL: Uses cache first, then falls back to live data
 const getCustomerForKey = (key: string): string | undefined => {
-  // IMPORTANT: Search in ALL filtered data, not just current page
-  // This ensures customer info is always available even if the item appears on another page
+  // Try cache first (persists through filters)
+  if (customerCache.value.has(key)) {
+    return customerCache.value.get(key)!.customer
+  }
+  
+  // Fallback: search in current filtered data
   for (const order of props.allFilteredData) {
     if (order.dynamicSoItems?.[key]?.customer) {
       return order.dynamicSoItems[key].customer
     }
   }
+  
   return undefined
 }
 
 // Get customer name for a specific dynamic column key
+// CRITICAL: Uses cache first, then falls back to live data
 const getCustomerNameForKey = (key: string): string | undefined => {
-  // IMPORTANT: Search in ALL filtered data, not just current page
-  // This ensures customer name is always available even if the item appears on another page
+  // Try cache first (persists through filters)
+  if (customerCache.value.has(key)) {
+    const cached = customerCache.value.get(key)!.customerName
+    return cached || undefined
+  }
+  
+  // Fallback: search in current filtered data
   for (const order of props.allFilteredData) {
     if (order.dynamicSoItems?.[key]?.customerName) {
       return order.dynamicSoItems[key].customerName
     }
   }
+  
   return undefined
 }
 
 const getCustomerDebugInfoForHeader = (key: string): string => {
   const customer = getCustomerForKey(key)
   const customerName = getCustomerNameForKey(key)
+  const source = customerCache.value.has(key) ? 'CACHED' : 'LIVE'
   
   const debugInfo = []
   debugInfo.push(`Key: ${key}`)
   debugInfo.push(`Customer: ${customer || 'MISSING'}`)
   debugInfo.push(`CustomerName: ${customerName || 'MISSING'}`)
+  debugInfo.push(`Source: ${source}`)
   debugInfo.push(`Has customer field: ${!!customer}`)
   debugInfo.push(`Has customerName field: ${!!customerName}`)
   
@@ -439,24 +501,35 @@ const getPlannedOrderForKey = (key: string): string => {
 
 // Log customer data
 ;(window as any).logCustomerData = () => {
-  console.group('🔍 Customer Data by Dynamic Column Key')
-  console.log(`Searching in ALL filtered data: ${props.allFilteredData.length} orders across all pages`)
+  console.group('🔍 Customer Data by Dynamic Column Key (with Cache)')
+  console.log(`Customer cache size: ${customerCache.value.size}`)
+  console.log(`Current filtered data: ${props.allFilteredData.length} orders`)
   console.log(`Current page shows: ${props.data.length} orders`)
   
   props.dynamicColumns.forEach(key => {
     console.group(`Key: ${key}`)
-    console.log('Customer:', getCustomerForKey(key) || 'MISSING')
-    console.log('CustomerName:', getCustomerNameForKey(key) || 'MISSING')
+    
+    const cached = customerCache.value.get(key)
+    const customer = getCustomerForKey(key)
+    const customerName = getCustomerNameForKey(key)
+    
+    console.log('Customer:', customer || 'MISSING')
+    console.log('CustomerName:', customerName || 'MISSING')
+    console.log('Source:', cached ? 'CACHE ✅' : 'LIVE DATA')
+    
+    if (cached) {
+      console.log('Cached data:', cached)
+    }
     
     // Show all orders with this key from ALL data
     const ordersWithKeyAllPages = props.allFilteredData.filter(o => o.dynamicSoItems?.[key])
     const ordersWithKeyCurrentPage = props.data.filter(o => o.dynamicSoItems?.[key])
     
-    console.log(`Orders with this key (all pages): ${ordersWithKeyAllPages.length}`)
+    console.log(`Orders with this key (filtered): ${ordersWithKeyAllPages.length}`)
     console.log(`Orders with this key (current page): ${ordersWithKeyCurrentPage.length}`)
     
     if (ordersWithKeyAllPages.length > 0) {
-      console.log('Sample orders from all data:')
+      console.log('Sample orders from filtered data:')
       ordersWithKeyAllPages.slice(0, 3).forEach(order => {
         console.log(`  - Material: ${order.material}`, order.dynamicSoItems?.[key])
       })
@@ -466,9 +539,17 @@ const getPlannedOrderForKey = (key: string): string => {
   console.groupEnd()
 }
 
+// Clear cache (for testing)
+;(window as any).clearCustomerCache = () => {
+  customerCache.value.clear()
+  console.log('🗑️ Customer cache cleared')
+  buildCustomerCache()
+}
+
 console.log('💡 Debug commands available:')
 console.log('  - window.toggleCustomerDebug() - Toggle debug panel')
 console.log('  - window.logCustomerData() - Log all customer data to console')
+console.log('  - window.clearCustomerCache() - Clear and rebuild cache')
 </script>
 
 <style scoped>
