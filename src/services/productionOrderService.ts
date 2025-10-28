@@ -72,6 +72,12 @@ export interface ProductionVersionUpdateResponse {
   message?: string
 }
 
+export interface ProductionSupervisor {
+  plant: string;
+  supervisor: string;
+  supervisorName: string;
+}
+
 class ProductionOrderService {
   private readonly endpoint = '/api/sap'
 
@@ -152,6 +158,67 @@ class ProductionOrderService {
   }
 
   /**
+   * Get production orders by production supervisor
+   */
+  async getProductionOrdersByProductionSupervisor(
+    productionSupervisor: string,
+    reqDelDateBegin: Date,
+    reqDelDateEnd: Date
+  ): Promise<ProductionOrderDto[]> {
+    try {
+      // Get credentials
+      const credentials = this.getCredentials()
+
+      // Format dates for backend
+      const formattedDateBegin = this.formatDateForBackend(reqDelDateBegin)
+      const formattedDateEnd = this.formatDateForBackend(reqDelDateEnd)
+
+      const params = {
+        username: btoa(credentials.username), // Base64 encode for backend
+        password: btoa(credentials.password), // Base64 encode for backend
+        productionSupervisor,
+        reqDelDateBegin: formattedDateBegin,
+        reqDelDateEnd: formattedDateEnd
+      }
+
+      if (isFeatureEnabled('DEBUG_MODE')) {
+        console.log('🔍 Fetching production orders for supervisor:', {
+          productionSupervisor,
+          reqDelDateBegin: formattedDateBegin,
+          reqDelDateEnd: formattedDateEnd,
+          hasCredentials: !!(credentials.username && credentials.password)
+        })
+      }
+
+      // Call the endpoint: /api/sap/getProductionOrdersByProductionSupervisor
+      const response = await apiClient.get<ProductionOrderDto[]>(
+        `${this.endpoint}/getProductionOrdersByProductionSupervisor`, 
+        params
+      )
+      
+      const productionOrders = Array.isArray(response) ? response : []
+
+      if (isFeatureEnabled('DEBUG_MODE')) {
+        console.log('📊 Production orders fetched successfully:', {
+          productionSupervisor,
+          ordersCount: productionOrders.length,
+          orders: productionOrders
+        })
+      }
+
+      return productionOrders
+
+    } catch (error) {
+      console.error('❌ Failed to fetch production orders by supervisor:', error)
+      
+      if (error instanceof Error) {
+        throw new Error(`Failed to fetch production orders for supervisor ${productionSupervisor}: ${error.message}`)
+      }
+      throw new Error(`Failed to fetch production orders for supervisor ${productionSupervisor}: Unknown error`)
+    }
+  }
+
+  /**
    * Get production orders by material from ProductionOrderByMaterialController
    */
   async getProductionOrdersByMaterial(
@@ -209,6 +276,38 @@ class ProductionOrderService {
         throw new Error(`Failed to fetch production orders for material ${material}: ${error.message}`)
       }
       throw new Error(`Failed to fetch production orders for material ${material}: Unknown error`)
+    }
+  }
+
+  async getProductionSupervisors(): Promise<ProductionSupervisor[]> {
+    try {
+      if (isFeatureEnabled('DEBUG_MODE')) {
+        console.log('🔍 Fetching production supervisors')
+      }
+
+      // Call the endpoint: /api/sap/getProductionSupervisor
+      const response = await apiClient.get<ProductionSupervisor[]>(
+        `${this.endpoint}/getProductionSupervisor`
+      )
+      
+      const supervisors = Array.isArray(response) ? response : []
+
+      if (isFeatureEnabled('DEBUG_MODE')) {
+        console.log('📊 Production supervisors fetched successfully:', {
+          supervisorsCount: supervisors.length,
+          supervisors
+        })
+      }
+
+      return supervisors
+
+    } catch (error) {
+      console.error('❌ Failed to fetch production supervisors:', error)
+      
+      if (error instanceof Error) {
+        throw new Error(`Failed to fetch production supervisors: ${error.message}`)
+      }
+      throw new Error('Failed to fetch production supervisors: Unknown error')
     }
   }
 

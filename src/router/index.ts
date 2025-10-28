@@ -6,6 +6,7 @@ import Users from '@/views/Users.vue'
 import Products from '@/views/Products.vue'
 import SalesOrders from '@/views/SalesOrders.vue'
 import Settings from '@/views/Settings.vue'
+import CapacityPlanning from '@/views/CapacityPlanning.vue'
 
 const routes: Array<RouteRecordRaw> = [
   {
@@ -31,6 +32,11 @@ const routes: Array<RouteRecordRaw> = [
         path: '/sales-orders',
         name: 'SalesOrders',
         component: SalesOrders
+      },
+      {
+        path: '/capacity-planning',
+        name: 'CapacityPlanning',
+        component: CapacityPlanning
       },
       {
         path: '/settings',
