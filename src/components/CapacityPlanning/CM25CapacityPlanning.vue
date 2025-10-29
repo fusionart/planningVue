@@ -160,9 +160,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { salesOrderService } from '@/services/salesOrderService'
-import { productionOrderService, type ProductionOrderDto } from '@/services/productionOrderService'
+import { productionOrderService, type ProductionOrderDto, type WorkCenter } from '@/services/productionOrderService'
 import WorkCentersTable from './WorkCentersTable.vue'
 import DispatchedOrdersTable from './DispatchedOrdersTable.vue'
 import PoolOrdersTable from './PoolOrdersTable.vue'
@@ -196,15 +196,14 @@ const loadingSupervisors = ref(false)
 
 // Data state
 const productionOrders = ref<ProductionOrderDto[]>([])
-const workCenters = ref([
-  { id: 'SLI_ML_1', capacityCategory: '001', description: 'Монтажна Линия 1', capacityDescription: '', numIndividualCapacity: 1 },
-  { id: 'SLI_ML_2', capacityCategory: '001', description: 'Монтажна Линия 2', capacityDescription: '', numIndividualCapacity: 1 },
-  { id: 'SLI_ML_3', capacityCategory: '001', description: 'Монтажна Линия 3', capacityDescription: '', numIndividualCapacity: 1 },
-  { id: 'SLI_ML_4', capacityCategory: '001', description: 'Монтажна Линия 4', capacityDescription: '', numIndividualCapacity: 1 },
-  { id: 'SLI_ML_5', capacityCategory: '001', description: 'Монтажна Линия 5', capacityDescription: '', numIndividualCapacity: 1 },
-  { id: 'SLI_ML_6', capacityCategory: '001', description: 'Монтажна Линия 6', capacityDescription: '', numIndividualCapacity: 1 },
-  { id: 'SLI_ML_7', capacityCategory: '001', description: 'Монтажна Линия 7', capacityDescription: '', numIndividualCapacity: 1 }
-])
+const workCenters = ref<Array<{
+  id: string
+  capacityCategory: string
+  description: string
+  capacityDescription: string
+  numIndividualCapacity: number
+}>>([])
+const loadingWorkCenters = ref(false)
 
 const dispatchedOrders = ref([])
 const poolOrders = ref([])
@@ -274,12 +273,41 @@ const loadProductionSupervisors = async () => {
     if (supervisors.length > 0) {
       selectedSupervisor.value = supervisors[0].supervisor
       console.log('✅ Auto-selected supervisor:', supervisors[0].supervisorName)
+      
+      // Load work centers for the selected supervisor
+      await loadWorkCenters(supervisors[0].supervisor)
     }
   } catch (error) {
     console.error('❌ Failed to load production supervisors:', error)
     showErrorToast('Failed to load production supervisors')
   } finally {
     loadingSupervisors.value = false
+  }
+}
+
+const loadWorkCenters = async (supervisor: string) => {
+  try {
+    loadingWorkCenters.value = true
+    console.log('🔍 Loading work centers for supervisor:', supervisor)
+    
+    const centers = await productionOrderService.getWorkCentersByProductionSupervisor(supervisor)
+    
+    // Transform to match the expected format
+    workCenters.value = centers.map(wc => ({
+      id: wc.workCenter,
+      capacityCategory: '001', // Default value, can be fetched from backend if available
+      description: wc.description,
+      capacityDescription: '',
+      numIndividualCapacity: 1
+    }))
+    
+    console.log('✅ Work centers loaded:', workCenters.value)
+  } catch (error) {
+    console.error('❌ Failed to load work centers:', error)
+    showErrorToast('Failed to load work centers')
+    workCenters.value = [] // Clear work centers on error
+  } finally {
+    loadingWorkCenters.value = false
   }
 }
 
@@ -356,13 +384,12 @@ const transformProductionOrdersToCapacityData = (orders: ProductionOrderDto[]) =
       operations: 1,
       highlighted: false
     }))
-
-  hasData.value = orders.length > 0
   
   console.log('📊 Data transformation complete:', {
     totalOrders: orders.length,
     dispatchedOrders: dispatchedOrders.value.length,
-    poolOrders: poolOrders.value.length
+    poolOrders: poolOrders.value.length,
+    workCenters: workCenters.value.length
   })
 }
 
@@ -395,6 +422,10 @@ const handleLoadData = async () => {
       dateTo
     })
 
+    // Load work centers first
+    await loadWorkCenters(selectedSupervisor.value)
+
+    // Then load production orders
     const orders = await productionOrderService.getProductionOrdersByProductionSupervisor(
       selectedSupervisor.value,
       dateFrom,
@@ -404,10 +435,15 @@ const handleLoadData = async () => {
     console.log(`✅ Loaded ${orders.length} production orders`)
     
     productionOrders.value = orders
+    
+    // Transform data even if there are no orders (will show empty tables with work centers)
     transformProductionOrdersToCapacityData(orders)
+    
+    // Always show the tables when Load Data is clicked
+    hasData.value = true
 
     if (orders.length === 0) {
-      showErrorToast('No production orders found for the selected criteria')
+      showSuccessToast('Work centers loaded. No production orders found for the selected criteria.')
     } else {
       showSuccessToast(`Loaded ${orders.length} production orders`)
     }
@@ -523,6 +559,21 @@ onMounted(() => {
     console.log('🔐 Credentials found, initializing date inputs and loading supervisors')
     initializeDateInputs()
     loadProductionSupervisors()
+  }
+})
+
+// Watch for supervisor changes to load corresponding work centers
+watch(selectedSupervisor, async (newSupervisor, oldSupervisor) => {
+  if (newSupervisor && newSupervisor !== oldSupervisor) {
+    console.log('👁️ Supervisor changed, loading work centers for:', newSupervisor)
+    await loadWorkCenters(newSupervisor)
+    
+    // Clear orders when supervisor changes (user needs to click Load Data again)
+    dispatchedOrders.value = []
+    poolOrders.value = []
+    capacityAllocations.value = []
+    productionOrders.value = []
+    hasData.value = false
   }
 })
 </script>

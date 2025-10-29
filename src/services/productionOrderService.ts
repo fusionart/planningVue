@@ -78,6 +78,14 @@ export interface ProductionSupervisor {
   supervisorName: string;
 }
 
+export interface WorkCenter {
+  id: string;
+  workCenter: string;
+  description: string;
+  plant: string;
+  productionSupervisor: string;
+}
+
 class ProductionOrderService {
   private readonly endpoint = '/api/sap'
 
@@ -308,6 +316,49 @@ class ProductionOrderService {
         throw new Error(`Failed to fetch production supervisors: ${error.message}`)
       }
       throw new Error('Failed to fetch production supervisors: Unknown error')
+    }
+  }
+
+  /**
+   * Get work centers by production supervisor
+   */
+  async getWorkCentersByProductionSupervisor(
+    productionSupervisor: string
+  ): Promise<WorkCenter[]> {
+    try {
+      if (isFeatureEnabled('DEBUG_MODE')) {
+        console.log('🔍 Fetching work centers for supervisor:', productionSupervisor)
+      }
+
+      const params = {
+        productionSupervisor
+      }
+
+      // Call the endpoint: /api/sap/getWorkCentersByProductionSupervisor
+      const response = await apiClient.get<WorkCenter[]>(
+        `${this.endpoint}/getWorkCentersByProductionSupervisor`,
+        params
+      )
+      
+      const workCenters = Array.isArray(response) ? response : []
+
+      if (isFeatureEnabled('DEBUG_MODE')) {
+        console.log('📊 Work centers fetched successfully:', {
+          productionSupervisor,
+          workCentersCount: workCenters.length,
+          workCenters
+        })
+      }
+
+      return workCenters
+
+    } catch (error) {
+      console.error('❌ Failed to fetch work centers:', error)
+      
+      if (error instanceof Error) {
+        throw new Error(`Failed to fetch work centers for supervisor ${productionSupervisor}: ${error.message}`)
+      }
+      throw new Error(`Failed to fetch work centers for supervisor ${productionSupervisor}: Unknown error`)
     }
   }
 
