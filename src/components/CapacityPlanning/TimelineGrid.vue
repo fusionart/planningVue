@@ -1,9 +1,22 @@
 <!-- TimelineGrid.vue -->
 <template>
-  <div class="timeline-wrapper" ref="timelineRef">
+  <div class="timeline-wrapper" ref="timelineRef" @scroll="handleScroll">
     <div class="timeline-content">
-      <!-- Date row -->
+      <!-- Date range row -->
       <div class="date-row">{{ currentDate }}</div>
+      
+      <!-- Date headers (one per day) -->
+      <div class="date-header">
+        <div 
+          v-for="(t, idx) in timeline" 
+          :key="`date-${t.key}`"
+          v-show="idx % 24 === 0"
+          class="date-cell"
+          :style="{ width: '480px' }"
+        >
+          {{ formatFullDate(t.fullDate) }}
+        </div>
+      </div>
       
       <!-- Hour headers -->
       <div class="timeline-header">
@@ -11,8 +24,9 @@
           v-for="(t, idx) in timeline" 
           :key="t.key"
           class="hour-cell"
+          :class="{ 'day-start': idx % 24 === 0 }"
         >
-          {{ idx % 24 === 0 ? t.day : t.hour }}
+          {{ t.hour }}
         </div>
       </div>
       
@@ -26,6 +40,7 @@
           v-for="t in timeline"
           :key="`cell-${index}-${t.key}`"
           class="timeline-cell"
+          :class="{ 'day-start-cell': timeline.indexOf(t) % 24 === 0 }"
         ></div>
         
         <!-- Render capacity bars for this row -->
@@ -44,12 +59,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, PropType } from 'vue';
+import { ref, watch, PropType } from 'vue';
 
 interface TimelineSlot {
   day: string;
+  month?: string;
   hour: string;
   key: string;
+  fullDate?: Date;
 }
 
 interface CapacityBar {
@@ -76,10 +93,51 @@ const props = defineProps({
   rows: {
     type: Array as PropType<TimelineRow[]>,
     required: true
+  },
+  scrollLeft: {
+    type: Number,
+    default: 0
   }
 });
 
+const emit = defineEmits<{
+  scroll: [scrollLeft: number]
+}>();
+
 const timelineRef = ref<HTMLElement | null>(null);
+const isScrolling = ref(false);
+
+// Handle scroll event from this timeline
+const handleScroll = (event: Event) => {
+  const target = event.target as HTMLElement;
+  if (!isScrolling.value) {
+    emit('scroll', target.scrollLeft);
+  }
+};
+
+// Watch for external scroll changes
+watch(() => props.scrollLeft, (newScrollLeft) => {
+  if (timelineRef.value && timelineRef.value.scrollLeft !== newScrollLeft) {
+    isScrolling.value = true;
+    timelineRef.value.scrollLeft = newScrollLeft;
+    
+    // Reset flag after a short delay
+    setTimeout(() => {
+      isScrolling.value = false;
+    }, 50);
+  }
+});
+
+// Format date as DD.MM.YYYY
+const formatFullDate = (date?: Date): string => {
+  if (!date) return '';
+  
+  const day = date.getDate().toString().padStart(2, '0');
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');
+  const year = date.getFullYear();
+  
+  return `${day}.${month}.${year}`;
+};
 </script>
 
 <style scoped>
@@ -98,6 +156,23 @@ const timelineRef = ref<HTMLElement | null>(null);
   font-size: 10px;
   background: white;
   border-bottom: 1px solid black;
+  font-weight: bold;
+}
+
+.date-header {
+  display: flex;
+  background: #e3f2fd;
+  border-bottom: 1px solid black;
+}
+
+.date-cell {
+  padding: 6px 4px;
+  text-align: center;
+  font-size: 10px;
+  font-weight: bold;
+  border-right: 2px solid black;
+  background: #e3f2fd;
+  color: #1565c0;
 }
 
 .timeline-header {
@@ -115,6 +190,11 @@ const timelineRef = ref<HTMLElement | null>(null);
   font-weight: bold;
 }
 
+.hour-cell.day-start {
+  background: #ffd700;
+  border-left: 2px solid black;
+}
+
 .timeline-row {
   display: flex;
   border-bottom: 1px solid #999;
@@ -125,6 +205,10 @@ const timelineRef = ref<HTMLElement | null>(null);
 .timeline-cell {
   width: 20px;
   border-right: 1px dotted #999;
+}
+
+.timeline-cell.day-start-cell {
+  border-left: 2px solid black;
 }
 
 .capacity-bar {
@@ -139,5 +223,6 @@ const timelineRef = ref<HTMLElement | null>(null);
   display: flex;
   align-items: center;
   border-right: 1px solid white;
+  box-sizing: border-box;
 }
 </style>

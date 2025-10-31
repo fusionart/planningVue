@@ -103,34 +103,40 @@
     <div v-if="hasData && !loading" class="cm25-container">
       <WorkCentersTable 
         :work-centers="workCenters"
-        :current-date="currentDate"
+        :current-date="currentDateDisplay"
         :timeline="timeline"
         :capacity-allocations="capacityAllocations"
+        :scroll-left="timelineScrollLeft"
         @navigate-prev="navigatePrev"
         @navigate-next="navigateNext"
         @work-center-click="handleWorkCenterClick"
+        @timeline-scroll="handleTimelineScroll"
       />
 
       <DispatchedOrdersTable 
         :orders="dispatchedOrders"
-        :current-date="currentDate"
+        :current-date="currentDateDisplay"
         :timeline="timeline"
+        :scroll-left="timelineScrollLeft"
         @navigate-prev="navigatePrev"
         @navigate-next="navigateNext"
         @order-click="handleOrderClick"
         @material-click="handleMaterialClick"
         @work-center-click="handleWorkCenterClick"
+        @timeline-scroll="handleTimelineScroll"
       />
 
       <PoolOrdersTable 
         :orders="poolOrders"
-        :current-date="currentDate"
+        :current-date="currentDateDisplay"
         :timeline="timeline"
+        :scroll-left="timelineScrollLeft"
         @navigate-prev="navigatePrev"
         @navigate-next="navigateNext"
         @order-click="handleOrderClick"
         @material-click="handleMaterialClick"
         @work-center-click="handleWorkCenterClick"
+        @timeline-scroll="handleTimelineScroll"
       />
     </div>
 
@@ -162,14 +168,13 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { salesOrderService } from '@/services/salesOrderService'
-import { productionOrderService, type ProductionOrderDto, type WorkCenter } from '@/services/productionOrderService'
+import { productionOrderService, type ProductionOrderDto, type PlannedOrderDto, type WorkCenter } from '@/services/productionOrderService'
 import WorkCentersTable from './WorkCentersTable.vue'
 import DispatchedOrdersTable from './DispatchedOrdersTable.vue'
 import PoolOrdersTable from './PoolOrdersTable.vue'
 import CredentialsModal from '@/components/SalesOrders/CredentialsModal.vue'
 
 // State
-const currentDate = ref('26.10.2025')
 const loading = ref(false)
 const error = ref('')
 const hasData = ref(false)
@@ -196,6 +201,7 @@ const loadingSupervisors = ref(false)
 
 // Data state
 const productionOrders = ref<ProductionOrderDto[]>([])
+const plannedOrders = ref<PlannedOrderDto[]>([])
 const workCenters = ref<Array<{
   id: string
   capacityCategory: string
@@ -209,35 +215,71 @@ const dispatchedOrders = ref([])
 const poolOrders = ref([])
 const capacityAllocations = ref([])
 
+
+// Scroll synchronization state
+const timelineScrollLeft = ref(0)
+
+// Handle timeline scroll from any table
+const handleTimelineScroll = (scrollLeft: number) => {
+  timelineScrollLeft.value = scrollLeft
+}
 // Computed
 const hasCredentials = computed(() => {
   return salesOrderService.hasCredentials() || localCredentialsState.value
 })
 
-// Generate timeline: days 14-23, then 00-03 with hours 00-23 for each day
+// Generate current date display for the header
+const currentDateDisplay = computed(() => {
+  if (!dateFromInput.value || !dateToInput.value) {
+    return ''
+  }
+  
+  const startDate = parseInputDate(dateFromInput.value)
+  const endDate = parseInputDate(dateToInput.value)
+  
+  const formatDate = (date: Date) => {
+    const day = date.getDate().toString().padStart(2, '0')
+    const month = (date.getMonth() + 1).toString().padStart(2, '0')
+    const year = date.getFullYear()
+    return `${day}.${month}.${year}`
+  }
+  
+  return `${formatDate(startDate)} - ${formatDate(endDate)}`
+})
+
+// Generate timeline based on date picker range
 const timeline = computed(() => {
   const result = []
-  const days = []
   
-  // Days 14-23
-  for (let day = 14; day <= 23; day++) {
-    days.push(day)
+  // If no dates selected, return empty timeline
+  if (!dateFromInput.value || !dateToInput.value) {
+    return result
   }
-  // Days 00-03 (next month)
-  for (let day = 0; day <= 3; day++) {
-    days.push(day)
-  }
-
-  days.forEach(day => {
-    const dayStr = day.toString().padStart(2, '0')
+  
+  const startDate = parseInputDate(dateFromInput.value)
+  const endDate = parseInputDate(dateToInput.value)
+  
+  // Generate timeline for each day in the range
+  const currentDate = new Date(startDate)
+  
+  while (currentDate <= endDate) {
+    const day = currentDate.getDate().toString().padStart(2, '0')
+    const month = (currentDate.getMonth() + 1).toString().padStart(2, '0')
+    
+    // Generate 24 hours for each day
     for (let hour = 0; hour < 24; hour++) {
       result.push({
-        day: dayStr,
+        day: day,
+        month: month,
         hour: hour.toString().padStart(2, '0'),
-        key: `${dayStr}-${hour.toString().padStart(2, '0')}`
+        key: `${month}-${day}-${hour.toString().padStart(2, '0')}`,
+        fullDate: new Date(currentDate)
       })
     }
-  })
+    
+    // Move to next day
+    currentDate.setDate(currentDate.getDate() + 1)
+  }
 
   return result
 })
@@ -358,7 +400,8 @@ const transformProductionOrdersToCapacityData = (orders: ProductionOrderDto[]) =
         startDay,
         startHour,
         durationHours,
-        label: order.material.substring(0, 15)
+        label: order.material.substring(0, 15),
+        type: 'production' // Add type identifier
       }
     })
 
@@ -382,11 +425,113 @@ const transformProductionOrdersToCapacityData = (orders: ProductionOrderDto[]) =
       startDate: order.mfgOrderScheduledStartDate || 'N/A',
       workCenter: order.workCenter || 'N/A',
       operations: 1,
-      highlighted: false
+      highlighted: false,
+      type: 'production' // Add type identifier
     }))
   
   console.log('📊 Data transformation complete:', {
     totalOrders: orders.length,
+    dispatchedOrders: dispatchedOrders.value.length,
+    poolOrders: poolOrders.value.length,
+    workCenters: workCenters.value.length
+  })
+}
+
+// NEW: Transform both production orders and planned orders
+const transformAllOrdersToCapacityData = (prodOrders: ProductionOrderDto[], plannedOrders: PlannedOrderDto[]) => {
+  // Transform production orders - scheduled ones (orderIsScheduled = true)
+  const dispatchedProdOrders = prodOrders
+    .filter(order => order.orderIsScheduled)
+    .map(order => {
+      const startDay = extractDayFromDate(order.mfgOrderScheduledStartDate)
+      const startHour = parseInt(order.mfgOrderScheduledStartTime.split(':')[0], 10)
+      const endHour = parseInt(order.mfgOrderScheduledEndTime.split(':')[0], 10)
+      const durationHours = endHour - startHour || 1
+      
+      return {
+        orderNo: order.productionOrder,
+        material: order.material,
+        materialDescription: order.materialDescription,
+        startDate: order.mfgOrderScheduledStartDate,
+        workCenter: order.workCenter,
+        startDay,
+        startHour,
+        durationHours,
+        label: order.material.substring(0, 15),
+        type: 'production' // Production order
+      }
+    })
+
+  // Transform planned orders - dispatched ones (plannedOrderCapacityIsDsptchd = true)
+  const dispatchedPlannedOrders = plannedOrders
+    .filter(order => order.plannedOrderCapacityIsDsptchd)
+    .map(order => {
+      const startDay = extractDayFromDate(order.plndOrderPlannedStartDate)
+      const startHour = parseInt(order.plndOrderPlannedStartTime.split(':')[0], 10)
+      const endHour = parseInt(order.plndOrderPlannedEndTime.split(':')[0], 10)
+      const durationHours = endHour - startHour || 1
+      
+      return {
+        orderNo: order.plannedOrder,
+        material: order.material,
+        materialDescription: order.description || order.material, // Use actual description
+        startDate: order.plndOrderPlannedStartDate,
+        workCenter: order.workCenter,
+        startDay,
+        startHour,
+        durationHours,
+        label: order.material.substring(0, 15),
+        type: 'planned' // Planned order
+      }
+    })
+
+  // Combine all dispatched orders
+  dispatchedOrders.value = [...dispatchedProdOrders, ...dispatchedPlannedOrders]
+
+  // Build capacity allocations from all dispatched orders
+  capacityAllocations.value = dispatchedOrders.value.map(order => ({
+    workCenterId: order.workCenter,
+    startDay: order.startDay,
+    startHour: order.startHour,
+    durationHours: order.durationHours,
+    label: order.label,
+    description: order.materialDescription
+  }))
+
+  // Pool orders - unscheduled production orders
+  const poolProdOrders = prodOrders
+    .filter(order => !order.orderIsScheduled)
+    .map(order => ({
+      orderNo: order.productionOrder,
+      material: order.material,
+      materialDescription: order.materialDescription,
+      startDate: order.mfgOrderScheduledStartDate || 'N/A',
+      workCenter: order.workCenter || 'N/A',
+      operations: 1,
+      highlighted: false,
+      type: 'production'
+    }))
+
+  // Pool orders - un-dispatched planned orders
+  const poolPlannedOrders = plannedOrders
+    .filter(order => !order.plannedOrderCapacityIsDsptchd)
+    .map(order => ({
+      orderNo: order.plannedOrder,
+      material: order.material,
+      materialDescription: order.description || order.material, // Use actual description
+      startDate: order.plndOrderPlannedStartDate || 'N/A',
+      workCenter: order.workCenter || 'N/A',
+      operations: 1,
+      highlighted: false,
+      type: 'planned'
+    }))
+
+  // Combine all pool orders
+  poolOrders.value = [...poolProdOrders, ...poolPlannedOrders]
+  
+  console.log('📊 Combined data transformation complete:', {
+    totalProductionOrders: prodOrders.length,
+    totalPlannedOrders: plannedOrders.length,
     dispatchedOrders: dispatchedOrders.value.length,
     poolOrders: poolOrders.value.length,
     workCenters: workCenters.value.length
@@ -416,7 +561,7 @@ const handleLoadData = async () => {
     const dateFrom = parseInputDate(dateFromInput.value)
     const dateTo = parseInputDate(dateToInput.value)
 
-    console.log('📊 Loading production orders for supervisor:', {
+    console.log('📊 Loading orders for supervisor:', {
       supervisor: selectedSupervisor.value,
       dateFrom,
       dateTo
@@ -425,32 +570,41 @@ const handleLoadData = async () => {
     // Load work centers first
     await loadWorkCenters(selectedSupervisor.value)
 
-    // Then load production orders
-    const orders = await productionOrderService.getProductionOrdersByProductionSupervisor(
-      selectedSupervisor.value,
-      dateFrom,
-      dateTo
-    )
+    // Load both production orders and planned orders in parallel
+    const [prodOrders, plndOrders] = await Promise.all([
+      productionOrderService.getProductionOrdersByProductionSupervisor(
+        selectedSupervisor.value,
+        dateFrom,
+        dateTo
+      ),
+      productionOrderService.getPlannedOrdersByProductionSupervisor(
+        selectedSupervisor.value,
+        dateFrom,
+        dateTo
+      )
+    ])
 
-    console.log(`✅ Loaded ${orders.length} production orders`)
+    console.log(`✅ Loaded ${prodOrders.length} production orders and ${plndOrders.length} planned orders`)
     
-    productionOrders.value = orders
+    productionOrders.value = prodOrders
+    plannedOrders.value = plndOrders
     
     // Transform data even if there are no orders (will show empty tables with work centers)
-    transformProductionOrdersToCapacityData(orders)
+    transformAllOrdersToCapacityData(prodOrders, plndOrders)
     
     // Always show the tables when Load Data is clicked
     hasData.value = true
 
-    if (orders.length === 0) {
-      showSuccessToast('Work centers loaded. No production orders found for the selected criteria.')
+    const totalOrders = prodOrders.length + plndOrders.length
+    if (totalOrders === 0) {
+      showSuccessToast('Work centers loaded. No orders found for the selected criteria.')
     } else {
-      showSuccessToast(`Loaded ${orders.length} production orders`)
+      showSuccessToast(`Loaded ${prodOrders.length} production orders and ${plndOrders.length} planned orders`)
     }
 
   } catch (err) {
-    console.error('❌ Error loading production orders:', err)
-    error.value = err instanceof Error ? err.message : 'Failed to load production orders'
+    console.error('❌ Error loading orders:', err)
+    error.value = err instanceof Error ? err.message : 'Failed to load orders'
     showErrorToast(error.value)
     hasData.value = false
   } finally {

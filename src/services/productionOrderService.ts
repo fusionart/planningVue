@@ -24,6 +24,23 @@ export interface ProductionOrderDto {
   salesOrder: string
 }
 
+// NEW: PlannedOrder interface based on PlannedOrderDto.java
+export interface PlannedOrderDto {
+  plannedOrder: string
+  material: string
+  productionPlan: string
+  totalQuantity: number
+  salesOrder: string
+  productionSupervisor: string
+  plndOrderPlannedStartDate: string // LocalDate
+  plndOrderPlannedStartTime: string // LocalTime
+  plndOrderPlannedEndDate: string // LocalDate
+  plndOrderPlannedEndTime: string // LocalTime
+  plannedOrderCapacityIsDsptchd: boolean
+  workCenter: string
+  etag: string
+}
+
 export interface ProductionVersionDto {
   id: string
   material: string
@@ -114,6 +131,124 @@ class ProductionOrderService {
     const minutes = timeParts[1].padStart(2, '0')
     
     return `${dateStr}T${hours}:${minutes}:00`
+  }
+
+  /**
+   * NEW: Get planned orders within the specified date range
+   */
+  async getPlannedOrders(
+    reqDelDateBegin: Date,
+    reqDelDateEnd: Date
+  ): Promise<PlannedOrderDto[]> {
+    try {
+      // Get credentials
+      const credentials = this.getCredentials()
+
+      // Format dates for backend
+      const formattedDateBegin = this.formatDateForBackend(reqDelDateBegin)
+      const formattedDateEnd = this.formatDateForBackend(reqDelDateEnd)
+
+      const params = {
+        username: btoa(credentials.username), // Base64 encode for backend
+        password: btoa(credentials.password), // Base64 encode for backend
+        reqDelDateBegin: formattedDateBegin,
+        reqDelDateEnd: formattedDateEnd
+      }
+
+      if (isFeatureEnabled('DEBUG_MODE')) {
+        console.log('🔍 Fetching planned orders:', {
+          reqDelDateBegin: formattedDateBegin,
+          reqDelDateEnd: formattedDateEnd,
+          hasCredentials: !!(credentials.username && credentials.password)
+        })
+      }
+
+      // Call the endpoint: /api/sap/getPlannedOrders
+      const response = await apiClient.get<PlannedOrderDto[]>(
+        `${this.endpoint}/getPlannedOrders`, 
+        params
+      )
+      
+      const plannedOrders = Array.isArray(response) ? response : []
+
+      if (isFeatureEnabled('DEBUG_MODE')) {
+        console.log('📊 Planned orders fetched successfully:', {
+          ordersCount: plannedOrders.length,
+          orders: plannedOrders
+        })
+      }
+
+      return plannedOrders
+
+    } catch (error) {
+      console.error('❌ Failed to fetch planned orders:', error)
+      
+      if (error instanceof Error) {
+        throw new Error(`Failed to fetch planned orders: ${error.message}`)
+      }
+      throw new Error('Failed to fetch planned orders: Unknown error')
+    }
+  }
+
+  /**
+   * Get planned orders by production supervisor
+   */
+  async getPlannedOrdersByProductionSupervisor(
+    productionSupervisor: string,
+    reqDelDateBegin: Date,
+    reqDelDateEnd: Date
+  ): Promise<PlannedOrderDto[]> {
+    try {
+      // Get credentials
+      const credentials = this.getCredentials()
+
+      // Format dates for backend
+      const formattedDateBegin = this.formatDateForBackend(reqDelDateBegin)
+      const formattedDateEnd = this.formatDateForBackend(reqDelDateEnd)
+
+      const params = {
+        username: btoa(credentials.username), // Base64 encode for backend
+        password: btoa(credentials.password), // Base64 encode for backend
+        productionSupervisor,
+        reqDelDateBegin: formattedDateBegin,
+        reqDelDateEnd: formattedDateEnd
+      }
+
+      if (isFeatureEnabled('DEBUG_MODE')) {
+        console.log('🔍 Fetching planned orders for supervisor:', {
+          productionSupervisor,
+          reqDelDateBegin: formattedDateBegin,
+          reqDelDateEnd: formattedDateEnd,
+          hasCredentials: !!(credentials.username && credentials.password)
+        })
+      }
+
+      // Call the endpoint: /api/sap/getPlannedOrdersByProductionSupervisor
+      const response = await apiClient.get<PlannedOrderDto[]>(
+        `${this.endpoint}/getPlannedOrdersByProductionSupervisor`, 
+        params
+      )
+      
+      const plannedOrders = Array.isArray(response) ? response : []
+
+      if (isFeatureEnabled('DEBUG_MODE')) {
+        console.log('📊 Planned orders fetched successfully:', {
+          productionSupervisor,
+          ordersCount: plannedOrders.length,
+          orders: plannedOrders
+        })
+      }
+
+      return plannedOrders
+
+    } catch (error) {
+      console.error('❌ Failed to fetch planned orders by supervisor:', error)
+      
+      if (error instanceof Error) {
+        throw new Error(`Failed to fetch planned orders for supervisor ${productionSupervisor}: ${error.message}`)
+      }
+      throw new Error(`Failed to fetch planned orders for supervisor ${productionSupervisor}: Unknown error`)
+    }
   }
 
   /**

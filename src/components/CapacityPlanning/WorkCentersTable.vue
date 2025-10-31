@@ -34,6 +34,8 @@
         :current-date="currentDate"
         :timeline="timeline"
         :rows="timelineRows"
+        :scroll-left="scrollLeft"
+        @scroll="handleTimelineScroll"
       />
     </div>
 
@@ -87,10 +89,18 @@ const props = defineProps({
   capacityAllocations: {
     type: Array as PropType<CapacityAllocation[]>,
     required: true
+  },
+  scrollLeft: {
+    type: Number,
+    default: 0
   }
 });
 
-const emit = defineEmits(['navigate-prev', 'navigate-next', 'work-center-click']);
+const emit = defineEmits(['navigate-prev', 'navigate-next', 'work-center-click', 'timeline-scroll']);
+
+const handleTimelineScroll = (scrollLeft: number) => {
+  emit('timeline-scroll', scrollLeft);
+};
 
 const days = computed(() => {
   return [...new Set(props.timeline.map(t => t.day))];

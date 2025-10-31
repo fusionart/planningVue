@@ -29,7 +29,14 @@
             {{ order.material }}
           </div>
           <div class="col-matdesc">{{ order.materialDescription }}</div>
-          <div class="col-order link" @click="onOrderClick(order.orderNo)">
+          <div 
+            class="col-order link" 
+            :class="{ 
+              'order-planned': order.type === 'planned',
+              'order-production': order.type === 'production'
+            }"
+            @click="onOrderClick(order.orderNo)"
+          >
             {{ order.orderNo }}
           </div>
           <div class="col-workctr2 link" @click="onWorkCenterClick(order.workCenter)">
@@ -44,6 +51,8 @@
         :current-date="currentDate"
         :timeline="timeline"
         :rows="timelineRows"
+        :scroll-left="scrollLeft"
+        @scroll="handleTimelineScroll"
       />
     </div>
 
@@ -66,6 +75,7 @@ interface PoolOrder {
   workCenter: string;
   operations: number;
   highlighted: boolean;
+  type: 'production' | 'planned';
 }
 
 interface TimelineSlot {
@@ -86,6 +96,10 @@ const props = defineProps({
   timeline: {
     type: Array as PropType<TimelineSlot[]>,
     required: true
+  },
+  scrollLeft: {
+    type: Number,
+    default: 0
   }
 });
 
@@ -94,8 +108,13 @@ const emit = defineEmits([
   'navigate-next', 
   'order-click', 
   'material-click', 
-  'work-center-click'
+  'work-center-click',
+  'timeline-scroll'
 ]);
+
+const handleTimelineScroll = (scrollLeft: number) => {
+  emit('timeline-scroll', scrollLeft);
+};
 
 // Pool orders have no capacity bars (not scheduled yet)
 const timelineRows = computed(() => {
@@ -114,7 +133,7 @@ const onMaterialClick = (material: string) => {
 };
 
 const onWorkCenterClick = (workCenter: string) => {
-  emit('work-center-click', workCenter);
+  emit('work-center-click', 'timeline-scroll', workCenter);
 };
 </script>
 
@@ -210,6 +229,15 @@ const onWorkCenterClick = (workCenter: string) => {
   color: #0066cc;
   text-decoration: underline;
   cursor: pointer;
+}
+
+.order-planned {
+  color: #22c55e !important;
+  font-weight: 600;
+}
+
+.order-production {
+  color: #0066cc !important;
 }
 
 .highlight-text {
