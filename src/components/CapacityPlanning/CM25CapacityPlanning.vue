@@ -1,21 +1,6 @@
 <!-- CM25CapacityPlanning.vue -->
 <template>
   <div class="cm25-wrapper">
-    <!-- Page Header -->
-    <div class="page-header">
-      <h2 class="page-title">CM25 - Capacity Planning</h2>
-      <div class="header-actions">
-        <button 
-          class="btn" 
-          :class="hasCredentials ? 'btn-success' : 'btn-warning'"
-          @click="handleCredentialsButtonClick"
-          type="button"
-        >
-          {{ hasCredentials ? '🔐 Update Credentials' : '🔓 Enter Credentials' }}
-        </button>
-      </div>
-    </div>
-
     <!-- Credentials Modal -->
     <CredentialsModal
       :show="credentialsModalVisible"
@@ -174,6 +159,16 @@ import DispatchedOrdersTable from './DispatchedOrdersTable.vue'
 import PoolOrdersTable from './PoolOrdersTable.vue'
 import CredentialsModal from '@/components/SalesOrders/CredentialsModal.vue'
 
+// Props to receive credentials modal control from parent
+const props = defineProps<{
+  showCredentialsModal?: boolean
+}>()
+
+// Emit to notify parent
+const emit = defineEmits<{
+  closeCredentialsModal: []
+}>()
+
 // State
 const loading = ref(false)
 const error = ref('')
@@ -218,11 +213,18 @@ const capacityAllocations = ref([])
 
 // Scroll synchronization state
 const timelineScrollLeft = ref(0)
+const dataColumnsWidth = ref(640)
 
 // Handle timeline scroll from any table
 const handleTimelineScroll = (scrollLeft: number) => {
   timelineScrollLeft.value = scrollLeft
 }
+
+const handleResizeWidth = (width: number) => {
+  console.log('📏 Resize width:', width)
+  dataColumnsWidth.value = width
+}
+
 // Computed
 const hasCredentials = computed(() => {
   return salesOrderService.hasCredentials() || localCredentialsState.value
@@ -617,10 +619,6 @@ const clearError = () => {
 }
 
 // Credentials handlers
-const handleCredentialsButtonClick = () => {
-  credentialsModalVisible.value = true
-}
-
 const handleSaveCredentials = async (credentials: { username: string; password: string }) => {
   savingCredentials.value = true
   credentialsError.value = ''
@@ -637,6 +635,9 @@ const handleSaveCredentials = async (credentials: { username: string; password: 
     await loadProductionSupervisors()
     
     showSuccessToast('Credentials saved successfully')
+    
+    // Notify parent to close modal
+    emit('closeCredentialsModal')
   } catch (error) {
     console.error('❌ Error saving credentials:', error)
     credentialsError.value = error instanceof Error ? error.message : 'Failed to save credentials'
@@ -650,6 +651,9 @@ const handleCloseCredentialsModal = () => {
   credentialsModalVisible.value = false
   credentialsError.value = ''
   savingCredentials.value = false
+  
+  // Notify parent to close modal
+  emit('closeCredentialsModal')
 }
 
 // Toast methods
@@ -699,6 +703,13 @@ const handleMaterialClick = (material: string) => {
   // TODO: Show material details
 }
 
+// Watch for prop changes
+watch(() => props.showCredentialsModal, (newValue) => {
+  if (newValue) {
+    credentialsModalVisible.value = true
+  }
+})
+
 // Initialize
 onMounted(() => {
   console.log('📋 CM25 Capacity Planning mounted')
@@ -730,6 +741,13 @@ watch(selectedSupervisor, async (newSupervisor, oldSupervisor) => {
     hasData.value = false
   }
 })
+
+// Expose method to open credentials modal from parent
+defineExpose({
+  openCredentialsModal: () => {
+    credentialsModalVisible.value = true
+  }
+})
 </script>
 
 <style scoped>
@@ -757,11 +775,6 @@ watch(selectedSupervisor, async (newSupervisor, oldSupervisor) => {
   margin: 0;
 }
 
-.header-actions {
-  display: flex;
-  gap: 0.75rem;
-}
-
 .btn {
   padding: 0.5rem 1rem;
   border: none;
@@ -784,24 +797,6 @@ watch(selectedSupervisor, async (newSupervisor, oldSupervisor) => {
 .btn-primary:disabled {
   background: #93c5fd;
   cursor: not-allowed;
-}
-
-.btn-success {
-  background: #10b981;
-  color: white;
-}
-
-.btn-success:hover {
-  background: #059669;
-}
-
-.btn-warning {
-  background: #f59e0b;
-  color: white;
-}
-
-.btn-warning:hover {
-  background: #d97706;
 }
 
 .date-range-section {

@@ -1,19 +1,10 @@
-<!-- SalesOrdersMain.vue - Updated with CreateProductionOrderDialog -->
+<!-- SalesOrdersMain.vue - Updated without Credentials Button in Header -->
 <template>
   <div class="sales-orders" :key="componentKey">
     <!-- Page Header -->
     <div class="page-header">
       <h2 class="page-title">Клиентски поръчки по заявена дата на доставка</h2>
       <div class="header-actions">
-        <button 
-          class="btn" 
-          :class="hasCredentials ? 'btn-success' : 'btn-warning'"
-          @click.stop="handleCredentialsButtonClick"
-          type="button"
-        >
-          {{ hasCredentials ? '🔐 Актуализация на идентификационни данни' : '🔓 Въведете идентификационни данни' }}
-        </button>
-        
         <!-- Create Production Order Button -->
         <button 
           v-if="hasCredentials"
@@ -202,6 +193,16 @@ import PlannedOrderConversionDialog from './PlannedOrderConversionDialog.vue'
 import CreateProductionOrderDialog from './CreateProductionOrderDialog.vue'
 import LoadingStates from './LoadingStates.vue'
 
+// Props to receive credentials modal control from parent
+const props = defineProps<{
+  showCredentialsModal?: boolean
+}>()
+
+// Emit to notify parent
+const emit = defineEmits<{
+  closeCredentialsModal: []
+}>()
+
 // Main composables
 const {
   salesOrdersByDate,
@@ -325,10 +326,6 @@ const showErrorToast = (message: string) => {
 }
 
 // Event handlers
-const handleCredentialsButtonClick = () => {
-  credentialsModalVisible.value = true
-}
-
 const handleSaveCredentials = async (credentials: { username: string, password: string }) => {
   savingCredentials.value = true
   credentialsError.value = ''
@@ -344,6 +341,8 @@ const handleSaveCredentials = async (credentials: { username: string, password: 
     credentialsError.value = ''
     initializeDateInputs()
     
+    // Notify parent to close modal
+    emit('closeCredentialsModal')
   } catch (error) {
     console.error('❌ Error saving credentials:', error)
     credentialsError.value = error instanceof Error ? error.message : 'Failed to save credentials'
@@ -358,6 +357,9 @@ const handleCloseCredentialsModal = () => {
   credentialsModalVisible.value = false
   credentialsError.value = ''
   savingCredentials.value = false
+  
+  // Notify parent to close modal
+  emit('closeCredentialsModal')
 }
 
 const handleClearCredentials = () => {
@@ -597,6 +599,13 @@ watch(productionOrdersModalVisible, (isVisible) => {
   }
 })
 
+// Watch for prop changes from parent
+watch(() => props.showCredentialsModal, (newValue) => {
+  if (newValue) {
+    credentialsModalVisible.value = true
+  }
+})
+
 // Initialize
 onMounted(() => {
   console.log('📋 SalesOrdersMain component mounted')
@@ -633,6 +642,13 @@ onUnmounted(() => {
   selectedPlantForConversion.value = ''
   credentialsModalVisible.value = false
   createProductionOrderDialogVisible.value = false
+})
+
+// Expose method to open credentials modal from parent
+defineExpose({
+  openCredentialsModal: () => {
+    credentialsModalVisible.value = true
+  }
 })
 </script>
 

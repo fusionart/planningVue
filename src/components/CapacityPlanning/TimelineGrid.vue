@@ -157,12 +157,20 @@ const formatFullDate = (date?: Date): string => {
   background: white;
   border-bottom: 1px solid black;
   font-weight: bold;
+  /* Exact height match with spacer row */
+  height: 22px;
+  min-height: 22px;
+  box-sizing: border-box;
+  line-height: 12px;
 }
 
 .date-header {
   display: flex;
   background: #e3f2fd;
   border-bottom: 1px solid black;
+  /* Exact height match with spacer row */
+  height: 28px;
+  min-height: 28px;
 }
 
 .date-cell {
@@ -173,12 +181,19 @@ const formatFullDate = (date?: Date): string => {
   border-right: 2px solid black;
   background: #e3f2fd;
   color: #1565c0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
 }
 
 .timeline-header {
   display: flex;
   border-bottom: 1px solid black;
   background: #ffeb3b;
+  /* Exact height match with header row */
+  height: 28px;
+  min-height: 28px;
 }
 
 .hour-cell {
@@ -188,6 +203,10 @@ const formatFullDate = (date?: Date): string => {
   text-align: center;
   font-size: 9px;
   font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
 }
 
 .hour-cell.day-start {
@@ -199,12 +218,15 @@ const formatFullDate = (date?: Date): string => {
   display: flex;
   border-bottom: 1px solid #999;
   position: relative;
-  height: 20px;
+  /* Exact height match with data rows */
+  height: 24px;
+  min-height: 24px;
 }
 
 .timeline-cell {
   width: 20px;
   border-right: 1px dotted #999;
+  height: 100%;
 }
 
 .timeline-cell.day-start-cell {

@@ -4,15 +4,21 @@
     <div class="section-header">Orders (pool)</div>
     
     <div class="content-wrapper">
-      <!-- Left data columns -->
-      <div class="data-columns">
+      <!-- Left data columns - USING INLINE STYLE BINDING -->
+      <div class="data-columns" ref="dataColumnsRef" :style="{ width: dataColumnsWidth + 'px' }">
+        <!-- Empty row to match timeline date range row -->
+        <div class="spacer-row date-range-spacer"></div>
+        
+        <!-- Empty row to match timeline date header row -->
+        <div class="spacer-row date-header-spacer"></div>
+        
+        <!-- Main header row (matches timeline hour header) -->
         <div class="header-row">
           <div class="col-date">LStrtDate</div>
           <div class="col-material">Material</div>
           <div class="col-matdesc">Material Description</div>
           <div class="col-order">Order</div>
           <div class="col-workctr2">Work ctr</div>
-          <div class="col-oper">Operati</div>
         </div>
         
         <div 
@@ -42,7 +48,15 @@
           <div class="col-workctr2 link" @click="onWorkCenterClick(order.workCenter)">
             {{ order.workCenter }}
           </div>
-          <div class="col-oper center">{{ order.operations }}</div>
+        </div>
+        
+        <!-- Resize handle -->
+        <div 
+          class="resize-handle"
+          @mousedown="startResize"
+          title="Drag to resize columns"
+        >
+          <div class="resize-handle-line"></div>
         </div>
       </div>
 
@@ -64,7 +78,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, PropType } from 'vue';
+import { computed, ref, PropType, watch } from 'vue';
 import TimelineGrid from './TimelineGrid.vue';
 
 interface PoolOrder {
@@ -100,6 +114,10 @@ const props = defineProps({
   scrollLeft: {
     type: Number,
     default: 0
+  },
+  dataColumnsWidth: {
+    type: Number,
+    default: 640
   }
 });
 
@@ -109,8 +127,16 @@ const emit = defineEmits([
   'order-click', 
   'material-click', 
   'work-center-click',
-  'timeline-scroll'
+  'timeline-scroll',
+  'resize-width'
 ]);
+
+const dataColumnsRef = ref<HTMLElement | null>(null);
+
+// Watch for width changes and log them
+watch(() => props.dataColumnsWidth, (newWidth) => {
+  console.log('PoolOrdersTable width updated:', newWidth);
+});
 
 const handleTimelineScroll = (scrollLeft: number) => {
   emit('timeline-scroll', scrollLeft);
@@ -123,6 +149,36 @@ const timelineRows = computed(() => {
     capacityBars: []
   }));
 });
+
+const startResize = (e: MouseEvent) => {
+  e.preventDefault();
+  e.stopPropagation();
+  
+  const startX = e.clientX;
+  const startWidth = props.dataColumnsWidth;
+  
+  console.log('Start resize:', { startX, startWidth });
+  
+  const handleMouseMove = (moveEvent: MouseEvent) => {
+    const deltaX = moveEvent.clientX - startX;
+    const newWidth = Math.max(300, Math.min(1200, startWidth + deltaX));
+    console.log('Resizing:', { deltaX, newWidth });
+    emit('resize-width', newWidth);
+  };
+  
+  const handleMouseUp = () => {
+    console.log('Resize ended');
+    document.removeEventListener('mousemove', handleMouseMove);
+    document.removeEventListener('mouseup', handleMouseUp);
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  };
+  
+  document.body.style.cursor = 'col-resize';
+  document.body.style.userSelect = 'none';
+  document.addEventListener('mousemove', handleMouseMove);
+  document.addEventListener('mouseup', handleMouseUp);
+};
 
 const onOrderClick = (orderNo: string) => {
   emit('order-click', orderNo);
@@ -157,12 +213,65 @@ const onWorkCenterClick = (workCenter: string) => {
 
 .content-wrapper {
   display: flex;
+  position: relative;
 }
 
 .data-columns {
+  position: relative;
   flex-shrink: 0;
   border-right: 1px solid black;
   background: #e0e0e0;
+  /* Width is now set via inline :style binding */
+}
+
+/* Resize handle positioned at right edge */
+.resize-handle {
+  position: absolute;
+  top: 0;
+  right: -6px;
+  width: 12px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 0, 0, 0.1);
+}
+
+.resize-handle-line {
+  width: 3px;
+  height: 60px;
+  background: #3b82f6;
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+.resize-handle:hover {
+  background: rgba(59, 130, 246, 0.2);
+}
+
+.resize-handle:hover .resize-handle-line {
+  background: #2563eb;
+  width: 4px;
+}
+
+/* Spacer rows to align with timeline headers */
+.spacer-row {
+  width: 100%;
+  border-bottom: 1px solid black;
+}
+
+.date-range-spacer {
+  height: 22px;
+  min-height: 22px;
+  background: white;
+}
+
+.date-header-spacer {
+  height: 28px;
+  min-height: 28px;
+  background: #e3f2fd;
 }
 
 .header-row {
@@ -170,12 +279,18 @@ const onWorkCenterClick = (workCenter: string) => {
   border-bottom: 1px solid black;
   background: #e0e0e0;
   font-weight: bold;
+  height: 28px;
+  min-height: 28px;
+  align-items: center;
 }
 
 .data-row {
   display: flex;
   border-bottom: 1px solid #999;
   background: #e0e0e0;
+  height: 24px;
+  min-height: 24px;
+  align-items: center;
 }
 
 .data-row:hover {
@@ -188,37 +303,57 @@ const onWorkCenterClick = (workCenter: string) => {
 
 .col-date {
   width: 96px;
-  padding: 4px 8px;
+  padding: 0 8px;
   border-right: 1px solid #999;
+  line-height: 24px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .col-material {
   width: 128px;
-  padding: 4px 8px;
+  padding: 0 8px;
   border-right: 1px solid #999;
+  line-height: 24px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .col-matdesc {
-  width: 224px;
-  padding: 4px 8px;
+  flex: 1;
+  min-width: 120px;
+  padding: 0 8px;
   border-right: 1px solid #999;
+  line-height: 24px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .col-order {
   width: 96px;
-  padding: 4px 8px;
+  padding: 0 8px;
   border-right: 1px solid #999;
+  line-height: 24px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .col-workctr2 {
   width: 96px;
-  padding: 4px 8px;
+  padding: 0 8px;
   border-right: 1px solid #999;
-}
-
-.col-oper {
-  width: 80px;
-  padding: 4px 8px;
+  line-height: 24px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .center {
