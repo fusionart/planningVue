@@ -14,11 +14,11 @@
         
         <!-- Main header row (matches timeline hour header) -->
         <div class="header-row">
-          <div class="col-date">LStrtDate</div>
+          <div class="col-date">Start date</div>
           <div class="col-material">Material</div>
           <div class="col-matdesc">Material Description</div>
           <div class="col-order">Order</div>
-          <div class="col-workctr2">Work ctr</div>
+          <div class="col-workctr2">Work center</div>
         </div>
         
         <div 
@@ -160,6 +160,9 @@ const startResize = (e: MouseEvent) => {
   console.log('Start resize:', { startX, startWidth });
   
   const handleMouseMove = (moveEvent: MouseEvent) => {
+    // Prevent text selection during drag
+    moveEvent.preventDefault();
+    
     const deltaX = moveEvent.clientX - startX;
     const newWidth = Math.max(300, Math.min(1200, startWidth + deltaX));
     console.log('Resizing:', { deltaX, newWidth });
@@ -172,12 +175,16 @@ const startResize = (e: MouseEvent) => {
     document.removeEventListener('mouseup', handleMouseUp);
     document.body.style.cursor = '';
     document.body.style.userSelect = '';
+    document.body.style.pointerEvents = '';
   };
   
+  // Set body styles to prevent interference
   document.body.style.cursor = 'col-resize';
   document.body.style.userSelect = 'none';
+  document.body.style.pointerEvents = 'none';
+  
   document.addEventListener('mousemove', handleMouseMove);
-  document.addEventListener('mouseup', handleMouseUp);
+  document.addEventListener('mouseup', handleMouseUp, { once: true });
 };
 
 const onOrderClick = (orderNo: string) => {

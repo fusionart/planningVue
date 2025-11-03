@@ -92,10 +92,12 @@
         :timeline="timeline"
         :capacity-allocations="capacityAllocations"
         :scroll-left="timelineScrollLeft"
+        :data-columns-width="dataColumnsWidth"
         @navigate-prev="navigatePrev"
         @navigate-next="navigateNext"
         @work-center-click="handleWorkCenterClick"
         @timeline-scroll="handleTimelineScroll"
+        @resize-width="handleResizeWidth"
       />
 
       <DispatchedOrdersTable 
@@ -103,12 +105,14 @@
         :current-date="currentDateDisplay"
         :timeline="timeline"
         :scroll-left="timelineScrollLeft"
+        :data-columns-width="dataColumnsWidth"
         @navigate-prev="navigatePrev"
         @navigate-next="navigateNext"
         @order-click="handleOrderClick"
         @material-click="handleMaterialClick"
         @work-center-click="handleWorkCenterClick"
         @timeline-scroll="handleTimelineScroll"
+        @resize-width="handleResizeWidth"
       />
 
       <PoolOrdersTable 
@@ -116,12 +120,14 @@
         :current-date="currentDateDisplay"
         :timeline="timeline"
         :scroll-left="timelineScrollLeft"
+        :data-columns-width="dataColumnsWidth"
         @navigate-prev="navigatePrev"
         @navigate-next="navigateNext"
         @order-click="handleOrderClick"
         @material-click="handleMaterialClick"
         @work-center-click="handleWorkCenterClick"
         @timeline-scroll="handleTimelineScroll"
+        @resize-width="handleResizeWidth"
       />
     </div>
 
@@ -221,9 +227,9 @@ const handleTimelineScroll = (scrollLeft: number) => {
 }
 
 const handleResizeWidth = (width: number) => {
-  console.log('📏 Resize width:', width)
-  dataColumnsWidth.value = width
-}
+  console.log('📏 Resize width:', width);
+  dataColumnsWidth.value = width;
+};
 
 // Computed
 const hasCredentials = computed(() => {

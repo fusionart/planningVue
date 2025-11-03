@@ -14,9 +14,8 @@
         
         <!-- Main header row (matches timeline hour header) -->
         <div class="header-row">
-          <div class="col-workctr">Work ctr</div>
-          <div class="col-cap">Cap.ca</div>
-          <div class="col-desc">Wk.cntr.description</div>
+          <div class="col-workctr">Work center</div>
+          <div class="col-desc">Work center description</div>
         </div>
         
         <div 
@@ -27,7 +26,6 @@
           <div class="col-workctr link" @click="onWorkCenterClick(wc.id)">
             {{ wc.id }}
           </div>
-          <div class="col-cap center">{{ wc.capacityCategory }}</div>
           <div class="col-desc">{{ wc.description }}</div>
         </div>
         
@@ -177,6 +175,9 @@ const startResize = (e: MouseEvent) => {
   console.log('Start resize:', { startX, startWidth });
   
   const handleMouseMove = (moveEvent: MouseEvent) => {
+    // Prevent text selection during drag
+    moveEvent.preventDefault();
+    
     const deltaX = moveEvent.clientX - startX;
     const newWidth = Math.max(300, Math.min(1200, startWidth + deltaX));
     console.log('Resizing:', { deltaX, newWidth });
@@ -189,12 +190,16 @@ const startResize = (e: MouseEvent) => {
     document.removeEventListener('mouseup', handleMouseUp);
     document.body.style.cursor = '';
     document.body.style.userSelect = '';
+    document.body.style.pointerEvents = '';
   };
   
+  // Set body styles to prevent interference
   document.body.style.cursor = 'col-resize';
   document.body.style.userSelect = 'none';
+  document.body.style.pointerEvents = 'none';
+  
   document.addEventListener('mousemove', handleMouseMove);
-  document.addEventListener('mouseup', handleMouseUp);
+  document.addEventListener('mouseup', handleMouseUp, { once: true });
 };
 
 const onWorkCenterClick = (workCenterId: string) => {
@@ -303,17 +308,6 @@ const onWorkCenterClick = (workCenterId: string) => {
 
 .col-workctr {
   width: 96px;
-  padding: 0 8px;
-  border-right: 1px solid #999;
-  line-height: 24px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.col-cap {
-  width: 64px;
   padding: 0 8px;
   border-right: 1px solid #999;
   line-height: 24px;
