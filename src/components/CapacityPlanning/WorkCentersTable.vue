@@ -1,10 +1,10 @@
 <!-- WorkCentersTable.vue -->
 <template>
   <div class="section">
-    <div class="section-header">Work Centers</div>
+    <div class="section-header">Работни центрове</div>
     
     <div class="content-wrapper">
-      <!-- Left data columns - USING INLINE STYLE BINDING -->
+      <!-- Left data columns -->
       <div class="data-columns" ref="dataColumnsRef" :style="{ width: dataColumnsWidth + 'px' }">
         <!-- Empty row to match timeline date range row -->
         <div class="spacer-row date-range-spacer"></div>
@@ -14,8 +14,8 @@
         
         <!-- Main header row (matches timeline hour header) -->
         <div class="header-row">
-          <div class="col-workctr">Work center</div>
-          <div class="col-desc">Work center description</div>
+          <div class="col-workctr">Работен център</div>
+          <div class="col-desc">Описание</div>
         </div>
         
         <div 
@@ -48,11 +48,6 @@
         @scroll="handleTimelineScroll"
       />
     </div>
-
-    <div class="nav-buttons">
-      <button class="nav-btn" @click="$emit('navigate-prev')">&lt;</button>
-      <button class="nav-btn" @click="$emit('navigate-next')">&gt;</button>
-    </div>
   </div>
 </template>
 
@@ -76,9 +71,9 @@ interface TimelineSlot {
 
 interface CapacityAllocation {
   workCenterId: string;
-  startDay: number;
-  startHour: number;
-  durationHours: number;
+  startPosition: number;      // Position in pixels
+  durationMinutes: number;
+  widthPixels: number;         // Pre-calculated width
   label: string;
   description: string;
 }
@@ -129,16 +124,7 @@ const handleTimelineScroll = (scrollLeft: number) => {
   emit('timeline-scroll', scrollLeft);
 };
 
-const days = computed(() => {
-  return [...new Set(props.timeline.map(t => t.day))];
-});
-
-const getTimelinePosition = (startDay: number, startHour: number): number => {
-  const dayIndex = days.value.indexOf(startDay.toString().padStart(2, '0'));
-  if (dayIndex === -1) return 0;
-  return dayIndex * 24 + startHour;
-};
-
+// NEW: Using pixel-based positioning from parent
 const timelineRows = computed(() => {
   return props.workCenters.map(wc => {
     const allocations = props.capacityAllocations.filter(
@@ -146,12 +132,11 @@ const timelineRows = computed(() => {
     );
     
     const capacityBars = allocations.map((alloc, idx) => {
-      const position = getTimelinePosition(alloc.startDay, alloc.startHour);
       return {
         key: `${wc.id}-${idx}`,
         style: {
-          left: `${position * 20}px`,
-          width: `${alloc.durationHours * 20}px`
+          left: `${alloc.startPosition}px`,
+          width: `${alloc.widthPixels}px`
         },
         title: alloc.description,
         label: alloc.label
@@ -175,12 +160,8 @@ const startResize = (e: MouseEvent) => {
   console.log('Start resize:', { startX, startWidth });
   
   const handleMouseMove = (moveEvent: MouseEvent) => {
-    // Prevent text selection during drag
-    moveEvent.preventDefault();
-    
     const deltaX = moveEvent.clientX - startX;
     const newWidth = Math.max(300, Math.min(1200, startWidth + deltaX));
-    console.log('Resizing:', { deltaX, newWidth });
     emit('resize-width', newWidth);
   };
   
@@ -190,16 +171,12 @@ const startResize = (e: MouseEvent) => {
     document.removeEventListener('mouseup', handleMouseUp);
     document.body.style.cursor = '';
     document.body.style.userSelect = '';
-    document.body.style.pointerEvents = '';
   };
   
-  // Set body styles to prevent interference
   document.body.style.cursor = 'col-resize';
   document.body.style.userSelect = 'none';
-  document.body.style.pointerEvents = 'none';
-  
   document.addEventListener('mousemove', handleMouseMove);
-  document.addEventListener('mouseup', handleMouseUp, { once: true });
+  document.addEventListener('mouseup', handleMouseUp);
 };
 
 const onWorkCenterClick = (workCenterId: string) => {
@@ -230,10 +207,8 @@ const onWorkCenterClick = (workCenterId: string) => {
   flex-shrink: 0;
   border-right: 1px solid black;
   background: #e0e0e0;
-  /* Width is now set via inline :style binding */
 }
 
-/* Resize handle positioned at right edge */
 .resize-handle {
   position: absolute;
   top: 0;
@@ -265,7 +240,6 @@ const onWorkCenterClick = (workCenterId: string) => {
   width: 4px;
 }
 
-/* Spacer rows to align with timeline headers */
 .spacer-row {
   width: 100%;
   border-bottom: 1px solid black;

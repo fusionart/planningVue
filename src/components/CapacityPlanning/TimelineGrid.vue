@@ -12,7 +12,7 @@
           :key="`date-${t.key}`"
           v-show="idx % 24 === 0"
           class="date-cell"
-          :style="{ width: '480px' }"
+          :style="{ width: (24 * hourCellWidth) + 'px' }"
         >
           {{ formatFullDate(t.fullDate) }}
         </div>
@@ -25,6 +25,7 @@
           :key="t.key"
           class="hour-cell"
           :class="{ 'day-start': idx % 24 === 0 }"
+          :style="{ width: hourCellWidth + 'px' }"
         >
           {{ t.hour }}
         </div>
@@ -41,6 +42,7 @@
           :key="`cell-${index}-${t.key}`"
           class="timeline-cell"
           :class="{ 'day-start-cell': timeline.indexOf(t) % 24 === 0 }"
+          :style="{ width: hourCellWidth + 'px' }"
         ></div>
         
         <!-- Render capacity bars for this row -->
@@ -106,6 +108,9 @@ const emit = defineEmits<{
 
 const timelineRef = ref<HTMLElement | null>(null);
 const isScrolling = ref(false);
+
+// Use 40px per hour for better minute precision
+const hourCellWidth = 40;
 
 // Handle scroll event from this timeline
 const handleScroll = (event: Event) => {
@@ -197,7 +202,7 @@ const formatFullDate = (date?: Date): string => {
 }
 
 .hour-cell {
-  width: 20px;
+  /* Width now set via style binding */
   padding: 4px 2px;
   border-right: 1px solid black;
   text-align: center;
@@ -224,7 +229,7 @@ const formatFullDate = (date?: Date): string => {
 }
 
 .timeline-cell {
-  width: 20px;
+  /* Width now set via style binding */
   border-right: 1px dotted #999;
   height: 100%;
 }
@@ -246,5 +251,6 @@ const formatFullDate = (date?: Date): string => {
   align-items: center;
   border-right: 1px solid white;
   box-sizing: border-box;
+  min-width: 2px; /* Ensure very short orders are visible */
 }
 </style>

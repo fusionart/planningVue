@@ -1,10 +1,10 @@
 <!-- DispatchedOrdersTable.vue -->
 <template>
   <div class="section">
-    <div class="section-header">Orders (dispatched)</div>
+    <div class="section-header">Поръчки (планирани)</div>
     
     <div class="content-wrapper">
-      <!-- Left data columns - USING INLINE STYLE BINDING -->
+      <!-- Left data columns -->
       <div class="data-columns" ref="dataColumnsRef" :style="{ width: dataColumnsWidth + 'px' }">
         <!-- Empty row to match timeline date range row -->
         <div class="spacer-row date-range-spacer"></div>
@@ -14,11 +14,12 @@
         
         <!-- Main header row (matches timeline hour header) -->
         <div class="header-row">
-          <div class="col-date">Start date</div>
-          <div class="col-material">Material</div>
-          <div class="col-matdesc">Material Description</div>
-          <div class="col-order">Order</div>
-          <div class="col-workctr2">Work center</div>
+          <div class="col-date">Начална дата</div>
+          <div class="col-material">Материал</div>
+          <div class="col-matdesc">Описание</div>
+          <div class="col-order">Поръчка</div>
+          <div class="col-workctr2">Работен център</div>
+          <div class="col-quantity">Количество</div>
         </div>
         
         <div 
@@ -44,6 +45,7 @@
           <div class="col-workctr2 link" @click="onWorkCenterClick(order.workCenter)">
             {{ order.workCenter }}
           </div>
+          <div class="col-quantity">{{ formatQuantity(order.quantity) }}</div>
         </div>
         
         <!-- Resize handle -->
@@ -65,11 +67,6 @@
         @scroll="handleTimelineScroll"
       />
     </div>
-
-    <div class="nav-buttons">
-      <button class="nav-btn" @click="$emit('navigate-prev')">&lt;</button>
-      <button class="nav-btn" @click="$emit('navigate-next')">&gt;</button>
-    </div>
   </div>
 </template>
 
@@ -83,11 +80,13 @@ interface DispatchedOrder {
   materialDescription: string;
   startDate: string;
   workCenter: string;
-  startDay: number;
-  startHour: number;
-  durationHours: number;
+  startDateTime: string;
+  endDateTime: string;
+  durationMinutes: number;
+  startPosition: number;  // Position in pixels
   label: string;
   type: 'production' | 'planned';
+  quantity: number;
 }
 
 interface TimelineSlot {
@@ -140,34 +139,41 @@ const handleTimelineScroll = (scrollLeft: number) => {
   emit('timeline-scroll', scrollLeft);
 };
 
-const days = computed(() => {
-  return [...new Set(props.timeline.map(t => t.day))];
-});
-
-const getTimelinePosition = (startDay: number, startHour: number): number => {
-  const dayIndex = days.value.indexOf(startDay.toString().padStart(2, '0'));
-  if (dayIndex === -1) return 0;
-  return dayIndex * 24 + startHour;
-};
-
+// NEW: Using pixel-based positioning from parent
 const timelineRows = computed(() => {
+  const pixelsPerMinute = 40 / 60; // 40px per hour = 0.666px per minute
+  
   return props.orders.map(order => {
-    const position = getTimelinePosition(order.startDay, order.startHour);
-    
     return {
       id: order.orderNo,
       capacityBars: [{
         key: order.orderNo,
         style: {
-          left: `${position * 20}px`,
-          width: `${order.durationHours * 20}px`
+          left: `${order.startPosition}px`,
+          width: `${order.durationMinutes * pixelsPerMinute}px`
         },
-        title: order.materialDescription,
+        title: `${order.materialDescription} (${formatDuration(order.durationMinutes)})`,
         label: order.label
       }]
     };
   });
 });
+
+// Helper to format duration for display
+const formatDuration = (minutes: number): string => {
+  if (minutes < 60) {
+    return `${minutes}m`;
+  } else {
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = minutes % 60;
+    return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
+  }
+};
+
+const formatQuantity = (quantity: number): string => {
+  if (quantity === null || quantity === undefined) return '0';
+  return quantity.toLocaleString('bg-BG');
+};
 
 const startResize = (e: MouseEvent) => {
   e.preventDefault();
@@ -179,12 +185,8 @@ const startResize = (e: MouseEvent) => {
   console.log('Start resize:', { startX, startWidth });
   
   const handleMouseMove = (moveEvent: MouseEvent) => {
-    // Prevent text selection during drag
-    moveEvent.preventDefault();
-    
     const deltaX = moveEvent.clientX - startX;
     const newWidth = Math.max(300, Math.min(1200, startWidth + deltaX));
-    console.log('Resizing:', { deltaX, newWidth });
     emit('resize-width', newWidth);
   };
   
@@ -194,16 +196,12 @@ const startResize = (e: MouseEvent) => {
     document.removeEventListener('mouseup', handleMouseUp);
     document.body.style.cursor = '';
     document.body.style.userSelect = '';
-    document.body.style.pointerEvents = '';
   };
   
-  // Set body styles to prevent interference
   document.body.style.cursor = 'col-resize';
   document.body.style.userSelect = 'none';
-  document.body.style.pointerEvents = 'none';
-  
   document.addEventListener('mousemove', handleMouseMove);
-  document.addEventListener('mouseup', handleMouseUp, { once: true });
+  document.addEventListener('mouseup', handleMouseUp);
 };
 
 const onOrderClick = (orderNo: string) => {
@@ -242,10 +240,8 @@ const onWorkCenterClick = (workCenter: string) => {
   flex-shrink: 0;
   border-right: 1px solid black;
   background: #e0e0e0;
-  /* Width is now set via inline :style binding */
 }
 
-/* Resize handle positioned at right edge */
 .resize-handle {
   position: absolute;
   top: 0;
@@ -277,7 +273,6 @@ const onWorkCenterClick = (workCenter: string) => {
   width: 4px;
 }
 
-/* Spacer rows to align with timeline headers */
 .spacer-row {
   width: 100%;
   border-bottom: 1px solid black;
@@ -365,11 +360,23 @@ const onWorkCenterClick = (workCenter: string) => {
 .col-workctr2 {
   width: 96px;
   padding: 0 8px;
+  border-right: 1px solid #999;
   line-height: 24px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   flex-shrink: 0;
+}
+
+.col-quantity {
+  width: 80px;
+  padding: 0 8px;
+  line-height: 24px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 0;
+  text-align: right;
 }
 
 .link {

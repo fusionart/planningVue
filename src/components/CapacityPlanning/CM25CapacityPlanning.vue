@@ -216,7 +216,6 @@ const dispatchedOrders = ref([])
 const poolOrders = ref([])
 const capacityAllocations = ref([])
 
-
 // Scroll synchronization state
 const timelineScrollLeft = ref(0)
 const dataColumnsWidth = ref(640)
@@ -366,95 +365,53 @@ const parseInputDate = (dateString: string): Date => {
   return new Date(year, month - 1, day)
 }
 
-const extractDayFromDate = (dateString: string): number => {
-  // Parse date string like "2025-10-24" or "24.10.2025"
-  let day: number
-  
-  if (dateString.includes('-')) {
-    day = parseInt(dateString.split('-')[2], 10)
-  } else if (dateString.includes('.')) {
-    day = parseInt(dateString.split('.')[0], 10)
-  } else {
-    day = 1
-  }
-  
-  return day
-}
-
-const calculateDurationHours = (startTime: string, endTime: string): number => {
-  // Simple calculation - can be enhanced
-  const start = new Date(`2000-01-01T${startTime}`)
-  const end = new Date(`2000-01-01T${endTime}`)
+// Calculate exact duration in minutes
+const calculateExactDurationMinutes = (startDateTime: string, endDateTime: string): number => {
+  const start = new Date(startDateTime)
+  const end = new Date(endDateTime)
   const diffMs = end.getTime() - start.getTime()
-  return Math.round(diffMs / (1000 * 60 * 60))
+  return Math.round(diffMs / (1000 * 60)) // Convert to minutes
 }
 
-const transformProductionOrdersToCapacityData = (orders: ProductionOrderDto[]) => {
-  // Transform to dispatched orders - these are scheduled orders (orderIsScheduled = true)
-  dispatchedOrders.value = orders
-    .filter(order => order.orderIsScheduled)
-    .map(order => {
-      const startDay = extractDayFromDate(order.mfgOrderScheduledStartDate)
-      const startHour = parseInt(order.mfgOrderScheduledStartTime.split(':')[0], 10)
-      const endHour = parseInt(order.mfgOrderScheduledEndTime.split(':')[0], 10)
-      const durationHours = endHour - startHour || 1
-      
-      return {
-        orderNo: order.productionOrder,
-        material: order.material,
-        materialDescription: order.materialDescription,
-        startDate: order.mfgOrderScheduledStartDate,
-        workCenter: order.workCenter,
-        startDay,
-        startHour,
-        durationHours,
-        label: order.material.substring(0, 15),
-        type: 'production' // Add type identifier
-      }
-    })
-
-  // Build capacity allocations
-  capacityAllocations.value = dispatchedOrders.value.map(order => ({
-    workCenterId: order.workCenter,
-    startDay: order.startDay,
-    startHour: order.startHour,
-    durationHours: order.durationHours,
-    label: order.label,
-    description: order.materialDescription
-  }))
-
-  // Pool orders - orders not yet scheduled (orderIsScheduled = false)
-  poolOrders.value = orders
-    .filter(order => !order.orderIsScheduled)
-    .map(order => ({
-      orderNo: order.productionOrder,
-      material: order.material,
-      materialDescription: order.materialDescription,
-      startDate: order.mfgOrderScheduledStartDate || 'N/A',
-      workCenter: order.workCenter || 'N/A',
-      operations: 1,
-      highlighted: false,
-      type: 'production' // Add type identifier
-    }))
+// Convert time to timeline position (in pixels)
+const getTimelinePosition = (dateTime: string, timelineStart: Date): number => {
+  const date = new Date(dateTime)
+  const diffMs = date.getTime() - timelineStart.getTime()
+  const diffMinutes = diffMs / (1000 * 60)
   
-  console.log('📊 Data transformation complete:', {
-    totalOrders: orders.length,
-    dispatchedOrders: dispatchedOrders.value.length,
-    poolOrders: poolOrders.value.length,
-    workCenters: workCenters.value.length
-  })
+  // Convert minutes to pixels (40px per hour = 0.666px per minute)
+  return (diffMinutes * 40) / 60
 }
 
-// NEW: Transform both production orders and planned orders
+// Helper function to format duration for display
+const formatDuration = (minutes: number): string => {
+  if (minutes < 60) {
+    return `${minutes}m`
+  } else {
+    const hours = Math.floor(minutes / 60)
+    const remainingMinutes = minutes % 60
+    return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`
+  }
+}
+
+// Transform both production orders and planned orders with minute precision
 const transformAllOrdersToCapacityData = (prodOrders: ProductionOrderDto[], plannedOrders: PlannedOrderDto[]) => {
+  const hourCellWidth = 40 // pixels per hour
+  const pixelsPerMinute = hourCellWidth / 60
+  
+  // Get the start of the timeline range
+  const timelineStart = parseInputDate(dateFromInput.value)
+  
   // Transform production orders - scheduled ones (orderIsScheduled = true)
   const dispatchedProdOrders = prodOrders
     .filter(order => order.orderIsScheduled)
     .map(order => {
-      const startDay = extractDayFromDate(order.mfgOrderScheduledStartDate)
-      const startHour = parseInt(order.mfgOrderScheduledStartTime.split(':')[0], 10)
-      const endHour = parseInt(order.mfgOrderScheduledEndTime.split(':')[0], 10)
-      const durationHours = endHour - startHour || 1
+      // Create full datetime strings
+      const startDateTime = `${order.mfgOrderScheduledStartDate}T${order.mfgOrderScheduledStartTime}`
+      const endDateTime = `${order.mfgOrderScheduledEndDate || order.mfgOrderScheduledStartDate}T${order.mfgOrderScheduledEndTime}`
+      
+      const durationMinutes = calculateExactDurationMinutes(startDateTime, endDateTime)
+      const startPosition = getTimelinePosition(startDateTime, timelineStart)
       
       return {
         orderNo: order.productionOrder,
@@ -462,11 +419,13 @@ const transformAllOrdersToCapacityData = (prodOrders: ProductionOrderDto[], plan
         materialDescription: order.materialDescription,
         startDate: order.mfgOrderScheduledStartDate,
         workCenter: order.workCenter,
-        startDay,
-        startHour,
-        durationHours,
+        startDateTime: startDateTime,
+        endDateTime: endDateTime,
+        durationMinutes: durationMinutes,
+        startPosition: startPosition,
         label: order.material.substring(0, 15),
-        type: 'production' // Production order
+        type: 'production',
+        quantity: order.totalQuantity
       }
     })
 
@@ -474,22 +433,25 @@ const transformAllOrdersToCapacityData = (prodOrders: ProductionOrderDto[], plan
   const dispatchedPlannedOrders = plannedOrders
     .filter(order => order.plannedOrderCapacityIsDsptchd)
     .map(order => {
-      const startDay = extractDayFromDate(order.plndOrderPlannedStartDate)
-      const startHour = parseInt(order.plndOrderPlannedStartTime.split(':')[0], 10)
-      const endHour = parseInt(order.plndOrderPlannedEndTime.split(':')[0], 10)
-      const durationHours = endHour - startHour || 1
+      const startDateTime = `${order.plndOrderPlannedStartDate}T${order.plndOrderPlannedStartTime}`
+      const endDateTime = `${order.plndOrderPlannedEndDate || order.plndOrderPlannedStartDate}T${order.plndOrderPlannedEndTime}`
+      
+      const durationMinutes = calculateExactDurationMinutes(startDateTime, endDateTime)
+      const startPosition = getTimelinePosition(startDateTime, timelineStart)
       
       return {
         orderNo: order.plannedOrder,
         material: order.material,
-        materialDescription: order.description || order.material, // Use actual description
+        materialDescription: order.description || order.material,
         startDate: order.plndOrderPlannedStartDate,
         workCenter: order.workCenter,
-        startDay,
-        startHour,
-        durationHours,
+        startDateTime: startDateTime,
+        endDateTime: endDateTime,
+        durationMinutes: durationMinutes,
+        startPosition: startPosition,
         label: order.material.substring(0, 15),
-        type: 'planned' // Planned order
+        type: 'planned',
+        quantity: order.totalQuantity
       }
     })
 
@@ -499,9 +461,9 @@ const transformAllOrdersToCapacityData = (prodOrders: ProductionOrderDto[], plan
   // Build capacity allocations from all dispatched orders
   capacityAllocations.value = dispatchedOrders.value.map(order => ({
     workCenterId: order.workCenter,
-    startDay: order.startDay,
-    startHour: order.startHour,
-    durationHours: order.durationHours,
+    startPosition: order.startPosition,
+    durationMinutes: order.durationMinutes,
+    widthPixels: order.durationMinutes * pixelsPerMinute,
     label: order.label,
     description: order.materialDescription
   }))
@@ -517,22 +479,45 @@ const transformAllOrdersToCapacityData = (prodOrders: ProductionOrderDto[], plan
       workCenter: order.workCenter || 'N/A',
       operations: 1,
       highlighted: false,
-      type: 'production'
+      type: 'production',
+      quantity: order.totalQuantity
     }))
 
-  // Pool orders - un-dispatched planned orders
+  // Pool orders - unscheduled planned orders
   const poolPlannedOrders = plannedOrders
     .filter(order => !order.plannedOrderCapacityIsDsptchd)
-    .map(order => ({
-      orderNo: order.plannedOrder,
-      material: order.material,
-      materialDescription: order.description || order.material, // Use actual description
-      startDate: order.plndOrderPlannedStartDate || 'N/A',
-      workCenter: order.workCenter || 'N/A',
-      operations: 1,
-      highlighted: false,
-      type: 'planned'
-    }))
+    .map(order => {
+      const startDateTime = order.plndOrderPlannedStartDate && order.plndOrderPlannedStartTime 
+        ? `${order.plndOrderPlannedStartDate}T${order.plndOrderPlannedStartTime}`
+        : null
+      const endDateTime = order.plndOrderPlannedEndDate && order.plndOrderPlannedEndTime
+        ? `${order.plndOrderPlannedEndDate}T${order.plndOrderPlannedEndTime}`
+        : null
+      
+      let durationMinutes = 480 // Default 8 hours if no time data
+      let startPosition = 0
+      
+      if (startDateTime && endDateTime) {
+        durationMinutes = calculateExactDurationMinutes(startDateTime, endDateTime)
+        startPosition = getTimelinePosition(startDateTime, timelineStart)
+      }
+      
+      return {
+        orderNo: order.plannedOrder,
+        material: order.material,
+        materialDescription: order.description || order.material,
+        startDate: order.plndOrderPlannedStartDate || 'N/A',
+        workCenter: order.workCenter || 'N/A',
+        operations: 1,
+        highlighted: false,
+        type: 'planned',
+        quantity: order.totalQuantity,
+        startDateTime: startDateTime,
+        endDateTime: endDateTime,
+        durationMinutes: durationMinutes,
+        startPosition: startPosition
+      }
+    })
 
   // Combine all pool orders
   poolOrders.value = [...poolProdOrders, ...poolPlannedOrders]

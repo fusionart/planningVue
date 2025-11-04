@@ -1,7 +1,7 @@
 <!-- PoolOrdersTable.vue -->
 <template>
   <div class="section pool-section">
-    <div class="section-header">Orders (pool)</div>
+    <div class="section-header">Поръчки (не планирани)</div>
     
     <div class="content-wrapper">
       <!-- Left data columns - USING INLINE STYLE BINDING -->
@@ -14,11 +14,12 @@
         
         <!-- Main header row (matches timeline hour header) -->
         <div class="header-row">
-          <div class="col-date">Start date</div>
-          <div class="col-material">Material</div>
-          <div class="col-matdesc">Material Description</div>
-          <div class="col-order">Order</div>
-          <div class="col-workctr2">Work center</div>
+          <div class="col-date">Начална дата</div>
+          <div class="col-material">Материал</div>
+          <div class="col-matdesc">Описание</div>
+          <div class="col-order">Поръчка</div>
+          <div class="col-workctr2">Работен център</div>
+          <div class="col-quantity">Количество</div>
         </div>
         
         <div 
@@ -48,6 +49,7 @@
           <div class="col-workctr2 link" @click="onWorkCenterClick(order.workCenter)">
             {{ order.workCenter }}
           </div>
+          <div class="col-quantity">{{ formatQuantity(order.quantity) }}</div>
         </div>
         
         <!-- Resize handle -->
@@ -69,11 +71,6 @@
         @scroll="handleTimelineScroll"
       />
     </div>
-
-    <div class="nav-buttons">
-      <button class="nav-btn" @click="$emit('navigate-prev')">&lt;</button>
-      <button class="nav-btn" @click="$emit('navigate-next')">&gt;</button>
-    </div>
   </div>
 </template>
 
@@ -90,6 +87,7 @@ interface PoolOrder {
   operations: number;
   highlighted: boolean;
   type: 'production' | 'planned';
+  quantity: number;
 }
 
 interface TimelineSlot {
@@ -150,6 +148,11 @@ const timelineRows = computed(() => {
   }));
 });
 
+const formatQuantity = (quantity: number): string => {
+  if (quantity === null || quantity === undefined) return '0';
+  return quantity.toLocaleString('bg-BG');
+};
+
 const startResize = (e: MouseEvent) => {
   e.preventDefault();
   e.stopPropagation();
@@ -160,12 +163,8 @@ const startResize = (e: MouseEvent) => {
   console.log('Start resize:', { startX, startWidth });
   
   const handleMouseMove = (moveEvent: MouseEvent) => {
-    // Prevent text selection during drag
-    moveEvent.preventDefault();
-    
     const deltaX = moveEvent.clientX - startX;
     const newWidth = Math.max(300, Math.min(1200, startWidth + deltaX));
-    console.log('Resizing:', { deltaX, newWidth });
     emit('resize-width', newWidth);
   };
   
@@ -175,16 +174,12 @@ const startResize = (e: MouseEvent) => {
     document.removeEventListener('mouseup', handleMouseUp);
     document.body.style.cursor = '';
     document.body.style.userSelect = '';
-    document.body.style.pointerEvents = '';
   };
   
-  // Set body styles to prevent interference
   document.body.style.cursor = 'col-resize';
   document.body.style.userSelect = 'none';
-  document.body.style.pointerEvents = 'none';
-  
   document.addEventListener('mousemove', handleMouseMove);
-  document.addEventListener('mouseup', handleMouseUp, { once: true });
+  document.addEventListener('mouseup', handleMouseUp);
 };
 
 const onOrderClick = (orderNo: string) => {
@@ -228,10 +223,8 @@ const onWorkCenterClick = (workCenter: string) => {
   flex-shrink: 0;
   border-right: 1px solid black;
   background: #e0e0e0;
-  /* Width is now set via inline :style binding */
 }
 
-/* Resize handle positioned at right edge */
 .resize-handle {
   position: absolute;
   top: 0;
@@ -263,7 +256,6 @@ const onWorkCenterClick = (workCenter: string) => {
   width: 4px;
 }
 
-/* Spacer rows to align with timeline headers */
 .spacer-row {
   width: 100%;
   border-bottom: 1px solid black;
@@ -361,6 +353,17 @@ const onWorkCenterClick = (workCenter: string) => {
   text-overflow: ellipsis;
   white-space: nowrap;
   flex-shrink: 0;
+}
+
+.col-quantity {
+  width: 80px;
+  padding: 0 8px;
+  line-height: 24px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 0;
+  text-align: right;
 }
 
 .center {
