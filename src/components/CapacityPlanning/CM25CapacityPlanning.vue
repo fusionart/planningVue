@@ -113,6 +113,7 @@
         @work-center-click="handleWorkCenterClick"
         @timeline-scroll="handleTimelineScroll"
         @resize-width="handleResizeWidth"
+        @allocate-order="handleAllocateOrder"
       />
 
       <PoolOrdersTable 
@@ -160,6 +161,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { salesOrderService } from '@/services/salesOrderService'
 import { productionOrderService, type ProductionOrderDto, type PlannedOrderDto, type WorkCenter } from '@/services/productionOrderService'
+import { plannedOrderService } from '@/services/plannedOrderService'
 import WorkCentersTable from './WorkCentersTable.vue'
 import DispatchedOrdersTable from './DispatchedOrdersTable.vue'
 import PoolOrdersTable from './PoolOrdersTable.vue'
@@ -692,6 +694,34 @@ const handleOrderClick = (orderNo: string) => {
 const handleMaterialClick = (material: string) => {
   console.log('Material clicked:', material)
   // TODO: Show material details
+}
+
+const handleAllocateOrder = async (order: any) => {
+  console.log('🔵 STEP 5: handleAllocateOrder called in CM25CapacityPlanning')
+  console.log('   Order:', order)
+  
+  try {
+    // Call the plannedOrderService deallocatePlannedOrder method
+    const result = await plannedOrderService.deallocatePlannedOrder(
+      order.orderNo,
+      order.plndOrderPlannedStartDate,
+      order.plndOrderPlannedStartTime
+    )
+    
+    console.log('🔵 STEP 6: API call completed')
+    console.log('   Result:', result)
+    
+    if (result.success) {
+      showSuccessToast(result.message || 'Планираната поръчка беше успешно алокирана')
+      // Reload the data to reflect the changes
+      await handleLoadData()
+    } else {
+      showErrorToast(result.message || 'Грешка при алокирането на поръчката')
+    }
+  } catch (error) {
+    console.error('❌ Error in handleAllocateOrder:', error)
+    showErrorToast('Възникна грешка при алокирането на поръчката')
+  }
 }
 
 // Watch for prop changes

@@ -26,6 +26,7 @@
           v-for="order in orders"
           :key="order.orderNo"
           class="data-row"
+          @contextmenu="handleContextMenu($event, order)"
         >
           <div class="col-date">{{ order.startDate }}</div>
           <div class="col-material link" @click="onMaterialClick(order.material)">
@@ -67,12 +68,24 @@
         @scroll="handleTimelineScroll"
       />
     </div>
+
+    <!-- Context Menu -->
+    <DispatchedOrderContextMenu
+      :visible="contextMenu.visible"
+      :x="contextMenu.x"
+      :y="contextMenu.y"
+      :order="contextMenu.order"
+      @plan-order="handlePlanOrder"
+      @allocate-order="handleAllocateOrder"
+      @close="closeContextMenu"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, PropType, watch } from 'vue';
+import { computed, ref, PropType, watch, onMounted, onUnmounted } from 'vue';
 import TimelineGrid from './TimelineGrid.vue';
+import DispatchedOrderContextMenu from './DispatchedOrderContextMenu.vue';
 
 interface DispatchedOrder {
   orderNo: string;
@@ -87,6 +100,9 @@ interface DispatchedOrder {
   label: string;
   type: 'production' | 'planned';
   quantity: number;
+  // Add these fields for planned orders
+  plndOrderPlannedStartDate?: string;
+  plndOrderPlannedStartTime?: string;
 }
 
 interface TimelineSlot {
@@ -125,10 +141,20 @@ const emit = defineEmits([
   'material-click', 
   'work-center-click',
   'timeline-scroll',
-  'resize-width'
+  'resize-width',
+  'plan-order',
+  'allocate-order'
 ]);
 
 const dataColumnsRef = ref<HTMLElement | null>(null);
+
+// Context menu state
+const contextMenu = ref({
+  visible: false,
+  x: null as number | null,
+  y: null as number | null,
+  order: null as DispatchedOrder | null
+});
 
 // Watch for width changes and log them
 watch(() => props.dataColumnsWidth, (newWidth) => {
@@ -203,6 +229,111 @@ const startResize = (e: MouseEvent) => {
   document.addEventListener('mousemove', handleMouseMove);
   document.addEventListener('mouseup', handleMouseUp);
 };
+
+// Context menu handlers
+const handleContextMenu = (event: MouseEvent, order: DispatchedOrder) => {
+  event.preventDefault();
+  
+  contextMenu.value = {
+    visible: true,
+    x: event.clientX,
+    y: event.clientY,
+    order: order
+  };
+};
+
+const closeContextMenu = () => {
+  contextMenu.value = {
+    visible: false,
+    x: null,
+    y: null,
+    order: null
+  };
+};
+
+const handlePlanOrder = (order: DispatchedOrder) => {
+  console.log('📅 Plan order:', order);
+  emit('plan-order', order);
+};
+
+const handleAllocateOrder = (order: DispatchedOrder) => {
+  console.log('🔴 STEP 1: handleAllocateOrder called')
+  console.log('   Order:', order)
+  console.log('   Order type:', order.type)
+  console.log('   Is planned order?', order.type === 'planned')
+  
+  // FIX: Check the order type directly instead of using isPlannedOrder
+  if (order.type !== 'planned') {
+    console.log('❌ Order is not planned, returning early')
+    return
+  }
+  
+  console.log('✅ Order is planned, proceeding...')
+  
+  // FIELD MAPPING - Use whatever fields actually exist
+  let startDate = order.startDate
+  let startTime = '00:00'
+  
+  console.log('   Available fields:', Object.keys(order))
+  console.log('   startDate:', order.startDate)
+  console.log('   startDateTime:', order.startDateTime)
+  console.log('   plndOrderPlannedStartDate:', order.plndOrderPlannedStartDate)
+  console.log('   plndOrderPlannedStartTime:', order.plndOrderPlannedStartTime)
+  
+  // Try to extract time from available fields
+  if (order.startDateTime) {
+    const timePart = order.startDateTime.split('T')[1]
+    if (timePart) {
+      startTime = timePart.substring(0, 5)
+    }
+  }
+  
+  // Use planned order specific fields if available
+  if (order.plndOrderPlannedStartDate) {
+    startDate = order.plndOrderPlannedStartDate
+  }
+  if (order.plndOrderPlannedStartTime) {
+    startTime = order.plndOrderPlannedStartTime
+  }
+  
+  console.log('🔴 STEP 2: Final values for API call:')
+  console.log('   plannedOrder:', order.orderNo)
+  console.log('   startDate:', startDate)
+  console.log('   startTime:', startTime)
+  
+  if (!startDate) {
+    console.error('❌ CRITICAL: No start date available!')
+    alert('Грешка: Липсва начална дата за поръчката')
+    return
+  }
+  
+  const orderForAllocation = {
+    ...order,
+    plndOrderPlannedStartDate: startDate,
+    plndOrderPlannedStartTime: startTime
+  }
+  
+  console.log('🔴 STEP 3: Emitting allocate-order event')
+  emit('allocate-order', orderForAllocation)
+  console.log('🔴 STEP 4: Event emitted, closing context menu')
+  emit('close')
+}
+
+// Close context menu when clicking outside
+const handleClickOutside = (event: MouseEvent) => {
+  if (contextMenu.value.visible) {
+    closeContextMenu();
+  }
+};
+
+// Add event listeners
+onMounted(() => {
+  document.addEventListener('click', handleClickOutside);
+});
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside);
+});
 
 const onOrderClick = (orderNo: string) => {
   emit('order-click', orderNo);
@@ -307,6 +438,7 @@ const onWorkCenterClick = (workCenter: string) => {
   height: 24px;
   min-height: 24px;
   align-items: center;
+  cursor: context-menu;
 }
 
 .data-row:hover {

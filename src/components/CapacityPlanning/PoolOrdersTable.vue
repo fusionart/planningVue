@@ -27,6 +27,7 @@
           :key="order.orderNo"
           class="data-row"
           :class="{ 'highlighted': order.highlighted }"
+          @contextmenu.prevent="handleContextMenu($event, order)"
         >
           <div class="col-date" :class="{ 'highlight-text': order.highlighted }">
             {{ order.startDate }}
@@ -71,12 +72,32 @@
         @scroll="handleTimelineScroll"
       />
     </div>
+
+    <!-- Context Menu -->
+    <PoolOrderContextMenu
+      :visible="contextMenuVisible"
+      :x="contextMenuX"
+      :y="contextMenuY"
+      :order="selectedOrder"
+      @plan-order="handlePlanOrder"
+      @close="closeContextMenu"
+    />
+
+    <!-- Plan Order Dialog -->
+    <PlanOrderDialog
+      v-model:visible="planOrderDialogVisible"
+      :order="selectedOrder"
+      @success="handlePlanOrderSuccess"
+      @cancel="closePlanOrderDialog"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, PropType, watch } from 'vue';
+import { computed, ref, PropType, watch, onMounted, onUnmounted } from 'vue';
 import TimelineGrid from './TimelineGrid.vue';
+import PoolOrderContextMenu from './PoolOrderContextMenu.vue';
+import PlanOrderDialog from './PlanOrderDialog.vue';
 
 interface PoolOrder {
   orderNo: string;
@@ -126,10 +147,20 @@ const emit = defineEmits([
   'material-click', 
   'work-center-click',
   'timeline-scroll',
-  'resize-width'
+  'resize-width',
+  'refresh' // NEW: Add refresh event
 ]);
 
 const dataColumnsRef = ref<HTMLElement | null>(null);
+
+// Context Menu state
+const contextMenuVisible = ref(false);
+const contextMenuX = ref<number | null>(null);
+const contextMenuY = ref<number | null>(null);
+const selectedOrder = ref<PoolOrder | null>(null);
+
+// Plan Order Dialog state
+const planOrderDialogVisible = ref(false);
 
 // Watch for width changes and log them
 watch(() => props.dataColumnsWidth, (newWidth) => {
@@ -191,8 +222,60 @@ const onMaterialClick = (material: string) => {
 };
 
 const onWorkCenterClick = (workCenter: string) => {
-  emit('work-center-click', 'timeline-scroll', workCenter);
+  emit('work-center-click', workCenter);
 };
+
+// Context Menu handlers
+const handleContextMenu = (event: MouseEvent, order: PoolOrder) => {
+  event.preventDefault();
+  event.stopPropagation();
+  
+  selectedOrder.value = order;
+  contextMenuX.value = event.clientX;
+  contextMenuY.value = event.clientY;
+  contextMenuVisible.value = true;
+};
+
+const closeContextMenu = () => {
+  contextMenuVisible.value = false;
+  // Don't clear selectedOrder immediately to allow for animation
+  setTimeout(() => {
+    contextMenuX.value = null;
+    contextMenuY.value = null;
+  }, 200);
+};
+
+const handlePlanOrder = (order: PoolOrder) => {
+  selectedOrder.value = order;
+  planOrderDialogVisible.value = true;
+};
+
+const closePlanOrderDialog = () => {
+  planOrderDialogVisible.value = false;
+};
+
+const handlePlanOrderSuccess = () => {
+  planOrderDialogVisible.value = false;
+  // Emit refresh event to parent to reload data
+  emit('refresh');
+};
+
+// Close context menu when clicking outside
+const handleClickOutside = (event: MouseEvent) => {
+  if (contextMenuVisible.value) {
+    closeContextMenu();
+  }
+};
+
+onMounted(() => {
+  document.addEventListener('click', handleClickOutside);
+  document.addEventListener('contextmenu', handleClickOutside);
+});
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside);
+  document.removeEventListener('contextmenu', handleClickOutside);
+});
 </script>
 
 <style scoped>
@@ -290,6 +373,7 @@ const onWorkCenterClick = (workCenter: string) => {
   height: 24px;
   min-height: 24px;
   align-items: center;
+  cursor: context-menu;
 }
 
 .data-row:hover {
