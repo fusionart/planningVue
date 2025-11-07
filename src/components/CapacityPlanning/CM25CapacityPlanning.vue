@@ -699,28 +699,49 @@ const handleMaterialClick = (material: string) => {
 const handleAllocateOrder = async (order: any) => {
   console.log('🔵 STEP 5: handleAllocateOrder called in CM25CapacityPlanning')
   console.log('   Order:', order)
+  console.log('   Order type:', order.type)
   
   try {
-    // Call the plannedOrderService deallocatePlannedOrder method
-    const result = await plannedOrderService.deallocatePlannedOrder(
-      order.orderNo,
-      order.plndOrderPlannedStartDate,
-      order.plndOrderPlannedStartTime
-    )
+    let result
+    
+    // Detect order type and call appropriate API
+    if (order.type === 'production') {
+      console.log('📦 Calling productionOrderService.updateProductionOrder for production order')
+      
+      // For production orders, use mfgOrderScheduledStartDate/Time fields
+      result = await productionOrderService.updateProductionOrder(
+        order.orderNo,
+        order.mfgOrderScheduledStartDate || order.startDate,
+        order.mfgOrderScheduledStartTime || '00:00'
+      )
+    } else if (order.type === 'planned') {
+      console.log('📋 Calling plannedOrderService.deallocatePlannedOrder for planned order')
+      
+      // For planned orders, use plndOrderPlannedStartDate/Time fields
+      result = await plannedOrderService.deallocatePlannedOrder(
+        order.orderNo,
+        order.plndOrderPlannedStartDate || order.startDate,
+        order.plndOrderPlannedStartTime || '00:00'
+      )
+    } else {
+      console.error('❌ Unknown order type:', order.type)
+      showErrorToast('Непознат тип поръчка')
+      return
+    }
     
     console.log('🔵 STEP 6: API call completed')
     console.log('   Result:', result)
     
     if (result.success) {
-      showSuccessToast(result.message || 'Планираната поръчка беше успешно алокирана')
+      showSuccessToast(result.message || 'Поръчката беше успешно премахната от плана')
       // Reload the data to reflect the changes
       await handleLoadData()
     } else {
-      showErrorToast(result.message || 'Грешка при алокирането на поръчката')
+      showErrorToast(result.message || 'Грешка при премахването на поръчката от плана')
     }
   } catch (error) {
     console.error('❌ Error in handleAllocateOrder:', error)
-    showErrorToast('Възникна грешка при алокирането на поръчката')
+    showErrorToast('Възникна грешка при премахването на поръчката от плана')
   }
 }
 

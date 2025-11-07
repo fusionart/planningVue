@@ -124,11 +124,11 @@ class ProductionOrderService {
    * Create LocalDateTime string from date and time strings
    */
   private createLocalDateTime(dateStr: string, timeStr: string): string {
-    // dateStr format: YYYY-MM-DD
-    // timeStr format: HH:mm
-    const timeParts = timeStr.split(':')
+    // Ensure timeStr is a string and handle different formats
+    const timeString = String(timeStr || '00:00')
+    const timeParts = timeString.split(':')
     const hours = timeParts[0].padStart(2, '0')
-    const minutes = timeParts[1].padStart(2, '0')
+    const minutes = timeParts[1] ? timeParts[1].padStart(2, '0') : '00'
     
     return `${dateStr}T${hours}:${minutes}:00`
   }
@@ -709,22 +709,113 @@ class ProductionOrderService {
   }
 
   /**
-   * Update production order with scheduled start date/time
+   * Update production order with scheduled start date/time and schedule flag
    */
   async updateProductionOrder(
+  productionOrder: string,
+  scheduledStartDate: string,
+  scheduledStartTime: string,
+  schedule: boolean = true
+): Promise<ProductionOrderUpdateResponse> {
+  try {
+    // Get credentials
+    const credentials = this.getCredentials()
+
+    if (isFeatureEnabled('DEBUG_MODE')) {
+      console.log('🔄 Updating production order:', {
+        productionOrder,
+        scheduledStartDate,
+        scheduledStartTime,
+        schedule,
+        hasCredentials: !!(credentials.username && credentials.password)
+      })
+    }
+
+    // Ensure credentials are not empty
+    if (!credentials.username || !credentials.password) {
+      throw new Error('Username or password is empty')
+    }
+
+    // Validate and ensure time is a string
+    const timeStr = String(scheduledStartTime || '00:00')
+
+    // Build query string with proper parameter separation
+    const queryString = new URLSearchParams({
+      username: btoa(credentials.username),
+      password: btoa(credentials.password),
+      productionOrder: productionOrder,
+      scheduledStartDateTime: scheduledStartDate,
+      schedule: schedule.toString()
+    }).toString()
+
+    const url = `${this.endpoint}/updateProductionOrder?${queryString}`
+
+    if (isFeatureEnabled('DEBUG_MODE')) {
+      console.log('🔄 Calling updateProductionOrder API:', {
+        url: url.replace(/password=[^&]+/, 'password=[HIDDEN]'),
+        scheduledStartDate,
+        schedule
+      })
+    }
+
+    // Call the endpoint using POST with query string in URL
+    const response = await apiClient.post<any>(url, null)
+
+    if (isFeatureEnabled('DEBUG_MODE')) {
+      console.log('✅ Production order updated successfully:', {
+        productionOrder,
+        scheduledStartDateTime,
+        schedule,
+        response
+      })
+    }
+
+    return {
+      success: true,
+      message: `Производствената поръчка ${productionOrder} беше успешно актуализирана с начална дата ${scheduledStartDate} ${timeStr}`
+    }
+
+  } catch (error) {
+    console.error('❌ Failed to update production order:', error)
+    
+    let errorMessage = 'Възникна неочаквана грешка при актуализацията'
+    
+    if (error instanceof Error) {
+      errorMessage = error.message
+    } else if (typeof error === 'object' && error !== null) {
+      // Handle API error responses
+      const apiError = error as any
+      if (apiError.response?.data?.message) {
+        errorMessage = apiError.response.data.message
+      } else if (apiError.response?.data) {
+        errorMessage = JSON.stringify(apiError.response.data)
+      } else if (apiError.message) {
+        errorMessage = apiError.message
+      }
+    }
+
+    return {
+      success: false,
+      message: `Неуспешна актуализация на производствена поръчка ${productionOrder}: ${errorMessage}`
+    }
+  }
+}
+
+  /**
+   * Update production version for a production order
+   */
+  async updateProductionVersion(
     productionOrder: string,
-    scheduledStartDate: string,
-    scheduledStartTime: string
-  ): Promise<ProductionOrderUpdateResponse> {
+    productionVersion: string
+  ): Promise<ProductionVersionUpdateResponse> {
     try {
       // Get credentials
       const credentials = this.getCredentials()
 
       if (isFeatureEnabled('DEBUG_MODE')) {
-        console.log('🔄 Updating production order:', {
+        console.log('🔧 Updating production version for production order:', {
           productionOrder,
-          scheduledStartDate,
-          scheduledStartTime,
+          productionVersion,
           hasCredentials: !!(credentials.username && credentials.password)
         })
       }
@@ -734,14 +825,11 @@ class ProductionOrderService {
         throw new Error('Username or password is empty')
       }
 
-      // Create LocalDateTime string from date and time
-      const scheduledStartDateTime = this.createLocalDateTime(scheduledStartDate, scheduledStartTime)
-
       const params = {
-        username: btoa(credentials.username), // Base64 encode for backend
-        password: btoa(credentials.password), // Base64 encode for backend
+        username: btoa(credentials.username),
+        password: btoa(credentials.password),
         productionOrder,
-        scheduledStartDateTime
+        productionVersion
       }
 
       // Build query string manually
@@ -749,15 +837,16 @@ class ProductionOrderService {
         username: params.username,
         password: params.password,
         productionOrder: params.productionOrder,
-        scheduledStartDateTime: params.scheduledStartDateTime
+        productionVersion: params.productionVersion
       }).toString()
 
-      const url = `${this.endpoint}/updateProductionOrder?${queryString}`
+      const url = `${this.endpoint}/updateProductionVersion?${queryString}`
 
       if (isFeatureEnabled('DEBUG_MODE')) {
-        console.log('🔄 Calling updateProductionOrder API:', {
+        console.log('🔧 Calling updateProductionVersion API:', {
           url: url.replace(/password=[^&]+/, 'password=[HIDDEN]'),
-          scheduledStartDateTime
+          productionOrder,
+          productionVersion
         })
       }
 
@@ -765,22 +854,22 @@ class ProductionOrderService {
       const response = await apiClient.post<any>(url, null)
 
       if (isFeatureEnabled('DEBUG_MODE')) {
-        console.log('✅ Production order updated successfully:', {
+        console.log('✅ Production version updated successfully:', {
           productionOrder,
-          scheduledStartDateTime,
+          productionVersion,
           response
         })
       }
 
       return {
         success: true,
-        message: `Производствената поръчка ${productionOrder} беше успешно актуализирана с начална дата ${scheduledStartDate} ${scheduledStartTime}`
+        message: `Производствената версия за поръчка ${productionOrder} беше успешно актуализирана на ${productionVersion}`
       }
 
     } catch (error) {
-      console.error('❌ Failed to update production order:', error)
+      console.error('❌ Failed to update production version:', error)
       
-      let errorMessage = 'Възникна неочаквана грешка при актуализацията'
+      let errorMessage = 'Възникна неочаквана грешка при актуализацията на версията'
       
       if (error instanceof Error) {
         errorMessage = error.message
@@ -798,7 +887,98 @@ class ProductionOrderService {
 
       return {
         success: false,
-        message: `Неуспешна актуализация на производствена поръчка ${productionOrder}: ${errorMessage}`
+        message: `Неуспешна актуализация на версията за поръчка ${productionOrder}: ${errorMessage}`
+      }
+    }
+  }
+
+  /**
+   * Update production order quantity
+   */
+  async updateProductionOrderQuantity(
+    productionOrder: string,
+    quantity: string
+  ): Promise<ProductionOrderUpdateResponse> {
+    try {
+      // Get credentials
+      const credentials = this.getCredentials()
+
+      if (isFeatureEnabled('DEBUG_MODE')) {
+        console.log('📦 Updating production order quantity:', {
+          productionOrder,
+          quantity,
+          hasCredentials: !!(credentials.username && credentials.password)
+        })
+      }
+
+      // Ensure credentials are not empty
+      if (!credentials.username || !credentials.password) {
+        throw new Error('Username or password is empty')
+      }
+
+      const params = {
+        username: btoa(credentials.username),
+        password: btoa(credentials.password),
+        productionOrderOrder: productionOrder, // Note: parameter name is productionOrderOrder
+        quantity
+      }
+
+      // Build query string manually
+      const queryString = new URLSearchParams({
+        username: params.username,
+        password: params.password,
+        productionOrderOrder: params.productionOrderOrder,
+        quantity: params.quantity
+      }).toString()
+
+      const url = `${this.endpoint}/updateProductionOrderQuantity?${queryString}`
+
+      if (isFeatureEnabled('DEBUG_MODE')) {
+        console.log('📦 Calling updateProductionOrderQuantity API:', {
+          url: url.replace(/password=[^&]+/, 'password=[HIDDEN]'),
+          productionOrder,
+          quantity
+        })
+      }
+
+      // Call the endpoint using POST with query string in URL
+      const response = await apiClient.post<any>(url, null)
+
+      if (isFeatureEnabled('DEBUG_MODE')) {
+        console.log('✅ Production order quantity updated successfully:', {
+          productionOrder,
+          quantity,
+          response
+        })
+      }
+
+      return {
+        success: true,
+        message: `Количеството за поръчка ${productionOrder} беше успешно актуализирано на ${quantity}`
+      }
+
+    } catch (error) {
+      console.error('❌ Failed to update production order quantity:', error)
+      
+      let errorMessage = 'Възникна неочаквана грешка при актуализацията на количеството'
+      
+      if (error instanceof Error) {
+        errorMessage = error.message
+      } else if (typeof error === 'object' && error !== null) {
+        // Handle API error responses
+        const apiError = error as any
+        if (apiError.response?.data?.message) {
+          errorMessage = apiError.response.data.message
+        } else if (apiError.response?.data) {
+          errorMessage = JSON.stringify(apiError.response.data)
+        } else if (apiError.message) {
+          errorMessage = apiError.message
+        }
+      }
+
+      return {
+        success: false,
+        message: `Неуспешна актуализация на количеството за поръчка ${productionOrder}: ${errorMessage}`
       }
     }
   }
@@ -897,7 +1077,7 @@ class ProductionOrderService {
   /**
    * Update production version for a manufacturing order
    */
-  async updateProductionVersion(
+  async updateProductionVersionForManufacturingOrder(
     manufacturingOrder: string,
     productionVersion: string
   ): Promise<ProductionVersionUpdateResponse> {
@@ -981,6 +1161,71 @@ class ProductionOrderService {
       return {
         success: false,
         message: `Неуспешна актуализация на версията за поръчка ${manufacturingOrder}: ${errorMessage}`
+      }
+    }
+  }
+
+  /**
+   * Update production order scheduling status (to remove from plan)
+   * Sets schedule = false to unschedule the production order
+   */
+  async unscheduleProductionOrder(
+    productionOrder: string,
+    scheduledStartDate: string,
+    scheduledStartTime: string
+  ): Promise<ProductionOrderUpdateResponse> {
+    try {
+      const credentials = this.getCredentials()
+
+      if (!credentials.username || !credentials.password) {
+        throw new Error('Липсват креденциали за вход')
+      }
+
+      // Validate and ensure time is a string
+      const timeStr = String(scheduledStartTime || '00:00')
+
+      // Combine date and time for scheduledStartDateTime
+      const scheduledStartDateTime = this.createLocalDateTime(
+        scheduledStartDate,
+        timeStr
+      )
+
+      // Build query string with proper parameter separation - matching updateProductionOrder pattern
+      const queryString = new URLSearchParams({
+        username: btoa(credentials.username),
+        password: btoa(credentials.password),
+        productionOrder: productionOrder,
+        scheduledStartDateTime: scheduledStartDateTime,
+        schedule: 'false' // Set to false to unschedule/remove from plan
+      }).toString()
+      const url = `${this.endpoint}/updateProductionOrder?${queryString}`
+
+      console.log('📄 Calling updateProductionOrder with URL:', url.replace(/password=[^&]+/, 'password=[HIDDEN]'))
+      console.log('📅 Scheduled Start DateTime:', scheduledStartDateTime)
+      console.log('📦 Schedule flag:', false)
+
+      // Use the same POST call pattern
+      const response = await apiClient.post<any>(url, null)
+
+      console.log('✅ Production order update successful, response:', response)
+
+      return {
+        success: true,
+        message: `Производствената поръчка ${productionOrder} беше успешно премахната от плана`
+      }
+
+    } catch (error) {
+      console.error('❌ Failed to update production order:', error)
+      
+      let errorMessage = 'Възникна неочаквана грешка при актуализацията'
+      
+      if (error instanceof Error) {
+        errorMessage = error.message
+      }
+
+      return {
+        success: false,
+        message: `Неуспешна актуализация на поръчка ${productionOrder}: ${errorMessage}`
       }
     }
   }

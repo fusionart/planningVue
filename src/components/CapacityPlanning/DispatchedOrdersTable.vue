@@ -100,9 +100,12 @@ interface DispatchedOrder {
   label: string;
   type: 'production' | 'planned';
   quantity: number;
-  // Add these fields for planned orders
+  // Planned order fields
   plndOrderPlannedStartDate?: string;
   plndOrderPlannedStartTime?: string;
+  // Production order fields
+  mfgOrderScheduledStartDate?: string;
+  mfgOrderScheduledStartTime?: string;
 }
 
 interface TimelineSlot {
@@ -260,21 +263,63 @@ const handleAllocateOrder = (order: DispatchedOrder) => {
   console.log('🔴 STEP 1: handleAllocateOrder called')
   console.log('   Order:', order)
   console.log('   Order type:', order.type)
-  console.log('   Is planned order?', order.type === 'planned')
   
-  // FIX: Check the order type directly instead of using isPlannedOrder
-  if (order.type !== 'planned') {
-    console.log('❌ Order is not planned, returning early')
+  // Check if order is either planned or production
+  if (order.type !== 'planned' && order.type !== 'production') {
+    console.log('❌ Order is neither planned nor production, returning early')
     return
   }
   
-  console.log('✅ Order is planned, proceeding...')
+  console.log('✅ Order is valid type, proceeding...')
+  console.log('   Available fields:', Object.keys(order))
   
-  // FIELD MAPPING - Use whatever fields actually exist
+  // For PRODUCTION orders, we need different field handling
+  if (order.type === 'production') {
+    console.log('📦 Handling PRODUCTION order')
+    
+    let startDate = order.startDate
+    let startTime = '00:00'
+    
+    console.log('   startDate:', order.startDate)
+    console.log('   startDateTime:', order.startDateTime)
+    
+    // Try to extract time from startDateTime
+    if (order.startDateTime) {
+      const timePart = order.startDateTime.split('T')[1]
+      if (timePart) {
+        startTime = timePart.substring(0, 5)
+      }
+    }
+    
+    console.log('🔴 STEP 2: Final values for Production Order API call:')
+    console.log('   productionOrder:', order.orderNo)
+    console.log('   startDate:', startDate)
+    console.log('   startTime:', startTime)
+    
+    if (!startDate) {
+      console.error('❌ CRITICAL: No start date available!')
+      alert('Грешка: Липсва начална дата за поръчката')
+      return
+    }
+    
+    const orderForAllocation = {
+      ...order,
+      mfgOrderScheduledStartDate: startDate,
+      mfgOrderScheduledStartTime: startTime
+    }
+    
+    console.log('🔴 STEP 3: Emitting allocate-order event for production order')
+    emit('allocate-order', orderForAllocation)
+    console.log('🔴 STEP 4: Event emitted')
+    return
+  }
+  
+  // For PLANNED orders, use existing logic
+  console.log('📋 Handling PLANNED order')
+  
   let startDate = order.startDate
   let startTime = '00:00'
   
-  console.log('   Available fields:', Object.keys(order))
   console.log('   startDate:', order.startDate)
   console.log('   startDateTime:', order.startDateTime)
   console.log('   plndOrderPlannedStartDate:', order.plndOrderPlannedStartDate)
@@ -296,7 +341,7 @@ const handleAllocateOrder = (order: DispatchedOrder) => {
     startTime = order.plndOrderPlannedStartTime
   }
   
-  console.log('🔴 STEP 2: Final values for API call:')
+  console.log('🔴 STEP 2: Final values for Planned Order API call:')
   console.log('   plannedOrder:', order.orderNo)
   console.log('   startDate:', startDate)
   console.log('   startTime:', startTime)
@@ -313,10 +358,9 @@ const handleAllocateOrder = (order: DispatchedOrder) => {
     plndOrderPlannedStartTime: startTime
   }
   
-  console.log('🔴 STEP 3: Emitting allocate-order event')
+  console.log('🔴 STEP 3: Emitting allocate-order event for planned order')
   emit('allocate-order', orderForAllocation)
-  console.log('🔴 STEP 4: Event emitted, closing context menu')
-  emit('close')
+  console.log('🔴 STEP 4: Event emitted')
 }
 
 // Close context menu when clicking outside

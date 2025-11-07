@@ -8,13 +8,13 @@
   > 
     <div 
       class="context-menu-item"
-      :class="{ 'context-menu-item-disabled': !isPlannedOrder }"
+      :class="{ 'context-menu-item-disabled': !isPlannedOrder && !isProductionOrder }"
       @click="handleAllocateOrder"
     >
       <span class="context-menu-icon">🔄</span>
-      <span class="context-menu-text">Премахни от плана</span>
-      <span v-if="!isPlannedOrder" class="context-menu-hint">
-        (Само за планови поръчки)
+      <span class="context-menu-text">{{ menuText }}</span>
+      <span v-if="menuHint" class="context-menu-hint">
+        {{ menuHint }}
       </span>
     </div>
   </div>
@@ -42,6 +42,26 @@ const isPlannedOrder = computed(() => {
   return props.order?.type === 'planned'
 })
 
+const isProductionOrder = computed(() => {
+  return props.order?.type === 'production'
+})
+
+const menuText = computed(() => {
+  if (isPlannedOrder.value) {
+    return 'Премахни от плана'
+  } else if (isProductionOrder.value) {
+    return 'Премахни от плана'
+  }
+  return 'Премахни от плана'
+})
+
+const menuHint = computed(() => {
+  if (!isPlannedOrder.value && !isProductionOrder.value) {
+    return '(Само за планирани поръчки)'
+  }
+  return ''
+})
+
 const handlePlanOrder = () => {
   if (!isPlannedOrder.value) {
     return
@@ -51,7 +71,8 @@ const handlePlanOrder = () => {
 }
 
 const handleAllocateOrder = () => {
-  if (!isPlannedOrder.value) {
+  // Allow both planned and production orders
+  if (!isPlannedOrder.value && !isProductionOrder.value) {
     return
   }
   emit('allocate-order', props.order)

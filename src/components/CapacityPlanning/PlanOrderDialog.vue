@@ -1,4 +1,3 @@
-<!-- PlanOrderDialog.vue -->
 <template>
   <div 
     v-if="visible" 
@@ -9,7 +8,7 @@
       <div class="dialog-header">
         <h3 class="dialog-title">
           <span class="dialog-icon">📅</span>
-          Планиране на поръчка
+          {{ isPlannedOrder ? 'Планиране на поръчка' : 'Актуализиране и планиране на поръчка' }}
         </h3>
         <button 
           class="dialog-close-btn"
@@ -24,6 +23,10 @@
       <div class="dialog-body">
         <!-- Order Information (Read-only except quantity) -->
         <div class="info-section">
+          <div class="info-row">
+            <span class="info-label">Тип поръчка:</span>
+            <span class="info-value">{{ isPlannedOrder ? 'Планова поръчка' : 'Производствена поръчка' }}</span>
+          </div>
           <div class="info-row">
             <span class="info-label">Поръчка:</span>
             <span class="info-value">{{ order?.orderNo || '-' }}</span>
@@ -46,7 +49,7 @@
           </div>
         </div>
 
-        <!-- Production Version Dropdown -->
+        <!-- Production Version Dropdown (for both order types) -->
         <div class="input-section">
           <label class="input-label" for="productionVersion">
             Производствена версия <span class="required-asterisk">*</span>
@@ -176,23 +179,55 @@
 
         <!-- Status Section -->
         <div v-if="planStatus" class="status-section">
-          <div class="status-step" :class="{ 'status-active': planStatus === 'updating' }">
-            <span class="status-icon">
-              <span v-if="planStatus === 'updating'" class="loading-spinner-small"></span>
-              <span v-else-if="['updated', 'dispatching', 'completed'].includes(planStatus)">✓</span>
-              <span v-else>1</span>
-            </span>
-            <span class="status-text">Актуализиране на детайли</span>
-          </div>
-          <div class="status-divider"></div>
-          <div class="status-step" :class="{ 'status-active': planStatus === 'dispatching' }">
-            <span class="status-icon">
-              <span v-if="planStatus === 'dispatching'" class="loading-spinner-small"></span>
-              <span v-else-if="planStatus === 'completed'">✓</span>
-              <span v-else>2</span>
-            </span>
-            <span class="status-text">Диспечиране на поръчка</span>
-          </div>
+          <template v-if="isPlannedOrder">
+            <!-- Planned Order Status Steps -->
+            <div class="status-step" :class="{ 'status-active': planStatus === 'updating' }">
+              <span class="status-icon">
+                <span v-if="planStatus === 'updating'" class="loading-spinner-small"></span>
+                <span v-else-if="['updated', 'dispatching', 'completed'].includes(planStatus)">✓</span>
+                <span v-else>1</span>
+              </span>
+              <span class="status-text">Актуализиране на детайли</span>
+            </div>
+            <div class="status-divider"></div>
+            <div class="status-step" :class="{ 'status-active': planStatus === 'dispatching' }">
+              <span class="status-icon">
+                <span v-if="planStatus === 'dispatching'" class="loading-spinner-small"></span>
+                <span v-else-if="planStatus === 'completed'">✓</span>
+                <span v-else>2</span>
+              </span>
+              <span class="status-text">Диспечиране на поръчка</span>
+            </div>
+          </template>
+          <template v-else>
+            <!-- Production Order Status Steps -->
+            <div class="status-step" :class="{ 'status-active': planStatus === 'updatingVersion' }">
+              <span class="status-icon">
+                <span v-if="planStatus === 'updatingVersion'" class="loading-spinner-small"></span>
+                <span v-else-if="['versionUpdated', 'updatingQuantity', 'scheduling', 'completed'].includes(planStatus)">✓</span>
+                <span v-else>1</span>
+              </span>
+              <span class="status-text">Актуализиране на версия</span>
+            </div>
+            <div class="status-divider"></div>
+            <div class="status-step" :class="{ 'status-active': planStatus === 'updatingQuantity' }">
+              <span class="status-icon">
+                <span v-if="planStatus === 'updatingQuantity'" class="loading-spinner-small"></span>
+                <span v-else-if="['quantityUpdated', 'scheduling', 'completed'].includes(planStatus)">✓</span>
+                <span v-else>2</span>
+              </span>
+              <span class="status-text">Актуализиране на количество</span>
+            </div>
+            <div class="status-divider"></div>
+            <div class="status-step" :class="{ 'status-active': planStatus === 'scheduling' }">
+              <span class="status-icon">
+                <span v-if="planStatus === 'scheduling'" class="loading-spinner-small"></span>
+                <span v-else-if="planStatus === 'completed'">✓</span>
+                <span v-else>3</span>
+              </span>
+              <span class="status-text">Планиране на поръчка</span>
+            </div>
+          </template>
         </div>
 
         <div v-if="successMessage" class="success-section">
@@ -210,7 +245,7 @@
           <div class="error-alert">
             <span class="error-icon">⚠️</span>
             <div class="error-content">
-              <div class="error-title">Грешка при планирането</div>
+              <div class="error-title">Грешка при {{ isPlannedOrder ? 'планирането' : 'актуализацията' }}</div>
               <div class="error-details">{{ errorMessage }}</div>
             </div>
           </div>
@@ -233,7 +268,7 @@
         >
           <span v-if="isProcessing" class="loading-spinner"></span>
           <span v-if="isProcessing">{{ planStatusText }}</span>
-          <span v-else>Планирай</span>
+          <span v-else>{{ isPlannedOrder ? 'Планирай' : 'Актуализирай и планирай' }}</span>
         </button>
       </div>
     </div>
@@ -283,15 +318,17 @@ const isProcessing = ref(false)
 const showValidation = ref(false)
 const errorMessage = ref('')
 const successMessage = ref('')
-const planStatus = ref<'' | 'updating' | 'updated' | 'dispatching' | 'completed'>('')
+const planStatus = ref<'' | 'updating' | 'updated' | 'dispatching' | 'completed' | 'updatingVersion' | 'versionUpdated' | 'updatingQuantity' | 'quantityUpdated' | 'scheduling'>('')
 
-// Computed - Convert plant name to plant number (same logic as PlannedOrderConversionDialog)
+// Computed
+const isPlannedOrder = computed(() => {
+  return props.order?.type === 'planned'
+})
+
 const convertedPlantNumber = computed(() => {
-  // Convert plant name to plant number: "Start" -> 1100, anything else -> 1000
   return props.plant?.toLowerCase() === 'start' ? '1100' : '1000'
 })
 
-// Computed
 const isFormValid = computed(() => {
   return opLtstSchedldProcgStrtDte.value !== '' &&
          opLtstSchedldProcgStrtTme.value !== '' &&
@@ -302,21 +339,40 @@ const isFormValid = computed(() => {
 })
 
 const planStatusText = computed(() => {
-  switch (planStatus.value) {
-    case 'updating':
-      return 'Актуализиране...'
-    case 'updated':
-      return 'Актуализирането завърши ✓'
-    case 'dispatching':
-      return 'Диспечиране...'
-    case 'completed':
-      return 'Завършено ✓'
-    default:
-      return 'Планиране...'
+  if (isPlannedOrder.value) {
+    switch (planStatus.value) {
+      case 'updating':
+        return 'Актуализиране...'
+      case 'updated':
+        return 'Актуализирането завърши ✓'
+      case 'dispatching':
+        return 'Диспечиране...'
+      case 'completed':
+        return 'Завършено ✓'
+      default:
+        return 'Планиране...'
+    }
+  } else {
+    switch (planStatus.value) {
+      case 'updatingVersion':
+        return 'Актуализиране на версия...'
+      case 'versionUpdated':
+        return 'Версията актуализирана ✓'
+      case 'updatingQuantity':
+        return 'Актуализиране на количество...'
+      case 'quantityUpdated':
+        return 'Количеството актуализирано ✓'
+      case 'scheduling':
+        return 'Планиране...'
+      case 'completed':
+        return 'Завършено ✓'
+      default:
+        return 'Актуализиране...'
+    }
   }
 })
 
-// Fetch production versions (same pattern as PlannedOrderConversionDialog)
+// Fetch production versions
 const fetchProductionVersions = async () => {
   if (!props.order?.material || !convertedPlantNumber.value) {
     productionVersions.value = []
@@ -507,30 +563,35 @@ const handlePlan = async () => {
   isProcessing.value = true
   
   try {
-    // Call the combined planOrder method that handles both steps in new order (update first, then dispatch)
-    planStatus.value = 'updating'
-    
-    const result = await plannedOrderService.planOrder(
-      props.order.orderNo,
-      opLtstSchedldProcgStrtDte.value,
-      opLtstSchedldProcgStrtTme.value,
-      selectedProductionVersion.value,
-      quantity.value
-    )
-    
-    if (result.success) {
-      planStatus.value = 'completed'
-      successMessage.value = result.message || 'Успешно планиране'
+    if (isPlannedOrder.value) {
+      // Handle planned order (existing logic)
+      planStatus.value = 'updating'
       
-      await nextTick()
-      setTimeout(() => {
-        resetForm()
-        emit('success')
-        emit('update:visible', false)
-      }, 1500)
+      const result = await plannedOrderService.planOrder(
+        props.order.orderNo,
+        opLtstSchedldProcgStrtDte.value,
+        opLtstSchedldProcgStrtTme.value,
+        selectedProductionVersion.value,
+        quantity.value
+      )
+      
+      if (result.success) {
+        planStatus.value = 'completed'
+        successMessage.value = result.message || 'Успешно планиране'
+        
+        await nextTick()
+        setTimeout(() => {
+          resetForm()
+          emit('success')
+          emit('update:visible', false)
+        }, 1500)
+      } else {
+        planStatus.value = ''
+        errorMessage.value = result.message || 'Възникна грешка при планирането'
+      }
     } else {
-      planStatus.value = ''
-      errorMessage.value = result.message || 'Възникна грешка при планирането'
+      // Handle production order (new logic with 3 API calls)
+      await handleProductionOrderUpdate()
     }
   } catch (error) {
     console.error('Error planning order:', error)
@@ -540,6 +601,67 @@ const handlePlan = async () => {
       : 'Възникна неочаквана грешка'
   } finally {
     isProcessing.value = false
+  }
+}
+
+// New method for handling production order updates
+const handleProductionOrderUpdate = async () => {
+  try {
+    // Step 1: Update production version
+    planStatus.value = 'updatingVersion'
+    const versionResult = await productionOrderService.updateProductionVersion(
+      props.order.orderNo,
+      selectedProductionVersion.value
+    )
+
+    if (!versionResult.success) {
+      throw new Error(versionResult.message || 'Грешка при актуализиране на производствената версия')
+    }
+
+    planStatus.value = 'versionUpdated'
+
+    // Step 2: Update quantity
+    planStatus.value = 'updatingQuantity'
+    const quantityResult = await productionOrderService.updateProductionOrderQuantity(
+      props.order.orderNo,
+      quantity.value
+    )
+
+    if (!quantityResult.success) {
+      throw new Error(quantityResult.message || 'Грешка при актуализиране на количеството')
+    }
+
+    planStatus.value = 'quantityUpdated'
+
+    // Step 3: Schedule production order
+    planStatus.value = 'scheduling'
+    
+    // Create LocalDateTime string from date and time
+    const scheduledStartDateTime = `${opLtstSchedldProcgStrtDte.value}T${opLtstSchedldProcgStrtTme.value}:00`
+    
+    const scheduleResult = await productionOrderService.updateProductionOrder(
+      props.order.orderNo,
+      scheduledStartDateTime,
+      true // schedule = true
+    )
+
+    if (!scheduleResult.success) {
+      throw new Error(scheduleResult.message || 'Грешка при планирането на производствената поръчка')
+    }
+
+    planStatus.value = 'completed'
+    successMessage.value = `Производствената поръчка ${props.order.orderNo} беше успешно актуализирана и планирана`
+    
+    await nextTick()
+    setTimeout(() => {
+      resetForm()
+      emit('success')
+      emit('update:visible', false)
+    }, 1500)
+
+  } catch (error) {
+    console.error('Error updating production order:', error)
+    throw error
   }
 }
 
@@ -559,7 +681,7 @@ const resetForm = () => {
   planStatus.value = ''
 }
 
-// Watch for dialog visibility changes (same pattern as PlannedOrderConversionDialog)
+// Watch for dialog visibility changes
 watch(() => props.visible, async (newVal) => {
   if (newVal) {
     resetForm()
@@ -573,7 +695,7 @@ watch(() => props.visible, async (newVal) => {
   }
 })
 
-// Watch for material or plant changes and refetch versions (same pattern as PlannedOrderConversionDialog)
+// Watch for material or plant changes and refetch versions
 watch([() => props.order?.material, () => props.plant], () => {
   if (props.visible) {
     fetchProductionVersions()
