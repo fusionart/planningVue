@@ -39,6 +39,7 @@ export interface PlannedOrderDto {
   plannedOrderCapacityIsDsptchd: boolean
   workCenter: string
   etag: string
+  productionVersion: string
 }
 
 export interface ProductionVersionDto {
@@ -711,68 +712,45 @@ class ProductionOrderService {
   /**
    * Update production order with scheduled start date/time and schedule flag
    */
-  async updateProductionOrder(
+  /**
+ * Update production order with scheduled start date/time and schedule flag
+ */
+async updateProductionOrder(
   productionOrder: string,
-  scheduledStartDate: string,
-  scheduledStartTime: string,
+  scheduledStartDateTime: string,
   schedule: boolean = true
 ): Promise<ProductionOrderUpdateResponse> {
   try {
-    // Get credentials
     const credentials = this.getCredentials()
 
-    if (isFeatureEnabled('DEBUG_MODE')) {
-      console.log('🔄 Updating production order:', {
-        productionOrder,
-        scheduledStartDate,
-        scheduledStartTime,
-        schedule,
-        hasCredentials: !!(credentials.username && credentials.password)
-      })
-    }
-
-    // Ensure credentials are not empty
     if (!credentials.username || !credentials.password) {
       throw new Error('Username or password is empty')
     }
 
-    // Validate and ensure time is a string
-    const timeStr = String(scheduledStartTime || '00:00')
-
-    // Build query string with proper parameter separation
+    // Build query string
     const queryString = new URLSearchParams({
       username: btoa(credentials.username),
       password: btoa(credentials.password),
       productionOrder: productionOrder,
-      scheduledStartDateTime: scheduledStartDate,
+      scheduledStartDateTime: scheduledStartDateTime,
       schedule: schedule.toString()
     }).toString()
 
     const url = `${this.endpoint}/updateProductionOrder?${queryString}`
 
     if (isFeatureEnabled('DEBUG_MODE')) {
-      console.log('🔄 Calling updateProductionOrder API:', {
-        url: url.replace(/password=[^&]+/, 'password=[HIDDEN]'),
-        scheduledStartDate,
+      console.log('🔄 Calling updateProductionOrder:', {
+        productionOrder,
+        scheduledStartDateTime,
         schedule
       })
     }
 
-    // Call the endpoint using POST with query string in URL
     const response = await apiClient.post<any>(url, null)
-
-    if (isFeatureEnabled('DEBUG_MODE')) {
-      console.log('✅ Production order updated successfully:', {
-        productionOrder,
-        scheduledStartDateTime,
-        schedule,
-        response
-      })
-    }
 
     return {
       success: true,
-      message: `Производствената поръчка ${productionOrder} беше успешно актуализирана с начална дата ${scheduledStartDate} ${timeStr}`
+      message: `Производствената поръчка ${productionOrder} беше успешно ${schedule ? 'планирана' : 'премахната от плана'}`
     }
 
   } catch (error) {
@@ -782,16 +760,6 @@ class ProductionOrderService {
     
     if (error instanceof Error) {
       errorMessage = error.message
-    } else if (typeof error === 'object' && error !== null) {
-      // Handle API error responses
-      const apiError = error as any
-      if (apiError.response?.data?.message) {
-        errorMessage = apiError.response.data.message
-      } else if (apiError.response?.data) {
-        errorMessage = JSON.stringify(apiError.response.data)
-      } else if (apiError.message) {
-        errorMessage = apiError.message
-      }
     }
 
     return {

@@ -122,6 +122,7 @@
         :timeline="timeline"
         :scroll-left="timelineScrollLeft"
         :data-columns-width="dataColumnsWidth"
+        :plant="currentPlant"
         @navigate-prev="navigatePrev"
         @navigate-next="navigateNext"
         @order-click="handleOrderClick"
@@ -235,6 +236,13 @@ const handleResizeWidth = (width: number) => {
 // Computed
 const hasCredentials = computed(() => {
   return salesOrderService.hasCredentials() || localCredentialsState.value
+})
+
+// Get current plant from selected supervisor
+const currentPlant = computed(() => {
+  if (!selectedSupervisor.value) return ''
+  const supervisor = productionSupervisors.value.find(s => s.supervisor === selectedSupervisor.value)
+  return supervisor?.plant || ''
 })
 
 // Generate current date display for the header
@@ -482,7 +490,8 @@ const transformAllOrdersToCapacityData = (prodOrders: ProductionOrderDto[], plan
       operations: 1,
       highlighted: false,
       type: 'production',
-      quantity: order.totalQuantity
+      quantity: order.totalQuantity,
+      productionVersion: order.productionVersion
     }))
 
   // Pool orders - unscheduled planned orders
@@ -517,7 +526,8 @@ const transformAllOrdersToCapacityData = (prodOrders: ProductionOrderDto[], plan
         startDateTime: startDateTime,
         endDateTime: endDateTime,
         durationMinutes: durationMinutes,
-        startPosition: startPosition
+        startPosition: startPosition,
+        productionVersion: order.productionVersion // ✅ ADD THIS LINE
       }
     })
 
@@ -708,11 +718,18 @@ const handleAllocateOrder = async (order: any) => {
     if (order.type === 'production') {
       console.log('📦 Calling productionOrderService.updateProductionOrder for production order')
       
-      // For production orders, use mfgOrderScheduledStartDate/Time fields
+      // For production orders, combine date and time into LocalDateTime format
+      const startDate = order.mfgOrderScheduledStartDate || order.startDate
+      const startTime = order.mfgOrderScheduledStartTime || '00:00'
+      const scheduledStartDateTime = `${startDate}T${startTime}:00`
+      
+      console.log('   Combined scheduledStartDateTime:', scheduledStartDateTime)
+      console.log('   Calling with schedule=false to remove from plan')
+      
       result = await productionOrderService.updateProductionOrder(
         order.orderNo,
-        order.mfgOrderScheduledStartDate || order.startDate,
-        order.mfgOrderScheduledStartTime || '00:00'
+        scheduledStartDateTime,
+        false  // schedule = false to remove from plan
       )
     } else if (order.type === 'planned') {
       console.log('📋 Calling plannedOrderService.deallocatePlannedOrder for planned order')

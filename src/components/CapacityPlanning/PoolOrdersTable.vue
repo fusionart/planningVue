@@ -87,6 +87,7 @@
     <PlanOrderDialog
       v-model:visible="planOrderDialogVisible"
       :order="selectedOrder"
+      :plant="plant"
       @success="handlePlanOrderSuccess"
       @cancel="closePlanOrderDialog"
     />
@@ -109,6 +110,7 @@ interface PoolOrder {
   highlighted: boolean;
   type: 'production' | 'planned';
   quantity: number;
+  productionVersion: string; // ✅ Changed from optional to required (both order types now have it)
 }
 
 interface TimelineSlot {
@@ -137,6 +139,10 @@ const props = defineProps({
   dataColumnsWidth: {
     type: Number,
     default: 640
+  },
+  plant: {
+    type: String,
+    default: ''
   }
 });
 

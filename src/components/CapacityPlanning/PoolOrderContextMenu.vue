@@ -12,7 +12,7 @@
     >
       <span class="context-menu-icon">📅</span>
       <span class="context-menu-text">
-        {{ isPlannedOrder ? 'Планирай' : 'Актуализирай и планирай' }}
+        {{ isPlannedOrder ? 'Планирай' : 'Планирай' }}
       </span>
     </div>
   </div>

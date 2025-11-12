@@ -385,9 +385,15 @@ const fetchProductionVersions = async () => {
     productionVersions.value = []
     selectedProductionVersion.value = ''
 
+    console.log('🔍 DEBUG: Full order object:', props.order)
+    console.log('🔍 DEBUG: Order type:', props.order?.type)
+    console.log('🔍 DEBUG: Is planned order?', isPlannedOrder.value)
+    console.log('🔍 DEBUG: Production version field:', props.order?.productionVersion)
+
     console.log('🔍 Fetching production versions for:', {
       material: props.order.material,
-      plant: convertedPlantNumber.value
+      plant: convertedPlantNumber.value,
+      orderProductionVersion: props.order?.productionVersion
     })
 
     const versions = await productionOrderService.getProductionVersionsByMaterial(
@@ -398,12 +404,44 @@ const fetchProductionVersions = async () => {
     productionVersions.value = versions
     productionVersionsKey.value++
 
-    console.log('✅ Production versions loaded:', versions)
+    console.log('✅ Production versions loaded:', {
+      count: versions.length,
+      versions: versions.map(v => ({
+        id: v.id,
+        number: v.productionVersionNumber,
+        description: v.description
+      }))
+    })
 
-    // Auto-select if only one version exists
-    if (versions.length === 1) {
+    // Auto-select production version from order if available (for BOTH planned and production orders)
+    if (props.order?.productionVersion) {
+      const orderVersionNumber = props.order.productionVersion.toString().trim()
+      console.log('🔎 Looking for version:', orderVersionNumber, 'Order type:', isPlannedOrder.value ? 'planned' : 'production')
+      
+      const matchingVersion = versions.find(v => {
+        const versionNum = v.productionVersionNumber.toString().trim()
+        console.log(`  Comparing: "${versionNum}" === "${orderVersionNumber}" => ${versionNum === orderVersionNumber}`)
+        return versionNum === orderVersionNumber
+      })
+      
+      if (matchingVersion) {
+        selectedProductionVersion.value = orderVersionNumber
+        console.log('✅ Auto-selected version from order:', selectedProductionVersion.value)
+        // Force reactivity
+        await nextTick()
+      } else {
+        console.warn('⚠️ Production version from order not found in available versions')
+        console.warn('   Looking for:', orderVersionNumber)
+        console.warn('   Available versions:', versions.map(v => v.productionVersionNumber))
+      }
+    }
+    // Auto-select if only one version exists (fallback when no production version in order)
+    else if (versions.length === 1) {
       selectedProductionVersion.value = versions[0].productionVersionNumber.toString()
-      console.log('✅ Auto-selected version:', selectedProductionVersion.value)
+      console.log('✅ Auto-selected single available version:', selectedProductionVersion.value)
+      await nextTick()
+    } else {
+      console.log('ℹ️ No auto-selection: no production version in order and multiple versions available')
     }
 
   } catch (error) {
