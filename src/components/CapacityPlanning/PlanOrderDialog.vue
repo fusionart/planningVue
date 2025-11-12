@@ -314,6 +314,10 @@ const productionVersionsKey = ref(0)
 // Quantity
 const quantity = ref('')
 
+// Initial values for change detection
+const initialProductionVersion = ref<string>('')
+const initialQuantity = ref<string>('')
+
 const isProcessing = ref(false)
 const showValidation = ref(false)
 const errorMessage = ref('')
@@ -372,6 +376,16 @@ const planStatusText = computed(() => {
   }
 })
 
+// Check if production version has changed
+const hasProductionVersionChanged = computed(() => {
+  return selectedProductionVersion.value !== initialProductionVersion.value
+})
+
+// Check if quantity has changed
+const hasQuantityChanged = computed(() => {
+  return quantity.value.trim() !== initialQuantity.value.trim()
+})
+
 // Fetch production versions
 const fetchProductionVersions = async () => {
   if (!props.order?.material || !convertedPlantNumber.value) {
@@ -426,6 +440,7 @@ const fetchProductionVersions = async () => {
       
       if (matchingVersion) {
         selectedProductionVersion.value = orderVersionNumber
+        initialProductionVersion.value = orderVersionNumber // Store initial value
         console.log('✅ Auto-selected version from order:', selectedProductionVersion.value)
         // Force reactivity
         await nextTick()
@@ -438,6 +453,7 @@ const fetchProductionVersions = async () => {
     // Auto-select if only one version exists (fallback when no production version in order)
     else if (versions.length === 1) {
       selectedProductionVersion.value = versions[0].productionVersionNumber.toString()
+      initialProductionVersion.value = selectedProductionVersion.value // Store initial value
       console.log('✅ Auto-selected single available version:', selectedProductionVersion.value)
       await nextTick()
     } else {
@@ -448,6 +464,7 @@ const fetchProductionVersions = async () => {
     console.error('❌ Failed to fetch production versions:', error)
     productionVersions.value = []
     selectedProductionVersion.value = ''
+    initialProductionVersion.value = ''
   } finally {
     isLoadingVersions.value = false
   }
@@ -628,7 +645,7 @@ const handlePlan = async () => {
         errorMessage.value = result.message || 'Възникна грешка при планирането'
       }
     } else {
-      // Handle production order (new logic with 3 API calls)
+      // Handle production order (with conditional API calls)
       await handleProductionOrderUpdate()
     }
   } catch (error) {
@@ -642,37 +659,59 @@ const handlePlan = async () => {
   }
 }
 
-// New method for handling production order updates
+// Updated method for handling production order updates with conditional calls
 const handleProductionOrderUpdate = async () => {
   try {
-    // Step 1: Update production version
-    planStatus.value = 'updatingVersion'
-    const versionResult = await productionOrderService.updateProductionVersion(
-      props.order.orderNo,
-      selectedProductionVersion.value
-    )
+    console.log('🔍 Checking for changes:', {
+      hasProductionVersionChanged: hasProductionVersionChanged.value,
+      hasQuantityChanged: hasQuantityChanged.value,
+      currentVersion: selectedProductionVersion.value,
+      initialVersion: initialProductionVersion.value,
+      currentQuantity: quantity.value,
+      initialQuantity: initialQuantity.value
+    })
 
-    if (!versionResult.success) {
-      throw new Error(versionResult.message || 'Грешка при актуализиране на производствената версия')
+    // Step 1: Update production version (only if changed)
+    if (hasProductionVersionChanged.value) {
+      planStatus.value = 'updatingVersion'
+      console.log('🔧 Production version changed, calling updateProductionVersion')
+      
+      const versionResult = await productionOrderService.updateProductionVersion(
+        props.order.orderNo,
+        selectedProductionVersion.value
+      )
+
+      if (!versionResult.success) {
+        throw new Error(versionResult.message || 'Грешка при актуализиране на производствената версия')
+      }
+
+      planStatus.value = 'versionUpdated'
+    } else {
+      console.log('ℹ️ Production version unchanged, skipping updateProductionVersion')
     }
 
-    planStatus.value = 'versionUpdated'
+    // Step 2: Update quantity (only if changed)
+    if (hasQuantityChanged.value) {
+      planStatus.value = 'updatingQuantity'
+      console.log('📦 Quantity changed, calling updateProductionOrderQuantity')
+      
+      const quantityResult = await productionOrderService.updateProductionOrderQuantity(
+        props.order.orderNo,
+        quantity.value
+      )
 
-    // Step 2: Update quantity
-    planStatus.value = 'updatingQuantity'
-    const quantityResult = await productionOrderService.updateProductionOrderQuantity(
-      props.order.orderNo,
-      quantity.value
-    )
+      if (!quantityResult.success) {
+        throw new Error(quantityResult.message || 'Грешка при актуализиране на количеството')
+      }
 
-    if (!quantityResult.success) {
-      throw new Error(quantityResult.message || 'Грешка при актуализиране на количеството')
+      planStatus.value = 'quantityUpdated'
+    } else {
+      console.log('ℹ️ Quantity unchanged, skipping updateProductionOrderQuantity')
     }
 
-    planStatus.value = 'quantityUpdated'
-
-    // Step 3: Schedule production order
+    // Step 3: Schedule production order (always called)
     planStatus.value = 'scheduling'
+    console.log('📅 Scheduling production order (always performed)')
     
     // Create LocalDateTime string from date and time
     const scheduledStartDateTime = `${opLtstSchedldProcgStrtDte.value}T${opLtstSchedldProcgStrtTme.value}:00`
@@ -713,6 +752,8 @@ const resetForm = () => {
   selectedProductionVersion.value = ''
   productionVersions.value = []
   quantity.value = ''
+  initialProductionVersion.value = ''
+  initialQuantity.value = ''
   showValidation.value = false
   errorMessage.value = ''
   successMessage.value = ''
@@ -723,9 +764,10 @@ const resetForm = () => {
 watch(() => props.visible, async (newVal) => {
   if (newVal) {
     resetForm()
-    // Set quantity from order
+    // Set quantity from order and store initial value
     if (props.order?.quantity) {
       quantity.value = props.order.quantity.toString()
+      initialQuantity.value = props.order.quantity.toString()
     }
     // Fetch production versions when dialog opens
     await nextTick()
