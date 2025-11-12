@@ -22,8 +22,34 @@
           <div class="col-quantity">Количество</div>
         </div>
         
+        <!-- Filter row -->
+        <div class="filter-row">
+          <div class="col-date"></div>
+          <div class="col-material">
+            <input 
+              type="text" 
+              v-model="materialFilter" 
+              placeholder="Филтър..."
+              class="filter-input"
+              @input="applyFilters"
+            />
+          </div>
+          <div class="col-matdesc"></div>
+          <div class="col-order"></div>
+          <div class="col-workctr2">
+            <input 
+              type="text" 
+              v-model="workcenterFilter" 
+              placeholder="Филтър..."
+              class="filter-input"
+              @input="applyFilters"
+            />
+          </div>
+          <div class="col-quantity"></div>
+        </div>
+        
         <div 
-          v-for="order in orders"
+          v-for="order in filteredOrders"
           :key="order.orderNo"
           class="data-row"
           :class="{ 'highlighted': order.highlighted }"
@@ -168,6 +194,10 @@ const selectedOrder = ref<PoolOrder | null>(null);
 // Plan Order Dialog state
 const planOrderDialogVisible = ref(false);
 
+// Filter state
+const materialFilter = ref('');
+const workcenterFilter = ref('');
+
 // Watch for width changes and log them
 watch(() => props.dataColumnsWidth, (newWidth) => {
   console.log('PoolOrdersTable width updated:', newWidth);
@@ -177,13 +207,41 @@ const handleTimelineScroll = (scrollLeft: number) => {
   emit('timeline-scroll', scrollLeft);
 };
 
+// Filtered orders based on material and workcenter filters
+const filteredOrders = computed(() => {
+  let filtered = props.orders;
+  
+  // Apply material filter (contains, case-insensitive)
+  if (materialFilter.value.trim()) {
+    const materialSearch = materialFilter.value.trim().toLowerCase();
+    filtered = filtered.filter(order => 
+      order.material.toLowerCase().includes(materialSearch)
+    );
+  }
+  
+  // Apply workcenter filter (contains, case-insensitive)
+  if (workcenterFilter.value.trim()) {
+    const workcenterSearch = workcenterFilter.value.trim().toLowerCase();
+    filtered = filtered.filter(order => 
+      order.workCenter.toLowerCase().includes(workcenterSearch)
+    );
+  }
+  
+  return filtered;
+});
+
 // Pool orders have no capacity bars (not scheduled yet)
 const timelineRows = computed(() => {
-  return props.orders.map(order => ({
+  return filteredOrders.value.map(order => ({
     id: order.orderNo,
     capacityBars: []
   }));
 });
+
+const applyFilters = () => {
+  // Filters are reactive through computed property
+  // This function can be used for any additional logic if needed
+};
 
 const formatQuantity = (quantity: number): string => {
   if (quantity === null || quantity === undefined) return '0';
@@ -370,6 +428,33 @@ onUnmounted(() => {
   height: 28px;
   min-height: 28px;
   align-items: center;
+}
+
+.filter-row {
+  display: flex;
+  border-bottom: 1px solid black;
+  background: #f5f5f5;
+  height: 28px;
+  min-height: 28px;
+  align-items: center;
+}
+
+.filter-input {
+  width: calc(100% - 8px);
+  height: 20px;
+  padding: 2px 4px;
+  border: 1px solid #999;
+  border-radius: 2px;
+  font-size: 11px;
+  font-family: Arial, sans-serif;
+  background: white;
+  color: #000000;
+}
+
+.filter-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 1px #3b82f6;
 }
 
 .data-row {
