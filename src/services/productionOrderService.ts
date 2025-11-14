@@ -499,6 +499,76 @@ class ProductionOrderService {
   }
 
   /**
+   * Get free capacity for scheduling
+   */
+  async getCapacity(
+    manufacturingOrder: string,  // Order number (production or planned)
+    isProductionOrder: boolean,
+    scheduleTime: string // LocalDateTime format: YYYY-MM-DDTHH:mm:ss
+  ): Promise<string> {
+    try {
+      const credentials = this.getCredentials()
+
+      if (!credentials.username || !credentials.password) {
+        throw new Error('Username or password is empty')
+      }
+
+      const params = {
+        username: btoa(credentials.username),
+        password: btoa(credentials.password),
+        manufacturingOrder,  // Use order number
+        isProductionOrder: isProductionOrder.toString(),
+        scheduleTime
+      }
+
+      // Build query string
+      const queryString = new URLSearchParams(params).toString()
+      const url = `${this.endpoint}/getCapacity?${queryString}`
+
+      console.log('📅 ========================================')
+      console.log('📅 CALLING getCapacity API')
+      console.log('📅 ========================================')
+      console.log('📅 URL:', url.replace(/password=[^&]+/, 'password=[HIDDEN]'))
+      console.log('📅 Parameters:', {
+        manufacturingOrder,
+        isProductionOrder,
+        scheduleTime
+      })
+
+      // Use GET request (matching backend @RequestMapping method = GET)
+      const response = await apiClient.get<string>(url, {})
+
+      console.log('📅 ========================================')
+      console.log('✅ getCapacity API RESPONSE RECEIVED')
+      console.log('📅 ========================================')
+      console.log('✅ Raw response:', response)
+      console.log('✅ Response type:', typeof response)
+      
+      // Extract the actual datetime string from response
+      let freeCapacityTime: string
+      if (typeof response === 'string') {
+        freeCapacityTime = response
+      } else if (response && typeof response === 'object') {
+        // If response is an object, try to extract the string value
+        freeCapacityTime = (response as any).data || (response as any).toString() || String(response)
+      } else {
+        freeCapacityTime = String(response)
+      }
+      
+      console.log('✅ Extracted free capacity time:', freeCapacityTime)
+      console.log('📅 ========================================')
+
+      return freeCapacityTime
+    } catch (error) {
+      console.error('❌ ========================================')
+      console.error('❌ FAILED TO GET CAPACITY')
+      console.error('❌ ========================================')
+      console.error('❌ Error:', error)
+      throw error
+    }
+  }
+
+  /**
    * Convert planned order to production order
    */
   async convertPlannedOrder(
@@ -711,63 +781,129 @@ class ProductionOrderService {
 
   /**
    * Update production order with scheduled start date/time and schedule flag
+   * Now includes capacity check before scheduling
    */
-  /**
- * Update production order with scheduled start date/time and schedule flag
- */
-async updateProductionOrder(
-  productionOrder: string,
-  scheduledStartDateTime: string,
-  schedule: boolean = true
-): Promise<ProductionOrderUpdateResponse> {
-  try {
-    const credentials = this.getCredentials()
+  async updateProductionOrder(
+    productionOrder: string,
+    scheduledStartDateTime: string,
+    schedule: boolean = true
+  ): Promise<ProductionOrderUpdateResponse> {
+    try {
+      console.log('🔵 ========================================')
+      console.log('🔵 updateProductionOrder CALLED')
+      console.log('🔵 ========================================')
+      console.log('🔵 Production Order:', productionOrder)
+      console.log('🔵 Requested Schedule Time:', scheduledStartDateTime)
+      console.log('🔵 Schedule:', schedule)
+      console.log('🔵 ========================================')
 
-    if (!credentials.username || !credentials.password) {
-      throw new Error('Username or password is empty')
-    }
+      const credentials = this.getCredentials()
 
-    // Build query string
-    const queryString = new URLSearchParams({
-      username: btoa(credentials.username),
-      password: btoa(credentials.password),
-      productionOrder: productionOrder,
-      scheduledStartDateTime: scheduledStartDateTime,
-      schedule: schedule.toString()
-    }).toString()
+      if (!credentials.username || !credentials.password) {
+        throw new Error('Username or password is empty')
+      }
 
-    const url = `${this.endpoint}/updateProductionOrder?${queryString}`
+      let finalScheduledDateTime = scheduledStartDateTime
 
-    if (isFeatureEnabled('DEBUG_MODE')) {
-      console.log('🔄 Calling updateProductionOrder:', {
-        productionOrder,
-        scheduledStartDateTime,
-        schedule
-      })
-    }
+      // If scheduling (not unscheduling), check capacity FIRST
+      if (schedule) {
+        console.log('✅ Scheduling order - checking capacity')
+        console.log('')
+        console.log('📅 ========================================')
+        console.log('📅 STEP 1: Checking capacity availability')
+        console.log('📅 ========================================')
+        console.log('📅 Calling getCapacity() method...')
 
-    const response = await apiClient.post<any>(url, null)
+        try {
+          // Call getCapacity API with order number
+          const freeCapacityTime = await this.getCapacity(
+            productionOrder,  // Use order number
+            true,             // isProductionOrder = true
+            scheduledStartDateTime
+          )
 
-    return {
-      success: true,
-      message: `Производствената поръчка ${productionOrder} беше успешно ${schedule ? 'планирана' : 'премахната от плана'}`
-    }
+          console.log('')
+          console.log('✅ ========================================')
+          console.log('✅ CAPACITY CHECK COMPLETED')
+          console.log('✅ ========================================')
+          console.log('✅ Original requested time:', scheduledStartDateTime)
+          console.log('✅ Capacity service returned:', freeCapacityTime)
+          console.log('✅ Will use capacity time for scheduling')
+          console.log('✅ ========================================')
+          
+          // USE the capacity service's returned time
+          finalScheduledDateTime = freeCapacityTime
+        } catch (capacityError) {
+          console.warn('')
+          console.warn('⚠️ ========================================')
+          console.warn('⚠️ CAPACITY CHECK FAILED')
+          console.warn('⚠️ ========================================')
+          console.warn('⚠️ Error:', capacityError)
+          console.warn('⚠️ Fallback: Using original requested time')
+          console.warn('⚠️ ========================================')
+          // Continue with original time if capacity check fails
+          finalScheduledDateTime = scheduledStartDateTime
+        }
+      } else {
+        console.log('ℹ️ ========================================')
+        console.log('ℹ️ SKIPPING CAPACITY CHECK')
+        console.log('ℹ️ ========================================')
+        console.log('ℹ️ Reason: Unscheduling order (removing from plan)')
+        console.log('ℹ️ ========================================')
+      }
 
-  } catch (error) {
-    console.error('❌ Failed to update production order:', error)
-    
-    let errorMessage = 'Възникна неочаквана грешка при актуализацията'
-    
-    if (error instanceof Error) {
-      errorMessage = error.message
-    }
+      console.log('')
+      console.log('🔷 ========================================')
+      console.log('🔷 STEP 2: Calling updateProductionOrder API')
+      console.log('🔷 ========================================')
+      console.log('🔷 Final scheduled time to use:', finalScheduledDateTime)
 
-    return {
-      success: false,
-      message: `Неуспешна актуализация на производствена поръчка ${productionOrder}: ${errorMessage}`
+      // Build query string with the final scheduled time (from capacity check or original)
+      const queryString = new URLSearchParams({
+        username: btoa(credentials.username),
+        password: btoa(credentials.password),
+        productionOrder: productionOrder,
+        scheduledStartDateTime: finalScheduledDateTime,
+        schedule: schedule.toString()
+      }).toString()
+
+      const url = `${this.endpoint}/updateProductionOrder?${queryString}`
+
+      console.log('🔷 URL:', url.replace(/password=[^&]+/, 'password=[HIDDEN]'))
+      console.log('🔷 Making POST request...')
+
+      const response = await apiClient.post<any>(url, null)
+
+      console.log('🔷 ========================================')
+      console.log('✅ updateProductionOrder API SUCCESS')
+      console.log('🔷 ========================================')
+      console.log('✅ Response:', response)
+      console.log('🔷 ========================================')
+
+      return {
+        success: true,
+        message: `Производствената поръчка ${productionOrder} беше успешно ${schedule ? 'планирана за ' + finalScheduledDateTime : 'премахната от плана'}`
+      }
+
+    } catch (error) {
+      console.error('❌ ========================================')
+      console.error('❌ updateProductionOrder FAILED')
+      console.error('❌ ========================================')
+      console.error('❌ Error:', error)
+      console.error('❌ ========================================')
+      
+      let errorMessage = 'Възникна неочаквана грешка при актуализацията'
+      
+      if (error instanceof Error) {
+        errorMessage = error.message
+      }
+
+      return {
+        success: false,
+        message: `Неуспешна актуализация на производствена поръчка ${productionOrder}: ${errorMessage}`
+      }
     }
   }
-}
 
   /**
    * Update production version for a production order

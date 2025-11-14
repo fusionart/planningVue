@@ -650,8 +650,8 @@ const handleCreate = async () => {
     
     const updateResult = await productionOrderService.updateProductionOrder(
       createdProductionOrder.value,
-      scheduledStartDate.value,
-      scheduledStartTime.value
+      `${scheduledStartDate.value}T${scheduledStartTime.value}:00`,
+      true
     )
 
     if (!updateResult.success) {
@@ -689,8 +689,8 @@ const handleCreate = async () => {
       
       const updateZP98Result = await productionOrderService.updateProductionOrder(
         createdZP98Order.value,
-        scheduledStartDate.value,
-        scheduledStartTime.value
+        `${scheduledStartDate.value}T${scheduledStartTime.value}:00`,
+        true
       )
 
       if (!updateZP98Result.success) {

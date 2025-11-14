@@ -8,7 +8,7 @@
       <div class="dialog-header">
         <h3 class="dialog-title">
           <span class="dialog-icon">📅</span>
-          {{ isPlannedOrder ? 'Планиране на поръчка' : 'Актуализиране и планиране на поръчка' }}
+          {{ isPlannedOrder ? 'Планиране на планова поръчка' : 'Планиране на производствена поръчка' }}
         </h3>
         <button 
           class="dialog-close-btn"
@@ -46,6 +46,10 @@
           <div class="info-row" v-if="plant">
             <span class="info-label">Завод:</span>
             <span class="info-value">{{ plant }} ({{ convertedPlantNumber }})</span>
+          </div>
+          <div class="info-row" v-if="productionSupervisor">
+            <span class="info-label">Производствен ръководител:</span>
+            <span class="info-value">{{ productionSupervisor }}</span>
           </div>
         </div>
 
@@ -287,7 +291,8 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  plant: ''
+  plant: '',
+  productionSupervisor: ''
 })
 
 const emit = defineEmits<{
@@ -399,11 +404,6 @@ const fetchProductionVersions = async () => {
     productionVersions.value = []
     selectedProductionVersion.value = ''
 
-    console.log('🔍 DEBUG: Full order object:', props.order)
-    console.log('🔍 DEBUG: Order type:', props.order?.type)
-    console.log('🔍 DEBUG: Is planned order?', isPlannedOrder.value)
-    console.log('🔍 DEBUG: Production version field:', props.order?.productionVersion)
-
     console.log('🔍 Fetching production versions for:', {
       material: props.order.material,
       plant: convertedPlantNumber.value,
@@ -430,34 +430,25 @@ const fetchProductionVersions = async () => {
     // Auto-select production version from order if available (for BOTH planned and production orders)
     if (props.order?.productionVersion) {
       const orderVersionNumber = props.order.productionVersion.toString().trim()
-      console.log('🔎 Looking for version:', orderVersionNumber, 'Order type:', isPlannedOrder.value ? 'planned' : 'production')
       
       const matchingVersion = versions.find(v => {
         const versionNum = v.productionVersionNumber.toString().trim()
-        console.log(`  Comparing: "${versionNum}" === "${orderVersionNumber}" => ${versionNum === orderVersionNumber}`)
         return versionNum === orderVersionNumber
       })
       
       if (matchingVersion) {
         selectedProductionVersion.value = orderVersionNumber
-        initialProductionVersion.value = orderVersionNumber // Store initial value
+        initialProductionVersion.value = orderVersionNumber
         console.log('✅ Auto-selected version from order:', selectedProductionVersion.value)
-        // Force reactivity
         await nextTick()
-      } else {
-        console.warn('⚠️ Production version from order not found in available versions')
-        console.warn('   Looking for:', orderVersionNumber)
-        console.warn('   Available versions:', versions.map(v => v.productionVersionNumber))
       }
     }
-    // Auto-select if only one version exists (fallback when no production version in order)
+    // Auto-select if only one version exists
     else if (versions.length === 1) {
       selectedProductionVersion.value = versions[0].productionVersionNumber.toString()
-      initialProductionVersion.value = selectedProductionVersion.value // Store initial value
+      initialProductionVersion.value = selectedProductionVersion.value
       console.log('✅ Auto-selected single available version:', selectedProductionVersion.value)
       await nextTick()
-    } else {
-      console.log('ℹ️ No auto-selection: no production version in order and multiple versions available')
     }
 
   } catch (error) {
@@ -475,7 +466,6 @@ const handleDateInput = (event: Event) => {
   const input = event.target as HTMLInputElement
   let value = input.value.replace(/[^\d.]/g, '')
   
-  // Auto-format as user types
   if (value.length >= 2 && value[2] !== '.') {
     value = value.slice(0, 2) + '.' + value.slice(2)
   }
@@ -489,7 +479,6 @@ const handleDateInput = (event: Event) => {
   displayProcgStartDate.value = value
   procgDateFormatError.value = ''
   
-  // If complete date, validate
   if (value.length === 10) {
     validateDateFormat()
   }
@@ -500,7 +489,6 @@ const handleTimeInput = (event: Event) => {
   const input = event.target as HTMLInputElement
   let value = input.value.replace(/[^\d:]/g, '')
   
-  // Auto-format as user types
   if (value.length >= 2 && value[2] !== ':') {
     value = value.slice(0, 2) + ':' + value.slice(2)
   }
@@ -511,7 +499,6 @@ const handleTimeInput = (event: Event) => {
   displayProcgStartTime.value = value
   procgTimeFormatError.value = ''
   
-  // If complete time, validate
   if (value.length === 5) {
     validateTimeFormat()
   }
@@ -521,9 +508,7 @@ const handleTimeInput = (event: Event) => {
 const validateDateFormat = () => {
   const dateStr = displayProcgStartDate.value
   
-  if (!dateStr) {
-    return
-  }
+  if (!dateStr) return
   
   const parts = dateStr.split('.')
   if (parts.length !== 3) {
@@ -548,7 +533,6 @@ const validateDateFormat = () => {
     return
   }
   
-  // Convert to YYYY-MM-DD format
   const formattedDate = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
   opLtstSchedldProcgStrtDte.value = formattedDate
   procgDateFormatError.value = ''
@@ -558,9 +542,7 @@ const validateDateFormat = () => {
 const validateTimeFormat = () => {
   const timeStr = displayProcgStartTime.value
   
-  if (!timeStr) {
-    return
-  }
+  if (!timeStr) return
   
   const parts = timeStr.split(':')
   if (parts.length !== 2) {
@@ -584,7 +566,6 @@ const validateTimeFormat = () => {
     return
   }
   
-  // Store in HH:mm format
   const formattedTime = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
   opLtstSchedldProcgStrtTme.value = formattedTime
   procgTimeFormatError.value = ''
@@ -619,8 +600,13 @@ const handlePlan = async () => {
   
   try {
     if (isPlannedOrder.value) {
-      // Handle planned order (existing logic)
+      // Handle planned order WITH material and supervisor
       planStatus.value = 'updating'
+      
+      console.log('📋 Planning planned order with capacity check')
+      console.log('   Order:', props.order.orderNo)
+      console.log('   Material:', props.order.material)
+      console.log('   Production Supervisor:', props.productionSupervisor)
       
       const result = await plannedOrderService.planOrder(
         props.order.orderNo,
@@ -645,7 +631,7 @@ const handlePlan = async () => {
         errorMessage.value = result.message || 'Възникна грешка при планирането'
       }
     } else {
-      // Handle production order (with conditional API calls)
+      // Handle production order
       await handleProductionOrderUpdate()
     }
   } catch (error) {
@@ -659,7 +645,7 @@ const handlePlan = async () => {
   }
 }
 
-// Updated method for handling production order updates with conditional calls
+// Updated method for handling production order updates WITH material and supervisor
 const handleProductionOrderUpdate = async () => {
   try {
     console.log('🔍 Checking for changes:', {
@@ -709,17 +695,24 @@ const handleProductionOrderUpdate = async () => {
       console.log('ℹ️ Quantity unchanged, skipping updateProductionOrderQuantity')
     }
 
-    // Step 3: Schedule production order (always called)
+    // Step 3: Schedule production order (always called - WITH CAPACITY CHECK)
     planStatus.value = 'scheduling'
-    console.log('📅 Scheduling production order (always performed)')
+    console.log('📅 Scheduling production order with capacity check')
+    console.log('   Order:', props.order.orderNo)
+    console.log('   Material:', props.order.material)
     
-    // Create LocalDateTime string from date and time
     const scheduledStartDateTime = `${opLtstSchedldProcgStrtDte.value}T${opLtstSchedldProcgStrtTme.value}:00`
+    
+    console.log('🔍 DEBUG: About to call updateProductionOrder with:')
+    console.log('   order.orderNo:', props.order.orderNo)
+    console.log('   scheduledStartDateTime:', scheduledStartDateTime)
+    console.log('   schedule:', true)
+    console.log('   order.material:', props.order.material)
     
     const scheduleResult = await productionOrderService.updateProductionOrder(
       props.order.orderNo,
       scheduledStartDateTime,
-      true // schedule = true
+      true                         // schedule = true
     )
 
     if (!scheduleResult.success) {
@@ -764,12 +757,10 @@ const resetForm = () => {
 watch(() => props.visible, async (newVal) => {
   if (newVal) {
     resetForm()
-    // Set quantity from order and store initial value
     if (props.order?.quantity) {
       quantity.value = props.order.quantity.toString()
       initialQuantity.value = props.order.quantity.toString()
     }
-    // Fetch production versions when dialog opens
     await nextTick()
     fetchProductionVersions()
   }

@@ -1,6 +1,5 @@
-// plannedOrderService.ts
+// plannedOrderService.ts - UPDATED for new API
 import { apiClient } from './apiClient'
-import { isFeatureEnabled } from '@/config/env'
 
 export interface UpdatePlannedOrderResponse {
   success: boolean
@@ -11,7 +10,7 @@ class PlannedOrderService {
   private readonly endpoint = '/api/sap'
 
   /**
-   * Get credentials from sessionStorage (same as other services)
+   * Get credentials from sessionStorage
    */
   private getCredentials() {
     try {
@@ -19,7 +18,6 @@ class PlannedOrderService {
       if (stored) {
         const credentials = JSON.parse(stored)
         if (credentials.username && credentials.password) {
-          // Decode from Base64 storage to get plain text
           return {
             username: atob(credentials.username),
             password: atob(credentials.password)
@@ -30,21 +28,81 @@ class PlannedOrderService {
       console.warn('Failed to retrieve stored credentials:', error)
     }
     
-    throw new Error('Липсват креденциали за вход')
+    throw new Error('Липсват Credenciali за вход')
   }
 
   /**
-   * Combine date and time into LocalDateTime format for backend
+   * Combine date and time into LocalDateTime format
    */
   private combineDateTime(date: string, time: string): string {
-    // date is in YYYY-MM-DD format, time is in HH:mm format
-    // Combine them into LocalDateTime format: YYYY-MM-DDTHH:mm:ss
-    // Spring's LocalDateTime requires seconds
     return `${date}T${time}:00`
   }
 
   /**
-   * Dispatch a planned order with scheduling information
+   * Get free capacity for scheduling (NEW API - uses order number)
+   */
+  async getCapacity(
+    manufacturingOrder: string,  // Order number
+    isProductionOrder: boolean,
+    scheduleTime: string
+  ): Promise<string> {
+    try {
+      const credentials = this.getCredentials()
+
+      if (!credentials.username || !credentials.password) {
+        throw new Error('Липсват Credenciali за вход')
+      }
+
+      const params = {
+        username: btoa(credentials.username),
+        password: btoa(credentials.password),
+        manufacturingOrder,  // Use order number
+        isProductionOrder: isProductionOrder.toString(),
+        scheduleTime
+      }
+
+      const queryString = new URLSearchParams(params).toString()
+      const url = `${this.endpoint}/getCapacity?${queryString}`
+
+      console.log('📅 ========================================')
+      console.log('📅 CALLING getCapacity API')
+      console.log('📅 ========================================')
+      console.log('📅 URL:', url.replace(/password=[^&]+/, 'password=[HIDDEN]'))
+      console.log('📅 Parameters:', {
+        manufacturingOrder,
+        isProductionOrder,
+        scheduleTime
+      })
+
+      // Use GET request
+      const response = await apiClient.get<string>(url, {})
+
+      console.log('📅 ========================================')
+      console.log('✅ getCapacity API RESPONSE RECEIVED')
+      console.log('📅 ========================================')
+      console.log('✅ Raw response:', response)
+      
+      let freeCapacityTime: string
+      if (typeof response === 'string') {
+        freeCapacityTime = response
+      } else if (response && typeof response === 'object') {
+        freeCapacityTime = (response as any).data || String(response)
+      } else {
+        freeCapacityTime = String(response)
+      }
+
+      console.log('✅ Extracted free capacity time:', freeCapacityTime)
+      console.log('📅 ========================================')
+
+      return freeCapacityTime
+    } catch (error) {
+      console.error('❌ FAILED TO GET CAPACITY:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Dispatch a planned order with capacity check
    */
   async dispatchPlannedOrder(
     plannedOrder: string,
@@ -55,38 +113,47 @@ class PlannedOrderService {
       const credentials = this.getCredentials()
 
       if (!credentials.username || !credentials.password) {
-        throw new Error('Липсват креденциали за вход')
+        throw new Error('Липсват Credenciali за вход')
       }
 
-      // Combine date and time for dispatch time (using processing start)
-      const dispatchTime = this.combineDateTime(
+      const requestedDispatchTime = this.combineDateTime(
         opLtstSchedldProcgStrtDte,
         opLtstSchedldProcgStrtTme
       )
 
-      // Use EXACT same pattern as productionOrderService.convertPlannedOrder
+      console.log('📅 Step 1: Checking capacity availability...')
+      console.log('   Requested time:', requestedDispatchTime)
+      console.log('   Planned Order:', plannedOrder)
+
+      // Call getCapacity with planned order number
+      const freeCapacityTime = await this.getCapacity(
+        plannedOrder,  // Use planned order number
+        false,         // isProductionOrder = false
+        requestedDispatchTime
+      )
+
+      console.log('✅ Capacity check returned free time:', freeCapacityTime)
+      console.log('📅 Step 2: Dispatching with free capacity time...')
+
       const params = {
         username: btoa(credentials.username),
         password: btoa(credentials.password),
         plannedOrder,
-        dispatchTime
+        dispatchTime: freeCapacityTime
       }
 
-      // Build query string manually EXACTLY like productionOrderService
       const queryString = new URLSearchParams(params).toString()
       const url = `${this.endpoint}/dispatchPlannedOrder?${queryString}`
 
-      console.log('📄 Calling dispatchPlannedOrder with URL:', url.replace(/password=[^&]+/, 'password=[HIDDEN]'))
-      console.log('📅 Dispatch DateTime:', dispatchTime)
+      console.log('📄 Calling dispatchPlannedOrder API')
 
-      // Use the same POST call pattern
       const response = await apiClient.post<any>(url, null)
 
-      console.log('✅ Planned order dispatch successful, response:', response)
+      console.log('✅ Planned order dispatch successful')
 
       return {
         success: true,
-        message: `Планираната поръчка ${plannedOrder} беше успешно диспечирана`
+        message: `Планираната поръчка ${plannedOrder} беше успешно диспечирана за ${freeCapacityTime}`
       }
 
     } catch (error) {
@@ -106,7 +173,7 @@ class PlannedOrderService {
   }
 
   /**
-   * Deallocate (allocate) a planned order with scheduling information
+   * Deallocate a planned order
    */
   async deallocatePlannedOrder(
     plannedOrder: string,
@@ -114,25 +181,17 @@ class PlannedOrderService {
     plndOrderPlannedStartTime: string
   ): Promise<UpdatePlannedOrderResponse> {
     try {
-      console.log('🔄 deallocatePlannedOrder called with:', {
-        plannedOrder,
-        plndOrderPlannedStartDate,
-        plndOrderPlannedStartTime
-      })
-
       const credentials = this.getCredentials()
 
       if (!credentials.username || !credentials.password) {
-        throw new Error('Липсват креденциали за вход')
+        throw new Error('Липсват Credenciali за вход')
       }
 
-      // Combine date and time for dispatch time
       const dispatchTime = this.combineDateTime(
         plndOrderPlannedStartDate,
         plndOrderPlannedStartTime
       )
 
-      // Use EXACT same pattern as other API calls
       const params = {
         username: btoa(credentials.username),
         password: btoa(credentials.password),
@@ -140,19 +199,14 @@ class PlannedOrderService {
         dispatchTime
       }
 
-      // Build query string manually
       const queryString = new URLSearchParams(params).toString()
       const url = `${this.endpoint}/deallocatePlannedOrder?${queryString}`
 
-      console.log('🔄 Calling deallocatePlannedOrder API')
-      console.log('   URL:', url.replace(/password=[^&]+/, 'password=[HIDDEN]'))
-      console.log('   Dispatch DateTime:', dispatchTime)
-      console.log('   Planned Order:', plannedOrder)
+      console.log('📄 Calling deallocatePlannedOrder API')
 
-      // Use the same POST call pattern
       const response = await apiClient.post<any>(url, null)
 
-      console.log('✅ Planned order deallocation successful, response:', response)
+      console.log('✅ Planned order deallocation successful')
 
       return {
         success: true,
@@ -176,49 +230,180 @@ class PlannedOrderService {
   }
 
   /**
-   * Update a planned order with production version and quantity
+   * Update planned order quantity
    */
-  async updatePlannedOrderDetails(
+  async updatePlannedOrderQuantity(
     plannedOrder: string,
-    productionVersion: string,
     quantity: string
   ): Promise<UpdatePlannedOrderResponse> {
     try {
       const credentials = this.getCredentials()
 
       if (!credentials.username || !credentials.password) {
-        throw new Error('Липсват креденциали за вход')
+        throw new Error('Липсват Credenciali за вход')
       }
 
-      // Use EXACT same pattern as productionOrderService
       const params = {
         username: btoa(credentials.username),
         password: btoa(credentials.password),
         plannedOrder,
-        productionVersion,
         quantity
       }
 
-      // Build query string manually
       const queryString = new URLSearchParams(params).toString()
-      const url = `${this.endpoint}/updatePlannedOrder?${queryString}`
+      const url = `${this.endpoint}/updatePlannedOrderQuantity?${queryString}`
 
-      console.log('📄 Calling updatePlannedOrder with URL:', url.replace(/password=[^&]+/, 'password=[HIDDEN]'))
-      console.log('📦 Production Version:', productionVersion)
-      console.log('📦 Quantity:', quantity)
+      console.log('📄 Calling updatePlannedOrderQuantity API')
 
-      // Use the same POST call pattern
       const response = await apiClient.post<any>(url, null)
 
-      console.log('✅ Planned order update successful, response:', response)
+      console.log('✅ Planned order quantity update successful')
 
       return {
         success: true,
-        message: `Планираната поръчка ${plannedOrder} беше успешно актуализирана`
+        message: `Количеството на поръчка ${plannedOrder} беше успешно актуализирано`
       }
 
     } catch (error) {
-      console.error('❌ Failed to update planned order:', error)
+      console.error('❌ Failed to update planned order quantity:', error)
+      
+      let errorMessage = 'Възникна неочаквана грешка при актуализацията на количеството'
+      
+      if (error instanceof Error) {
+        errorMessage = error.message
+      }
+
+      return {
+        success: false,
+        message: `Неуспешна актуализация на количеството за поръчка ${plannedOrder}: ${errorMessage}`
+      }
+    }
+  }
+
+  /**
+   * Update planned order production version
+   */
+  async updatePlannedOrderProductionVersion(
+    plannedOrder: string,
+    productionVersion: string
+  ): Promise<UpdatePlannedOrderResponse> {
+    try {
+      const credentials = this.getCredentials()
+
+      if (!credentials.username || !credentials.password) {
+        throw new Error('Липсват Credenciali за вход')
+      }
+
+      const params = {
+        username: btoa(credentials.username),
+        password: btoa(credentials.password),
+        plannedOrder,
+        productionVersion
+      }
+
+      const queryString = new URLSearchParams(params).toString()
+      const url = `${this.endpoint}/updatePlannedOrderProductionVersion?${queryString}`
+
+      console.log('📄 Calling updatePlannedOrderProductionVersion API')
+
+      const response = await apiClient.post<any>(url, null)
+
+      console.log('✅ Planned order production version update successful')
+
+      return {
+        success: true,
+        message: `Производствената версия на поръчка ${plannedOrder} беше успешно актуализирана`
+      }
+
+    } catch (error) {
+      console.error('❌ Failed to update planned order production version:', error)
+      
+      let errorMessage = 'Възникна неочаквана грешка при актуализацията на производствената версия'
+      
+      if (error instanceof Error) {
+        errorMessage = error.message
+      }
+
+      return {
+        success: false,
+        message: `Неуспешна актуализация на производствената версия за поръчка ${plannedOrder}: ${errorMessage}`
+      }
+    }
+  }
+
+  /**
+   * Update planned order details (quantity and/or production version)
+   * Only calls APIs for changed values
+   */
+  async updatePlannedOrderDetails(
+    plannedOrder: string,
+    productionVersion: string | null,
+    quantity: string | null,
+    originalProductionVersion?: string,
+    originalQuantity?: string
+  ): Promise<UpdatePlannedOrderResponse> {
+    try {
+      const updates: string[] = []
+      let hasError = false
+      let errorMessages: string[] = []
+
+      // Update production version if it has changed
+      if (productionVersion !== null && productionVersion !== originalProductionVersion) {
+        console.log('📋 Production version changed, updating...')
+        const pvResult = await this.updatePlannedOrderProductionVersion(
+          plannedOrder,
+          productionVersion
+        )
+        
+        if (pvResult.success) {
+          updates.push('производствена версия')
+        } else {
+          hasError = true
+          errorMessages.push(pvResult.message || 'Грешка при актуализация на производствената версия')
+        }
+      } else if (productionVersion === null || productionVersion === originalProductionVersion) {
+        console.log('📋 Production version unchanged, skipping update')
+      }
+
+      // Update quantity if it has changed
+      if (quantity !== null && quantity !== originalQuantity) {
+        console.log('📋 Quantity changed, updating...')
+        const qtyResult = await this.updatePlannedOrderQuantity(
+          plannedOrder,
+          quantity
+        )
+        
+        if (qtyResult.success) {
+          updates.push('количество')
+        } else {
+          hasError = true
+          errorMessages.push(qtyResult.message || 'Грешка при актуализация на количеството')
+        }
+      } else if (quantity === null || quantity === originalQuantity) {
+        console.log('📋 Quantity unchanged, skipping update')
+      }
+
+      if (hasError) {
+        return {
+          success: false,
+          message: `Частична актуализация на поръчка ${plannedOrder}: ${errorMessages.join('; ')}`
+        }
+      }
+
+      if (updates.length === 0) {
+        return {
+          success: true,
+          message: `Няма промени за актуализация на поръчка ${plannedOrder}`
+        }
+      }
+
+      return {
+        success: true,
+        message: `Планираната поръчка ${plannedOrder} беше успешно актуализирана (${updates.join(', ')})`
+      }
+
+    } catch (error) {
+      console.error('❌ Failed to update planned order details:', error)
       
       let errorMessage = 'Възникна неочаквана грешка при актуализацията'
       
@@ -234,30 +419,34 @@ class PlannedOrderService {
   }
 
   /**
-   * Complete plan operation: dispatch order and then update details
+   * Complete plan operation: update details and dispatch
    */
   async planOrder(
     plannedOrder: string,
     opLtstSchedldProcgStrtDte: string,
     opLtstSchedldProcgStrtTme: string,
     productionVersion: string,
-    quantity: string
+    quantity: string,
+    originalProductionVersion?: string,
+    originalQuantity?: string
   ): Promise<UpdatePlannedOrderResponse> {
     try {
-      // Step 1: Update planned order with production version and quantity FIRST
+      // Step 1: Update planned order details (only if changed)
       console.log('📋 Step 1: Updating planned order details...')
       const updateResult = await this.updatePlannedOrderDetails(
         plannedOrder,
         productionVersion,
-        quantity
+        quantity,
+        originalProductionVersion,
+        originalQuantity
       )
 
       if (!updateResult.success) {
         return updateResult
       }
 
-      // Step 2: Dispatch the planned order AFTER successful update
-      console.log('📋 Step 2: Dispatching planned order...')
+      // Step 2: Dispatch with capacity check
+      console.log('📋 Step 2: Dispatching planned order with capacity check...')
       const dispatchResult = await this.dispatchPlannedOrder(
         plannedOrder,
         opLtstSchedldProcgStrtDte,
